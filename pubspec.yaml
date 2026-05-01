@@ -1,0 +1,29 @@
+name: finflow
+description: "Финансовая грамотность — твой путь к свободе. Личный финансовый менеджер с планированием бюджета по месяцам, сравнением плана и факта, аналитикой и обучением."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.3.3
+  intl: ^0.19.0
+  fl_chart: ^0.69.2
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
