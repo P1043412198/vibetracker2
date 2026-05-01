@@ -116,7 +116,7 @@ export function BudgetPlanningTab() {
       <section className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <CalendarRange className="w-6 h-6 text-blue-400" />
+            <CalendarRange className="w-6 h-6 text-emerald-400" />
             Планирование: {format(nextMonthStart, 'LLLL yyyy', { locale: ru })}
           </h2>
           <p className="text-sm text-zinc-400">Прогноз на основе ваших регулярных платежей и лимитов</p>
@@ -221,7 +221,7 @@ export function BudgetPlanningTab() {
         <section className="space-y-6">
           <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 space-y-6">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              <ArrowRightLeft className="w-5 h-5 text-blue-400" />
+              <ArrowRightLeft className="w-5 h-5 text-emerald-400" />
               Сравнение с фактом
             </h3>
 
@@ -283,20 +283,20 @@ export function BudgetPlanningTab() {
           </div>
 
           {/* Actionable Insights */}
-          <div className="bg-blue-500/5 border border-blue-500/20 rounded-3xl p-6 space-y-4">
-            <div className="flex items-center gap-3 text-blue-400">
+          <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-6 space-y-4">
+            <div className="flex items-center gap-3 text-emerald-400">
               <Info className="w-5 h-5" />
               <h4 className="text-sm font-bold uppercase tracking-wider">Анализ плана</h4>
             </div>
             <ul className="space-y-3">
               <li className="flex items-start gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
                 <p className="text-xs text-zinc-400 leading-relaxed">
                   Ваши фиксированные расходы составляют <strong>{Math.round((nextMonthPlan.fixedExpense / nextMonthPlan.totalExpense) * 100)}%</strong> от общего бюджета. Чем ниже этот процент, тем более гибкий ваш бюджет.
                 </p>
               </li>
               <li className="flex items-start gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
                 <p className="text-xs text-zinc-400 leading-relaxed">
                   {nextMonthPlan.totalExpense > currentActuals.expense 
                     ? "Запланированные расходы выше текущих. Проверьте, не слишком ли оптимистичны ваши лимиты в категориях."

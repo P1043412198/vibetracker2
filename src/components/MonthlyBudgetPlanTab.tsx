@@ -1,27 +1,31 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  format, startOfMonth, endOfMonth, parseISO, isWithinInterval,
-  getDaysInMonth, getDate, addMonths, subMonths, isSameMonth, isAfter,
+  format, startOfMonth, addMonths, subMonths, isSameMonth, isAfter,
 } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import {
   ChevronLeft, ChevronRight, Plus, Save, Trash2, Edit3, X,
   TrendingUp, TrendingDown, Wallet, Calculator, Sparkles, AlertTriangle,
-  CheckCircle2, Calendar,
+  CheckCircle2, Calendar, Copy, Repeat, History,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { useCurrencyConverter } from '../hooks/useCurrencyConverter';
 import { cn } from '../lib/utils';
-import type { MonthlyBudgetPlan, Currency } from '../types';
+import type { Currency } from '../types';
+import {
+  monthKeyOf, previousMonthKey,
+  computeMonthFacts, daysLeftInMonth, effectiveLimit,
+  computeFreeFunds, dailyAllowance, subscriptionsBudget,
+} from '../lib/monthlyBudget';
+
+const CURRENCIES: Currency[] = ['BYN', 'USD', 'EUR', 'RUB', 'PLN', 'USDT'];
 
 // Default expense categories used when no plan exists yet
 const DEFAULT_CATEGORIES = [
   'Продукты', 'Транспорт', 'Жильё', 'Развлечения', 'Одежда',
   'Здоровье', 'Рестораны', 'Связь', 'Подарки', 'Подписки', 'Другое',
 ];
-
-const monthKeyOf = (date: Date) => format(date, 'yyyy-MM');
 
 function formatMoney(value: number, currency: string) {
   return `${value.toLocaleString('ru-RU', {
@@ -30,7 +34,13 @@ function formatMoney(value: number, currency: string) {
   })} ${currency}`;
 }
 
-type CategoryRow = { category: string; planned: number; actual: number };
+type CategoryRow = {
+  category: string;
+  planned: number;     // base limit from the active plan
+  carry: number;       // rollover carry-in (>=0)
+  effective: number;   // planned + carry
+  actual: number;
+};
 
 interface DonutProps {
   income: number;
@@ -175,6 +185,7 @@ export function MonthlyBudgetPlanTab() {
     transactions = [],
     accounts = [],
     monthlyBudgetPlans = [],
+    regularPayments = [],
     saveMonthlyBudgetPlan,
     deleteMonthlyBudgetPlan,
     baseCurrency = 'BYN',
@@ -184,104 +195,94 @@ export function MonthlyBudgetPlanTab() {
 
   const [month, setMonth] = useState<Date>(() => startOfMonth(new Date()));
   const monthKey = monthKeyOf(month);
+  const prevKey = previousMonthKey(monthKey);
 
   const plan = useMemo(
     () => monthlyBudgetPlans.find(p => p.monthKey === monthKey),
     [monthlyBudgetPlans, monthKey]
   );
+  const previousPlan = useMemo(
+    () => monthlyBudgetPlans.find(p => p.monthKey === prevKey),
+    [monthlyBudgetPlans, prevKey]
+  );
 
-  // Compute factual income/expense for selected month in base currency.
-  const stats = useMemo(() => {
-    const start = startOfMonth(month);
-    const end = endOfMonth(month);
-    const monthTx = transactions.filter(t => {
-      try {
-        return isWithinInterval(parseISO(t.date), { start, end });
-      } catch {
-        return false;
-      }
-    });
+  // Effective currency: per-plan currency overrides global base.
+  const planCurrency: Currency = (plan?.currency as Currency) || baseCurrency;
 
-    const income = monthTx
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => {
-        const acc = accounts.find(a => a.id === t.accountId);
-        const cur = acc?.currency || baseCurrency;
-        return sum + convert(t.amount, cur, baseCurrency);
-      }, 0);
+  // Compute factual income/expense for selected month in plan currency.
+  const stats = useMemo(
+    () => computeMonthFacts({ month, transactions, accounts, baseCurrency: planCurrency, convert }),
+    [month, transactions, accounts, planCurrency, convert]
+  );
 
-    const expense = monthTx
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => {
-        const acc = accounts.find(a => a.id === t.accountId);
-        const cur = acc?.currency || baseCurrency;
-        return sum + convert(t.amount, cur, baseCurrency);
-      }, 0);
-
-    const expenseByCategory: Record<string, number> = {};
-    for (const t of monthTx) {
-      if (t.type !== 'expense') continue;
-      const acc = accounts.find(a => a.id === t.accountId);
-      const cur = acc?.currency || baseCurrency;
-      const v = convert(t.amount, cur, baseCurrency);
-      expenseByCategory[t.category] = (expenseByCategory[t.category] || 0) + v;
-    }
-
-    return { income, expense, expenseByCategory, monthTx };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, accounts, month, baseCurrency]);
+  // Previous-month actuals (for rollover carry-in calculation).
+  const previousStats = useMemo(
+    () => computeMonthFacts({
+      month: subMonths(month, 1),
+      transactions, accounts, baseCurrency: planCurrency, convert,
+    }),
+    [month, transactions, accounts, planCurrency, convert]
+  );
 
   const plannedIncome = plan?.plannedIncome ?? 0;
   const plannedTotalExpense = (plan?.categoryPlans || []).reduce((s, c) => s + c.planned, 0);
 
-  // Show planned values when a plan exists, otherwise actuals only.
-  const incomeRef = plannedIncome > 0 ? plannedIncome : stats.income;
+  const { incomeRef, free } = computeFreeFunds(plannedIncome, stats.income, stats.expense);
   const expenseRef = stats.expense;
-  const free = incomeRef - expenseRef;
 
-  // "Свободно сегодня" / "Можно тратить в день":
-  // For current month, use days remaining; for past months use 1; for future, days in month.
   const today = new Date();
-  const daysInMonth = getDaysInMonth(month);
-  const daysLeft = isSameMonth(month, today)
-    ? Math.max(daysInMonth - getDate(today) + 1, 1)
-    : isAfter(month, today) ? daysInMonth : 1;
+  const daysLeft = daysLeftInMonth(month, today);
+  const dailyAllowanceValue = dailyAllowance(free, daysLeft);
 
-  const dailyAllowance = free > 0 ? free / daysLeft : 0;
-
-  // Build category rows merged from plan + actuals.
+  // Category rows merged from plan + actuals + (optional) carry-in from prev month.
   const categoryRows: CategoryRow[] = useMemo(() => {
     const rows = new Map<string, CategoryRow>();
     for (const c of plan?.categoryPlans || []) {
-      rows.set(c.category, { category: c.category, planned: c.planned, actual: 0 });
+      const carry = effectiveLimit({
+        category: c.category,
+        monthPlan: plan,
+        previousPlan,
+        previousActuals: previousStats.expenseByCategory,
+      }) - c.planned;
+      rows.set(c.category, {
+        category: c.category,
+        planned: c.planned,
+        carry: Math.max(carry, 0),
+        effective: c.planned + Math.max(carry, 0),
+        actual: 0,
+      });
     }
     for (const [cat, val] of Object.entries(stats.expenseByCategory)) {
       const r = rows.get(cat);
       if (r) r.actual = val;
-      else rows.set(cat, { category: cat, planned: 0, actual: val });
+      else rows.set(cat, { category: cat, planned: 0, carry: 0, effective: 0, actual: val });
     }
-    return Array.from(rows.values()).sort((a, b) => (b.planned + b.actual) - (a.planned + a.actual));
-  }, [plan, stats.expenseByCategory]);
+    return Array.from(rows.values())
+      .sort((a, b) => (b.effective + b.actual) - (a.effective + a.actual));
+  }, [plan, previousPlan, previousStats.expenseByCategory, stats.expenseByCategory]);
 
   // Edit modal state
   const [isEditing, setEditing] = useState(false);
   const [editIncome, setEditIncome] = useState<string>('');
   const [editCategories, setEditCategories] = useState<{ category: string; planned: string }[]>([]);
   const [editNotes, setEditNotes] = useState('');
+  const [editCurrency, setEditCurrency] = useState<Currency>(planCurrency);
+  const [editRollover, setEditRollover] = useState<boolean>(false);
 
   useEffect(() => {
     if (!isEditing) return;
     setEditIncome(plan?.plannedIncome ? String(plan.plannedIncome) : '');
     setEditNotes(plan?.notes || '');
+    setEditCurrency((plan?.currency as Currency) || baseCurrency);
+    setEditRollover(Boolean(plan?.rollover));
     if (plan && plan.categoryPlans.length > 0) {
       setEditCategories(plan.categoryPlans.map(c => ({ category: c.category, planned: String(c.planned) })));
     } else {
-      // Seed from actual categories or defaults
       const seed = Object.keys(stats.expenseByCategory);
       const cats = seed.length > 0 ? seed : DEFAULT_CATEGORIES;
       setEditCategories(cats.map(c => ({ category: c, planned: '' })));
     }
-  }, [isEditing, plan, stats.expenseByCategory]);
+  }, [isEditing, plan, stats.expenseByCategory, baseCurrency]);
 
   const handleSavePlan = () => {
     const parsedIncome = Number(editIncome) || 0;
@@ -293,8 +294,9 @@ export function MonthlyBudgetPlanTab() {
       ...(plan?.id ? { id: plan.id } : {}),
       monthKey,
       plannedIncome: parsedIncome,
-      currency: baseCurrency,
+      currency: editCurrency,
       categoryPlans: cleaned,
+      rollover: editRollover,
       notes: editNotes,
     });
     setEditing(false);
@@ -308,6 +310,48 @@ export function MonthlyBudgetPlanTab() {
       { category: 'Хотелки (30%)', planned: String(Math.round(inc * 0.3)) },
       { category: 'Сбережения (20%)', planned: String(Math.round(inc * 0.2)) },
     ]);
+  };
+
+  // Pull plan structure (income + categories) verbatim from previous month.
+  const copyFromPreviousPlan = () => {
+    if (!previousPlan) return;
+    setEditIncome(String(previousPlan.plannedIncome || ''));
+    setEditCategories(
+      previousPlan.categoryPlans.length > 0
+        ? previousPlan.categoryPlans.map(c => ({ category: c.category, planned: String(c.planned) }))
+        : []
+    );
+  };
+
+  // Use previous month's actual spending as next month's plan baseline.
+  const seedFromPreviousActuals = () => {
+    const cats = Object.entries(previousStats.expenseByCategory)
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, v]) => ({ category: cat, planned: String(Math.round(v)) }));
+    if (cats.length === 0) return;
+    setEditCategories(cats);
+    if (!editIncome) {
+      const inc = previousStats.income;
+      if (inc > 0) setEditIncome(String(Math.round(inc)));
+    }
+  };
+
+  // Auto-fill the "Подписки" limit from active recurring payments.
+  const fillSubscriptionsFromRegular = () => {
+    const value = subscriptionsBudget({
+      payments: regularPayments,
+      baseCurrency: editCurrency,
+      convert,
+    });
+    if (value <= 0) return;
+    setEditCategories(prev => {
+      const existing = prev.find(c => c.category.trim().toLowerCase() === 'подписки');
+      if (existing) {
+        return prev.map(c => c === existing ? { ...c, planned: String(Math.round(value)) } : c);
+      }
+      return [...prev, { category: 'Подписки', planned: String(Math.round(value)) }];
+    });
   };
 
   return (
@@ -347,16 +391,16 @@ export function MonthlyBudgetPlanTab() {
                 "text-2xl font-black",
                 free >= 0 ? "text-emerald-700" : "text-rose-600"
               )}>
-                {formatMoney(free, baseCurrency)}
+                {formatMoney(free, planCurrency)}
               </span>
               <span className="text-[10px] text-emerald-700/60 mt-1">
-                из {formatMoney(incomeRef, baseCurrency)}
+                из {formatMoney(incomeRef, planCurrency)}
               </span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 w-full mt-4">
-            <Stat label="Доход" value={incomeRef} suffix={baseCurrency} accent="emerald" />
-            <Stat label="Расход" value={expenseRef} suffix={baseCurrency} accent="rose" />
+            <Stat label="Доход" value={incomeRef} suffix={planCurrency} accent="emerald" />
+            <Stat label="Расход" value={expenseRef} suffix={planCurrency} accent="rose" />
           </div>
         </div>
 
@@ -365,7 +409,7 @@ export function MonthlyBudgetPlanTab() {
           <BigStatCard
             icon={<Sparkles className="w-5 h-5 text-emerald-700" />}
             title="Свободно сегодня"
-            value={formatMoney(free, baseCurrency)}
+            value={formatMoney(free, planCurrency)}
             hint={
               isSameMonth(month, today)
                 ? `Осталось ${daysLeft} дн.`
@@ -378,17 +422,17 @@ export function MonthlyBudgetPlanTab() {
           <BigStatCard
             icon={<Calculator className="w-5 h-5 text-emerald-700" />}
             title="Можно тратить в день"
-            value={formatMoney(dailyAllowance, baseCurrency)}
+            value={formatMoney(dailyAllowanceValue, planCurrency)}
             hint={isSameMonth(month, today) ? 'До конца месяца' : '—'}
             accent="emerald"
           />
           <BigStatCard
             icon={<Wallet className="w-5 h-5 text-emerald-700" />}
             title="План расходов"
-            value={formatMoney(plannedTotalExpense, baseCurrency)}
+            value={formatMoney(plannedTotalExpense, planCurrency)}
             hint={
               plannedIncome > 0
-                ? `Доход: ${formatMoney(plannedIncome, baseCurrency)}`
+                ? `Доход: ${formatMoney(plannedIncome, planCurrency)}`
                 : 'План не задан'
             }
             accent="emerald"
@@ -425,15 +469,15 @@ export function MonthlyBudgetPlanTab() {
         ) : (
           <div className="space-y-3">
             {categoryRows.map(row => {
-              const planAmt = row.planned;
+              const limit = row.effective || row.planned;
               const actAmt = row.actual;
-              const ratio = planAmt > 0 ? Math.min(actAmt / planAmt, 1.5) : (actAmt > 0 ? 1 : 0);
-              const overBudget = planAmt > 0 && actAmt > planAmt;
-              const noPlan = planAmt === 0;
+              const ratio = limit > 0 ? Math.min(actAmt / limit, 1.5) : (actAmt > 0 ? 1 : 0);
+              const overBudget = limit > 0 && actAmt > limit;
+              const noPlan = row.planned === 0 && row.carry === 0;
               return (
                 <div key={row.category} className="space-y-1.5">
                   <div className="flex items-baseline justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
                       <span className="text-sm font-semibold text-emerald-900 truncate">{row.category}</span>
                       {overBudget && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">
@@ -445,18 +489,26 @@ export function MonthlyBudgetPlanTab() {
                           Без плана
                         </span>
                       )}
-                      {!overBudget && !noPlan && actAmt <= planAmt && (
+                      {!overBudget && !noPlan && actAmt <= limit && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
                           <CheckCircle2 className="w-3 h-3" /> В рамках
+                        </span>
+                      )}
+                      {row.carry > 0 && (
+                        <span
+                          className="inline-flex items-center gap-1 text-[10px] font-bold uppercase text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full"
+                          title="Перенесено с прошлого месяца"
+                        >
+                          <Repeat className="w-3 h-3" /> +{formatMoney(row.carry, planCurrency)}
                         </span>
                       )}
                     </div>
                     <div className="text-xs text-emerald-700/70 whitespace-nowrap">
                       <span className={cn("font-bold", overBudget ? "text-rose-600" : "text-emerald-900")}>
-                        {formatMoney(actAmt, baseCurrency)}
+                        {formatMoney(actAmt, planCurrency)}
                       </span>
                       {' / '}
-                      <span>{planAmt > 0 ? formatMoney(planAmt, baseCurrency) : '—'}</span>
+                      <span>{limit > 0 ? formatMoney(limit, planCurrency) : '—'}</span>
                     </div>
                   </div>
                   <div className="h-2.5 bg-emerald-50 rounded-full overflow-hidden">
@@ -505,28 +557,85 @@ export function MonthlyBudgetPlanTab() {
               </div>
 
               <div className="p-5 space-y-4">
-                <div>
-                  <label className="text-xs font-bold uppercase text-emerald-700/70 tracking-wide block mb-1.5">
-                    Планируемый доход
-                  </label>
-                  <div className="flex items-center gap-2">
+                {/* Quick actions: copy plan / seed from facts / subscriptions */}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={copyFromPreviousPlan}
+                    disabled={!previousPlan}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-800 text-xs font-semibold"
+                    title="Скопировать структуру плана из предыдущего месяца"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> План из {prevKey}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={seedFromPreviousActuals}
+                    disabled={Object.keys(previousStats.expenseByCategory).length === 0}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-800 text-xs font-semibold"
+                    title="Заполнить план фактическими тратами прошлого месяца"
+                  >
+                    <History className="w-3.5 h-3.5" /> По факту прошлого
+                  </button>
+                  <button
+                    type="button"
+                    onClick={fillSubscriptionsFromRegular}
+                    disabled={regularPayments.filter(p => p.isActive).length === 0}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed text-emerald-800 text-xs font-semibold"
+                    title="Авто-заполнить лимит «Подписки» из активных регулярных платежей"
+                  >
+                    <Repeat className="w-3.5 h-3.5" /> Подписки авто
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
+                  <div>
+                    <label className="text-xs font-bold uppercase text-emerald-700/70 tracking-wide block mb-1.5">
+                      Планируемый доход
+                    </label>
                     <input
                       type="number"
                       inputMode="decimal"
                       value={editIncome}
                       onChange={e => setEditIncome(e.target.value)}
                       placeholder="0"
-                      className="flex-1 px-4 py-3 rounded-2xl border border-emerald-200 bg-emerald-50/40 text-emerald-900 text-lg font-semibold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                      className="w-full px-4 py-3 rounded-2xl border border-emerald-200 bg-emerald-50/40 text-emerald-900 text-lg font-semibold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                     />
-                    <span className="text-emerald-700 font-semibold">{baseCurrency}</span>
+                    <button
+                      onClick={applyTemplate503020}
+                      className="mt-2 text-xs font-semibold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" /> Применить 50/30/20
+                    </button>
                   </div>
-                  <button
-                    onClick={applyTemplate503020}
-                    className="mt-2 text-xs font-semibold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" /> Применить 50/30/20
-                  </button>
+                  <div>
+                    <label className="text-xs font-bold uppercase text-emerald-700/70 tracking-wide block mb-1.5">
+                      Валюта плана
+                    </label>
+                    <select
+                      value={editCurrency}
+                      onChange={e => setEditCurrency(e.target.value as Currency)}
+                      className="w-full px-3 py-3 rounded-2xl border border-emerald-200 bg-white text-emerald-900 text-base font-semibold focus:outline-none focus:border-emerald-500"
+                    >
+                      {CURRENCIES.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
+
+                <label className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-emerald-800 select-none">
+                  <input
+                    type="checkbox"
+                    checked={editRollover}
+                    onChange={e => setEditRollover(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-600"
+                  />
+                  Переносить неизрасходованный остаток с прошлого месяца
+                  <span className="text-xs font-normal text-emerald-700/60">
+                    — лимит этого месяца увеличится на (план − факт) прошлого
+                  </span>
+                </label>
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
@@ -579,7 +688,7 @@ export function MonthlyBudgetPlanTab() {
                     <span className="font-semibold text-emerald-900">
                       {formatMoney(
                         editCategories.reduce((s, c) => s + (Number(c.planned) || 0), 0),
-                        baseCurrency,
+                        editCurrency,
                       )}
                     </span>
                   </div>
@@ -590,7 +699,7 @@ export function MonthlyBudgetPlanTab() {
                         {formatMoney(
                           (Number(editIncome) || 0) -
                           editCategories.reduce((s, c) => s + (Number(c.planned) || 0), 0),
-                          baseCurrency,
+                          editCurrency,
                         )}
                       </span>
                     </div>

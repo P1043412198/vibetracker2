@@ -23,16 +23,9 @@ export default defineConfig(({mode}) => {
           background_color: '#0E2A1F',
           theme_color: '#2E7D52',
           icons: [
-            {
-              src: 'https://api.dicebear.com/7.x/shapes/svg?seed=vibesight&backgroundColor=2E7D52',
-              sizes: '192x192',
-              type: 'image/svg+xml'
-            },
-            {
-              src: 'https://api.dicebear.com/7.x/shapes/svg?seed=vibesight&backgroundColor=2E7D52',
-              sizes: '512x512',
-              type: 'image/svg+xml'
-            }
+            { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+            { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' },
           ],
           share_target: {
             action: '/share-target',
@@ -56,8 +49,23 @@ export default defineConfig(({mode}) => {
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+    },
+    build: {
+      chunkSizeWarningLimit: 1500,
+      rollupOptions: {
+        output: {
+          manualChunks(id: string) {
+            if (id.includes('node_modules')) {
+              if (id.includes('tesseract')) return 'vendor-tesseract';
+              if (id.includes('recharts') || id.includes('/d3-')) return 'vendor-charts';
+              if (id.includes('@mediapipe') || id.includes('@tensorflow')) return 'vendor-vision';
+              if (id.includes('@google/genai')) return 'vendor-genai';
+              if (id.includes('framer-motion')) return 'vendor-framer';
+            }
+          },
+        },
+      },
     },
   };
 });

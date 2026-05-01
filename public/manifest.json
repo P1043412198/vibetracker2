@@ -3,19 +3,12 @@
   "short_name": "Vibesight",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#09090b",
-  "theme_color": "#09090b",
+  "background_color": "#0E2A1F",
+  "theme_color": "#2E7D52",
   "icons": [
-    {
-      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=vibesight&backgroundColor=09090b",
-      "sizes": "192x192",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=vibesight&backgroundColor=09090b",
-      "sizes": "512x512",
-      "type": "image/svg+xml"
-    }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
   ],
   "share_target": {
     "action": "/share-target",

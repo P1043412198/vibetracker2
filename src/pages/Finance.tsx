@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Wallet, ShoppingCart, LineChart as LineChartIcon, Plus, Trash2, ImagePlus, Camera, X, ArrowUpRight, ArrowDownRight, CreditCard, Banknote, Calculator, Eye, EyeOff, Download, Bot, Loader2, Clock, ChevronDown, ChevronUp, PiggyBank, TrendingUp, Activity, Globe } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
@@ -11,18 +11,28 @@ import { Transaction, TransactionType, PaymentMethod, Currency } from '../types'
 import { ShoppingList } from './ShoppingList';
 import { AIFinanceAssistant } from '../components/AIFinanceAssistant';
 import { FinancialPlanTab } from '../components/FinancialPlanTab';
-import { ProAnalyticsTab } from '../components/ProAnalyticsTab';
 import { BudgetControlTab } from '../components/BudgetControlTab';
 import { AccountsTab } from '../components/AccountsTab';
-import { VacationPlanner } from '../components/VacationPlanner';
-import { DebtStrategyTab } from '../components/DebtStrategyTab';
-import { BudgetPlanningTab } from '../components/BudgetPlanningTab';
-import { WealthTree } from '../components/WealthTree';
 import { SmartFinanceAlerts } from '../components/SmartFinanceAlerts';
-import { SubscriptionsTab } from '../components/SubscriptionsTab';
-import { FIRECalculatorTab } from '../components/FIRECalculatorTab';
-import { PredictiveBudgetTab } from '../components/PredictiveBudgetTab';
 import { MonthlyBudgetPlanTab } from '../components/MonthlyBudgetPlanTab';
+// Heavy / rarely-used finance tabs are split out so the initial bundle stays small.
+const ProAnalyticsTab = lazy(() => import('../components/ProAnalyticsTab').then(m => ({ default: m.ProAnalyticsTab })));
+const VacationPlanner = lazy(() => import('../components/VacationPlanner').then(m => ({ default: m.VacationPlanner })));
+const DebtStrategyTab = lazy(() => import('../components/DebtStrategyTab').then(m => ({ default: m.DebtStrategyTab })));
+const BudgetPlanningTab = lazy(() => import('../components/BudgetPlanningTab').then(m => ({ default: m.BudgetPlanningTab })));
+const WealthTree = lazy(() => import('../components/WealthTree').then(m => ({ default: m.WealthTree })));
+const SubscriptionsTab = lazy(() => import('../components/SubscriptionsTab').then(m => ({ default: m.SubscriptionsTab })));
+const FIRECalculatorTab = lazy(() => import('../components/FIRECalculatorTab').then(m => ({ default: m.FIRECalculatorTab })));
+const PredictiveBudgetTab = lazy(() => import('../components/PredictiveBudgetTab').then(m => ({ default: m.PredictiveBudgetTab })));
+
+function LazyTabFallback() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="w-7 h-7 text-emerald-500 animate-spin" />
+    </div>
+  );
+}
+
 import { DailyFinancialTip } from '../components/DailyFinancialTip';
 import { Target, Sparkles, ShieldAlert, Landmark, Plane, TrendingDown, CalendarRange, TreeDeciduous, Settings, Flame, BrainCircuit } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -275,17 +285,19 @@ export function Finance() {
         {activeTab === 'loans' && <LoansTab />}
         {activeTab === 'plan' && <FinancialPlanTab onSwitchToAI={switchToAI} />}
         {activeTab === 'control' && <BudgetControlTab />}
-        {activeTab === 'vacation' && <VacationPlanner />}
-        {activeTab === 'debt-strategy' && <DebtStrategyTab />}
-        {activeTab === 'budget-planning' && <BudgetPlanningTab />}
         {activeTab === 'monthly-plan' && <MonthlyBudgetPlanTab />}
-        {activeTab === 'wealth' && <WealthTree />}
         {activeTab === 'analytics' && <FinanceAnalyticsTab />}
-        {activeTab === 'pro-analytics' && <ProAnalyticsTab />}
-        {activeTab === 'subscriptions' && <SubscriptionsTab />}
-        {activeTab === 'fire' && <FIRECalculatorTab />}
-        {activeTab === 'predictive' && <PredictiveBudgetTab />}
         {activeTab === 'ai' && <AIFinanceAssistant initialPrompt={aiPrompt} />}
+        <Suspense fallback={<LazyTabFallback />}>
+          {activeTab === 'vacation' && <VacationPlanner />}
+          {activeTab === 'debt-strategy' && <DebtStrategyTab />}
+          {activeTab === 'budget-planning' && <BudgetPlanningTab />}
+          {activeTab === 'wealth' && <WealthTree />}
+          {activeTab === 'pro-analytics' && <ProAnalyticsTab />}
+          {activeTab === 'subscriptions' && <SubscriptionsTab />}
+          {activeTab === 'fire' && <FIRECalculatorTab />}
+          {activeTab === 'predictive' && <PredictiveBudgetTab />}
+        </Suspense>
       </motion.div>
     </div>
   );

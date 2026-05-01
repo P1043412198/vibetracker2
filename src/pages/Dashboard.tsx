@@ -20,6 +20,7 @@ import { GoalsWidget } from '../components/dashboard/GoalsWidget';
 import { ActivityTrendsWidget } from '../components/dashboard/ActivityTrendsWidget';
 import { ActivityCalendarWidget } from '../components/dashboard/ActivityCalendarWidget';
 import { FinanceHubWidget } from '../components/dashboard/FinanceHubWidget';
+import { MonthBudgetWidget } from '../components/dashboard/MonthBudgetWidget';
 import { UpcomingDeadlinesWidget } from '../components/dashboard/UpcomingDeadlinesWidget';
 import { HabitMatrixWidget } from '../components/dashboard/HabitMatrixWidget';
 import { ShoppingListWidget } from '../components/dashboard/ShoppingListWidget';
@@ -144,7 +145,7 @@ export function Dashboard() {
     const ALL_WIDGETS: DashboardWidget[] = [
       'smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 
       'spheres_hub', 'goals', 'tasks_habits', 'water', 
-      'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 
+      'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'monthly_budget',
       'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery',
       'discipline_score', 'stoic_quote', 'shopping_list'
     ];
@@ -441,6 +442,8 @@ export function Dashboard() {
         return <WaterWidget />;
       case 'finance_hub':
         return <FinanceHubWidget financeStats={financeStats} />;
+      case 'monthly_budget':
+        return <MonthBudgetWidget />;
       case 'upcoming_deadlines':
         return <UpcomingDeadlinesWidget upcomingDeadlines={upcomingDeadlines} />;
       case 'habit_matrix':

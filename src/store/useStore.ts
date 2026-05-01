@@ -4,6 +4,7 @@ import { get, set, del } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
 import { format, isSameMonth, parseISO } from 'date-fns';
 import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan } from '../types';
+import { createMonthlyBudgetActions } from './slices/monthlyBudgetSlice';
 
 // Custom storage using IndexedDB to handle large data (like base64 images)
 const storage: StateStorage = {
@@ -311,8 +312,8 @@ export const useStore = create<AppState>()(
       waterVisualization: 'glass',
       wealthTreeTarget: null,
       dashboardConfig: {
-        widgetsOrder: ['smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 'spheres_hub', 'goals', 'tasks_habits', 'water', 'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery', 'discipline_score', 'stoic_quote', 'shopping_list'],
-        visibleWidgets: ['smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 'spheres_hub', 'goals', 'tasks_habits', 'water', 'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery', 'discipline_score', 'stoic_quote', 'shopping_list']
+        widgetsOrder: ['smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 'spheres_hub', 'goals', 'tasks_habits', 'water', 'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'monthly_budget', 'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery', 'discipline_score', 'stoic_quote', 'shopping_list'],
+        visibleWidgets: ['smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 'spheres_hub', 'goals', 'tasks_habits', 'water', 'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'monthly_budget', 'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery', 'discipline_score', 'stoic_quote', 'shopping_list']
       },
       enabledModules: {
         spheres: true,
@@ -745,40 +746,8 @@ export const useStore = create<AppState>()(
         budgetLimits: (state.budgetLimits || []).filter(l => l.id !== id)
       })),
 
-      // Monthly Budget Plans (per-month plan vs fact)
-      saveMonthlyBudgetPlan: (plan) => set((state) => {
-        const now = new Date().toISOString();
-        const plans = state.monthlyBudgetPlans || [];
-        // Identify existing plan by id or monthKey+currency
-        const existing = plan.id
-          ? plans.find(p => p.id === plan.id)
-          : plans.find(p => p.monthKey === plan.monthKey);
-        if (existing) {
-          return {
-            monthlyBudgetPlans: plans.map(p => p.id === existing.id
-              ? { ...existing, ...plan, id: existing.id, createdAt: existing.createdAt, updatedAt: now }
-              : p)
-          };
-        }
-        return {
-          monthlyBudgetPlans: [
-            ...plans,
-            {
-              ...plan,
-              id: uuidv4(),
-              createdAt: now,
-              updatedAt: now,
-            } as MonthlyBudgetPlan,
-          ]
-        };
-      }),
-      deleteMonthlyBudgetPlan: (id) => set((state) => ({
-        monthlyBudgetPlans: (state.monthlyBudgetPlans || []).filter(p => p.id !== id)
-      })),
-      getMonthlyBudgetPlan: (monthKey) => {
-        const state = get();
-        return (state.monthlyBudgetPlans || []).find(p => p.monthKey === monthKey);
-      },
+      // Monthly Budget Plans — actions live in `slices/monthlyBudgetSlice.ts`.
+      ...createMonthlyBudgetActions(set, get),
 
       addRegularPayment: (payment) => set((state) => ({
         regularPayments: [...(state.regularPayments || []), { ...payment, id: uuidv4() }]
@@ -1169,10 +1138,25 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'vibesight-storage',
+      version: 2,
       storage: createJSONStorage(() => storage),
       partialize: (state) => {
         const { isLocked, ...rest } = state;
         return rest;
+      },
+      // Backfill defaults for fields added in newer schema versions so existing
+      // persisted blobs don't trip components that assume arrays/booleans exist.
+      migrate: (persistedState, fromVersion) => {
+        const s = (persistedState ?? {}) as Partial<AppState>;
+        const next: Partial<AppState> = { ...s };
+        if (fromVersion < 1) {
+          if (!Array.isArray(next.goalLogs)) next.goalLogs = [];
+          if (typeof next.hideHabitNames !== 'boolean') next.hideHabitNames = false;
+        }
+        if (fromVersion < 2) {
+          if (!Array.isArray(next.monthlyBudgetPlans)) next.monthlyBudgetPlans = [];
+        }
+        return next as AppState;
       },
     }
   )

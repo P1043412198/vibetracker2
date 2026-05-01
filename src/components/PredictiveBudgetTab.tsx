@@ -150,7 +150,7 @@ export function PredictiveBudgetTab() {
         </div>
         <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl">
           <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Бюджет</p>
-          <p className="text-2xl font-bold text-blue-400">
+          <p className="text-2xl font-bold text-emerald-400">
             {totalBudgetInBase > 0 ? totalBudgetInBase.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) : 'Не задан'} {baseCurrency}
           </p>
           <p className="text-xs text-zinc-500 mt-1">

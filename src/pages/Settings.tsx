@@ -190,6 +190,7 @@ export function Settings() {
               { id: 'habit_stories', label: 'Истории привычек' },
               { id: 'activity_calendar', label: 'Календарь активности' },
               { id: 'finance_summary', label: 'Финансы' },
+              { id: 'monthly_budget', label: 'Бюджет месяца' },
               { id: 'upcoming_deadlines', label: 'Дедлайны' },
               { id: 'habit_matrix', label: 'Матрица привычек' },
               { id: 'pomodoro', label: 'Помодоро' },

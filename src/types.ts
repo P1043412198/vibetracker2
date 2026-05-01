@@ -298,6 +298,11 @@ export type MonthlyBudgetPlan = {
   currency?: Currency;
   categoryPlans: { category: string; planned: number }[];
   freeFundsTarget?: number;
+  /**
+   * When true, the unspent remainder of each category limit (planned - actual)
+   * from the previous month rolls into this month's effective limit.
+   */
+  rollover?: boolean;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -358,7 +363,7 @@ export type PomodoroState = {
   settings: PomodoroSettings;
 };
 
-export type DashboardWidget = 'efficiency' | 'trends' | 'stats_grid' | 'overview' | 'spheres_hub' | 'goals' | 'tasks_habits' | 'water' | 'activity_trends' | 'habit_stories' | 'activity_calendar' | 'finance_hub' | 'upcoming_deadlines' | 'habit_matrix' | 'pomodoro' | 'inbox' | 'next_workout' | 'sleep_recovery' | 'discipline_score' | 'stoic_quote' | 'shopping_list' | 'smart_schedule';
+export type DashboardWidget = 'efficiency' | 'trends' | 'stats_grid' | 'overview' | 'spheres_hub' | 'goals' | 'tasks_habits' | 'water' | 'activity_trends' | 'habit_stories' | 'activity_calendar' | 'finance_hub' | 'monthly_budget' | 'upcoming_deadlines' | 'habit_matrix' | 'pomodoro' | 'inbox' | 'next_workout' | 'sleep_recovery' | 'discipline_score' | 'stoic_quote' | 'shopping_list' | 'smart_schedule';
 
 export type DashboardConfig = {
   widgetsOrder: DashboardWidget[];
