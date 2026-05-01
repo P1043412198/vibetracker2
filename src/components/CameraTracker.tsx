@@ -203,8 +203,8 @@ export function CameraTracker({ onClose }: { onClose: () => void }) {
         onFrame: async () => {
           if (videoRef.current) await pose.send({ image: videoRef.current });
         },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: 1280,
+        height: 720,
         facingMode: 'user',
       });
       camera.start().catch(err => { setError('Не удалось запустить камеру.'); console.error(err); });

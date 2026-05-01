@@ -22,6 +22,7 @@ import { SmartFinanceAlerts } from '../components/SmartFinanceAlerts';
 import { SubscriptionsTab } from '../components/SubscriptionsTab';
 import { FIRECalculatorTab } from '../components/FIRECalculatorTab';
 import { PredictiveBudgetTab } from '../components/PredictiveBudgetTab';
+import { MonthlyBudgetPlanTab } from '../components/MonthlyBudgetPlanTab';
 import { DailyFinancialTip } from '../components/DailyFinancialTip';
 import { Target, Sparkles, ShieldAlert, Landmark, Plane, TrendingDown, CalendarRange, TreeDeciduous, Settings, Flame, BrainCircuit } from 'lucide-react';
 import { GoogleGenAI, Type } from '@google/genai';
@@ -38,7 +39,7 @@ export function Finance() {
     fetchRates,
     setBaseCurrency
   } = useStore();
-  const [activeTab, setActiveTab] = useState<'transactions' | 'accounts' | 'shopping' | 'analytics' | 'pro-analytics' | 'loans' | 'ai' | 'plan' | 'control' | 'vacation' | 'savings' | 'debt-strategy' | 'budget-planning' | 'wealth' | 'subscriptions' | 'fire' | 'predictive'>('transactions');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'accounts' | 'shopping' | 'analytics' | 'pro-analytics' | 'loans' | 'ai' | 'plan' | 'control' | 'vacation' | 'savings' | 'debt-strategy' | 'budget-planning' | 'monthly-plan' | 'wealth' | 'subscriptions' | 'fire' | 'predictive'>('monthly-plan');
   const [aiPrompt, setAiPrompt] = useState<string | undefined>();
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
 
@@ -102,7 +103,8 @@ export function Finance() {
       { id: 'subscriptions', label: 'Подписки', icon: CreditCard, color: 'text-blue-400' },
     ],
     'Бюджет': [
-      { id: 'budget-planning', label: 'Прогноз', icon: CalendarRange, color: 'text-blue-400' },
+      { id: 'monthly-plan', label: 'План месяца', icon: Target, color: 'text-emerald-500' },
+      { id: 'budget-planning', label: 'Прогноз', icon: CalendarRange, color: 'text-emerald-400' },
       { id: 'predictive', label: 'ИИ Бюджет', icon: BrainCircuit, color: 'text-purple-500' },
       { id: 'control', label: 'Контроль', icon: ShieldAlert, color: 'text-emerald-400' },
     ],
@@ -223,7 +225,7 @@ export function Finance() {
           {Object.keys(FINANCE_TABS).map((category) => (
             <button
               key={category}
-              onClick={() => setActiveTab(FINANCE_TABS[category as keyof typeof FINANCE_TABS][0].id)}
+              onClick={() => setActiveTab(FINANCE_TABS[category as keyof typeof FINANCE_TABS][0].id as typeof activeTab)}
               className={cn(
                 "py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
                 activeCategory === category ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
@@ -276,6 +278,7 @@ export function Finance() {
         {activeTab === 'vacation' && <VacationPlanner />}
         {activeTab === 'debt-strategy' && <DebtStrategyTab />}
         {activeTab === 'budget-planning' && <BudgetPlanningTab />}
+        {activeTab === 'monthly-plan' && <MonthlyBudgetPlanTab />}
         {activeTab === 'wealth' && <WealthTree />}
         {activeTab === 'analytics' && <FinanceAnalyticsTab />}
         {activeTab === 'pro-analytics' && <ProAnalyticsTab />}

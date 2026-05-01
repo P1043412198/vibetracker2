@@ -20,16 +20,16 @@ export default defineConfig(({mode}) => {
           short_name: 'Vibesight',
           start_url: '/',
           display: 'standalone',
-          background_color: '#09090b',
-          theme_color: '#09090b',
+          background_color: '#0E2A1F',
+          theme_color: '#2E7D52',
           icons: [
             {
-              src: 'https://api.dicebear.com/7.x/shapes/svg?seed=vibesight&backgroundColor=09090b',
+              src: 'https://api.dicebear.com/7.x/shapes/svg?seed=vibesight&backgroundColor=2E7D52',
               sizes: '192x192',
               type: 'image/svg+xml'
             },
             {
-              src: 'https://api.dicebear.com/7.x/shapes/svg?seed=vibesight&backgroundColor=09090b',
+              src: 'https://api.dicebear.com/7.x/shapes/svg?seed=vibesight&backgroundColor=2E7D52',
               sizes: '512x512',
               type: 'image/svg+xml'
             }

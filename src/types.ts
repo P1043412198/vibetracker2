@@ -285,6 +285,24 @@ export type BudgetLimit = {
   period: 'month';
 };
 
+/**
+ * User-defined budget plan for a specific month.
+ * `monthKey` is `YYYY-MM`. `categoryPlans` is the planned spend per expense
+ * category. `freeFundsTarget` is optional amount the user wants to keep free
+ * (savings/buffer) — when omitted, free = plannedIncome - sum(categoryPlans).
+ */
+export type MonthlyBudgetPlan = {
+  id: string;
+  monthKey: string; // YYYY-MM
+  plannedIncome: number;
+  currency?: Currency;
+  categoryPlans: { category: string; planned: number }[];
+  freeFundsTarget?: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type RegularPayment = {
   id: string;
   name: string;
@@ -418,6 +436,7 @@ export type AppState = {
   loans?: Loan[];
   financialGoals?: FinancialGoal[];
   budgetLimits?: BudgetLimit[];
+  monthlyBudgetPlans?: MonthlyBudgetPlan[];
   regularPayments?: RegularPayment[];
   envelopes?: Envelope[];
   goals?: Goal[];

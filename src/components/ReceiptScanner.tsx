@@ -169,14 +169,12 @@ export function ReceiptScanner({ onClose }: ReceiptScannerProps) {
       }
 
       addTransaction({
-        id: uuidv4(),
         accountId: defaultAccount.id,
         type: 'expense',
         amount: amount,
-        currency: defaultAccount.currency || baseCurrency,
         category: 'Покупки',
-        date: date.toISOString(),
-        description: description,
+        date: date.toISOString().slice(0, 10),
+        notes: description,
       });
 
       setTimeout(() => {

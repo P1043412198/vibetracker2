@@ -32,7 +32,7 @@ export function SmartScheduleWidget() {
         Составь идеальное расписание на сегодняшний день.
         
         Вводные данные:
-        - Рабочий график: ${workSchedule ? `${workSchedule.type}, начало: ${workSchedule.startTime}, конец: ${workSchedule.endTime}` : 'Не задан'}
+        - Рабочий график: ${workSchedule ? `цикл ${workSchedule.cycle.join('/')} с ${workSchedule.anchorDate}` : 'Не задан'}
         - Тренировка сегодня: ${todayWorkout ? 'Запланирована' : 'Нет'}
         - Задачи во входящих (Inbox): ${pendingInbox.map(i => i.content).join(', ') || 'Нет'}
         - Текущие задачи: ${pendingTasks.map(t => t.title).join(', ') || 'Нет'}

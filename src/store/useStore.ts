@@ -3,7 +3,7 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
 import { format, isSameMonth, parseISO } from 'date-fns';
-import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency } from '../types';
+import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan } from '../types';
 
 // Custom storage using IndexedDB to handle large data (like base64 images)
 const storage: StateStorage = {
@@ -46,6 +46,9 @@ interface AppState {
   regularPayments: RegularPayment[];
   envelopes: Envelope[];
   goals: Goal[];
+  goalLogs: GoalLog[];
+  monthlyBudgetPlans: MonthlyBudgetPlan[];
+  hideHabitNames: boolean;
   workSchedule: WorkSchedule | null;
   waterLogs: WaterLog[];
   waterGoal: number;
@@ -160,6 +163,11 @@ interface AppState {
   addBudgetLimit: (limit: Omit<BudgetLimit, 'id'>) => void;
   updateBudgetLimit: (id: string, updates: Partial<BudgetLimit>) => void;
   deleteBudgetLimit: (id: string) => void;
+
+  // Monthly Budget Plans (per-month plan vs fact)
+  saveMonthlyBudgetPlan: (plan: Omit<MonthlyBudgetPlan, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
+  deleteMonthlyBudgetPlan: (id: string) => void;
+  getMonthlyBudgetPlan: (monthKey: string) => MonthlyBudgetPlan | undefined;
 
   // Regular Payments
   addRegularPayment: (payment: Omit<RegularPayment, 'id'>) => void;
@@ -276,7 +284,7 @@ interface AppState {
 
 export const useStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       spheres: [],
       tasks: [],
       habits: [],
@@ -294,6 +302,8 @@ export const useStore = create<AppState>()(
       regularPayments: [],
       envelopes: [],
       goals: [],
+      goalLogs: [],
+      monthlyBudgetPlans: [],
       workSchedule: null,
       waterLogs: [],
       waterGoal: 2000,
@@ -734,6 +744,41 @@ export const useStore = create<AppState>()(
       deleteBudgetLimit: (id) => set((state) => ({
         budgetLimits: (state.budgetLimits || []).filter(l => l.id !== id)
       })),
+
+      // Monthly Budget Plans (per-month plan vs fact)
+      saveMonthlyBudgetPlan: (plan) => set((state) => {
+        const now = new Date().toISOString();
+        const plans = state.monthlyBudgetPlans || [];
+        // Identify existing plan by id or monthKey+currency
+        const existing = plan.id
+          ? plans.find(p => p.id === plan.id)
+          : plans.find(p => p.monthKey === plan.monthKey);
+        if (existing) {
+          return {
+            monthlyBudgetPlans: plans.map(p => p.id === existing.id
+              ? { ...existing, ...plan, id: existing.id, createdAt: existing.createdAt, updatedAt: now }
+              : p)
+          };
+        }
+        return {
+          monthlyBudgetPlans: [
+            ...plans,
+            {
+              ...plan,
+              id: uuidv4(),
+              createdAt: now,
+              updatedAt: now,
+            } as MonthlyBudgetPlan,
+          ]
+        };
+      }),
+      deleteMonthlyBudgetPlan: (id) => set((state) => ({
+        monthlyBudgetPlans: (state.monthlyBudgetPlans || []).filter(p => p.id !== id)
+      })),
+      getMonthlyBudgetPlan: (monthKey) => {
+        const state = get();
+        return (state.monthlyBudgetPlans || []).find(p => p.monthKey === monthKey);
+      },
 
       addRegularPayment: (payment) => set((state) => ({
         regularPayments: [...(state.regularPayments || []), { ...payment, id: uuidv4() }]
