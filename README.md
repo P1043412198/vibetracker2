@@ -1,11 +1,26 @@
-<div align="center">
+# FinFlow — Финансовая грамотность
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Личный финансовый менеджер для Android.
 
-  <h1>Built with AI Studio</h2>
+- Учёт доходов и расходов с категориями
+- Планирование бюджета на любой месяц
+- Сравнение «План vs Факт» и «Свободно сегодня»
+- Аналитика расходов: круговая диаграмма и динамика
+- Обучение и привычки
+- Локальное хранение через SharedPreferences (без облака)
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## Сборка APK
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+```bash
+flutter pub get
+flutter build apk --release
+```
 
-</div>
+APK будет в `build/app/outputs/flutter-apk/app-release.apk`.
+
+## Запуск тестов
+
+```bash
+flutter analyze
+flutter test
+```
