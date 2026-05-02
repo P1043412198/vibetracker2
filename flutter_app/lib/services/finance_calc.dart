@@ -459,6 +459,38 @@ num suggestAnnuityPayment({
   return principal * (r * pow) / (pow - 1);
 }
 
+/// Months required to pay off [principal] given a fixed [monthlyPayment]
+/// and annual rate (%). Returns null if payment never covers interest.
+int? termMonthsForPayment({
+  required num principal,
+  required num annualRatePct,
+  required num monthlyPayment,
+}) {
+  if (principal <= 0 || monthlyPayment <= 0) return null;
+  final r = annualRatePct / 12 / 100;
+  if (r <= 0) return (principal / monthlyPayment).ceil();
+  // Annuity: M = P * (r * (1+r)^n) / ((1+r)^n - 1)
+  // → n = log(M / (M - P*r)) / log(1+r)
+  final denom = monthlyPayment - principal * r;
+  if (denom <= 0) return null; // payment doesn't cover interest
+  final n = math.log(monthlyPayment / denom) / math.log(1 + r);
+  return n.ceil();
+}
+
+/// Maximum principal you can borrow at [annualRatePct] over [months]
+/// while keeping the monthly annuity payment at [monthlyPayment].
+num maxPrincipalForPayment({
+  required num monthlyPayment,
+  required num annualRatePct,
+  required int months,
+}) {
+  if (monthlyPayment <= 0 || months <= 0) return 0;
+  final r = annualRatePct / 12 / 100;
+  if (r <= 0) return monthlyPayment * months;
+  final pow = math.pow(1 + r, months);
+  return monthlyPayment * (pow - 1) / (r * pow);
+}
+
 /// Totals of monthly loan burden in the given currency (converted via
 /// [convert]). Active loans only (balance > 0).
 num monthlyLoanBurden({

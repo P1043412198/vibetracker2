@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/nbrb_service.dart';
 import '../services/storage.dart';
 
 /// Persisted FX rates expressed as: 1 unit of [currency] equals
@@ -36,7 +37,23 @@ class CurrencyRatesController extends StateNotifier<Map<String, num>> {
   Future<void> set(Map<String, num> rates) async {
     state = Map.unmodifiable({...state, ...rates});
     await AppStorage.writeString(_key, json.encode(state));
+    await AppStorage.writeString(
+        _updatedAtKey, DateTime.now().toIso8601String());
   }
+
+  /// Pulls fresh USD-anchored rates from NBRB and merges them into state.
+  /// Returns the number of currency codes that were updated. Throws on
+  /// failure so the caller can show an error toast.
+  Future<int> refreshFromNbrb() async {
+    final fresh = await NbrbService.fetchUsdAnchoredRates();
+    await set(fresh);
+    return fresh.length;
+  }
+
+  /// ISO timestamp of the last successful refresh, or null if never.
+  String? get lastUpdatedIso => AppStorage.readString(_updatedAtKey);
+
+  static const _updatedAtKey = 'fxRatesUpdatedAt';
 }
 
 final currencyRatesProvider =

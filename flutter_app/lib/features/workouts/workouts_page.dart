@@ -513,14 +513,20 @@ Future<void> _showNodeEditor(
     builder: (sheetCtx) {
       return StatefulBuilder(
         builder: (ctx, setState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 4,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-            ),
-            child: Column(
+          return SafeArea(
+            top: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.9,
+              ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  top: 4,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+                ),
+                child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -677,6 +683,8 @@ Future<void> _showNodeEditor(
                       Text(existing == null ? 'Создать' : 'Сохранить'),
                 ),
               ],
+                ),
+              ),
             ),
           );
         },

@@ -10,6 +10,7 @@ import '../../models/finance.dart';
 import '../../services/finance_calc.dart';
 import '../../state/providers.dart';
 import '../../state/settings_state.dart';
+import 'loan_calculator_page.dart';
 
 /// Phase 13: Кредиты — отслеживание остатка, графика погашения и эффекта
 /// от досрочных платежей с учётом расходов.
@@ -26,7 +27,19 @@ class LoansPage extends ConsumerWidget {
     final balanceTotal =
         loans.fold<num>(0, (a, l) => a + (l.balance > 0 ? l.balance : 0));
     return Scaffold(
-      appBar: AppBar(title: const Text('Кредиты')),
+      appBar: AppBar(
+        title: const Text('Кредиты'),
+        actions: [
+          IconButton(
+            tooltip: 'Калькулятор',
+            icon: const Icon(Icons.calculate_outlined),
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => LoanCalculatorPage(currency: defCur)));
+            },
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () =>
             _editLoan(context, ref, defaultCurrency: defCur),
