@@ -81,19 +81,29 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     final scheduledExpensesTotal =
         (plan?.scheduledExpenses ?? const <ScheduledExpense>[])
             .fold<num>(0, (s, e) => s + e.amount);
-    final totalPlannedExpense =
-        categoryPlanTotal + scheduledExpensesTotal + loansMonthlyPayments;
     final scheduledIncomeTotal = (plan?.incomes ?? const <IncomeEntry>[])
         .fold<num>(0, (s, e) => s + e.amount);
+    final committed = computeCommittedExpense(
+      categoryPlans: plan?.categoryPlans ?? const [],
+      actualByCategory: facts.expenseByCategory,
+      totalActualExpense: facts.expense,
+      scheduledExpenses:
+          plan?.scheduledExpenses ?? const <ScheduledExpense>[],
+      loansMonthlyPayments: loansMonthlyPayments,
+    );
+    // Static "плановая" сумма (used for the "Запланированные расходы" row).
+    final totalPlannedExpense =
+        categoryPlanTotal + scheduledExpensesTotal + loansMonthlyPayments;
     final freeFunds = computeFreeFunds(
       plannedIncome: plan?.plannedIncome ?? 0,
       scheduledIncomeTotal: scheduledIncomeTotal,
-      plannedExpense: totalPlannedExpense,
+      plannedExpense: committed.total,
       actualIncome: facts.income,
       actualExpense: facts.expense,
     );
     final daysLeft = daysLeftInMonth(_month);
     final allowance = dailyAllowance(freeFunds.free, daysLeft);
+    final weekly = weeklyAllowance(freeFunds.free, daysLeft);
     final fmt =
         NumberFormat.currency(locale: 'ru_RU', symbol: '', decimalDigits: 2);
 
@@ -130,11 +140,13 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
           plannedIncome: plan?.plannedIncome ?? 0,
           scheduledIncomeTotal: scheduledIncomeTotal,
           plannedExpense: totalPlannedExpense,
+          committedExpense: committed.total,
           loansMonthlyPayments: loansMonthlyPayments,
           actualIncome: facts.income,
           actualExpense: facts.expense,
           freeFunds: freeFunds.free,
           dailyAllowance: allowance,
+          weeklyAllowance: weekly,
           daysLeft: daysLeft,
           currency: baseCurrency,
           fmt: fmt,
@@ -668,11 +680,13 @@ class _PlanSummaryCard extends StatelessWidget {
     required this.plannedIncome,
     required this.scheduledIncomeTotal,
     required this.plannedExpense,
+    required this.committedExpense,
     required this.loansMonthlyPayments,
     required this.actualIncome,
     required this.actualExpense,
     required this.freeFunds,
     required this.dailyAllowance,
+    required this.weeklyAllowance,
     required this.daysLeft,
     required this.currency,
     required this.fmt,
@@ -684,11 +698,13 @@ class _PlanSummaryCard extends StatelessWidget {
   final num plannedIncome;
   final num scheduledIncomeTotal;
   final num plannedExpense;
+  final num committedExpense;
   final num loansMonthlyPayments;
   final num actualIncome;
   final num actualExpense;
   final num freeFunds;
   final num dailyAllowance;
+  final num weeklyAllowance;
   final int daysLeft;
   final String currency;
   final NumberFormat fmt;
@@ -753,6 +769,15 @@ class _PlanSummaryCard extends StatelessWidget {
               label: 'Фактические расходы',
               valueText: '${fmt.format(actualExpense)} $currency',
             ),
+            if (committedExpense != plannedExpense &&
+                committedExpense != actualExpense) ...[
+              const SizedBox(height: 4),
+              _PlanRow(
+                label: 'Учтено к расходам',
+                valueText: '${fmt.format(committedExpense)} $currency',
+                valueColor: const Color(0xFFEF4444),
+              ),
+            ],
             const Divider(height: 24),
             _PlanRow(
               label: 'Свободные средства',
@@ -765,6 +790,11 @@ class _PlanSummaryCard extends StatelessWidget {
             _PlanRow(
               label: 'В день (осталось $daysLeft дн.)',
               valueText: '${fmt.format(dailyAllowance)} $currency',
+            ),
+            const SizedBox(height: 4),
+            _PlanRow(
+              label: 'В неделю',
+              valueText: '${fmt.format(weeklyAllowance)} $currency',
             ),
             const SizedBox(height: 12),
             SwitchListTile(

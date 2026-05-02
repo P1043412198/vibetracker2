@@ -195,6 +195,70 @@ num dailyAllowance(num freeFunds, int daysLeft) {
   return freeFunds > 0 ? freeFunds / daysLeft : 0;
 }
 
+/// Approximate "сколько остаётся в неделю". A simple `daily * 7` so the
+/// figure stays consistent with the per-day allowance no matter how many
+/// days are left in the month.
+num weeklyAllowance(num freeFunds, int daysLeft) {
+  return dailyAllowance(freeFunds, daysLeft) * 7;
+}
+
+/// Breakdown of how much money is **really committed** for the month. This
+/// is what should reduce free funds — not just `actualExpense` and not just
+/// `plannedExpense`, but a mix:
+///
+/// * **categoryCommitted**: per-category `max(planned, actualForCategory)` so
+///   under-spend stays bounded by the plan and over-spend is fully felt.
+/// * **uncategorisedActual**: real transactions in categories that have no
+///   `CategoryPlan` (or no category at all) — they always reduce free funds.
+/// * **scheduledExpensesTotal**: fixed bills (`scheduledExpenses[]`).
+/// * **loansTotal**: monthly loan payments (already converted to plan
+///   currency by the caller).
+class CommittedExpense {
+  CommittedExpense({
+    required this.categoryCommitted,
+    required this.uncategorisedActual,
+    required this.scheduledExpensesTotal,
+    required this.loansTotal,
+  });
+
+  final num categoryCommitted;
+  final num uncategorisedActual;
+  final num scheduledExpensesTotal;
+  final num loansTotal;
+
+  num get total =>
+      categoryCommitted +
+      uncategorisedActual +
+      scheduledExpensesTotal +
+      loansTotal;
+}
+
+CommittedExpense computeCommittedExpense({
+  required Iterable<CategoryPlan> categoryPlans,
+  required Map<String, num> actualByCategory,
+  required num totalActualExpense,
+  required Iterable<ScheduledExpense> scheduledExpenses,
+  required num loansMonthlyPayments,
+}) {
+  num categoryCommitted = 0;
+  num actualInPlannedCategories = 0;
+  for (final c in categoryPlans) {
+    final actual = actualByCategory[c.category] ?? 0;
+    categoryCommitted += c.planned > actual ? c.planned : actual;
+    actualInPlannedCategories += actual;
+  }
+  var uncategorisedActual = totalActualExpense - actualInPlannedCategories;
+  if (uncategorisedActual < 0) uncategorisedActual = 0;
+  final scheduledTotal =
+      scheduledExpenses.fold<num>(0, (s, e) => s + e.amount);
+  return CommittedExpense(
+    categoryCommitted: categoryCommitted,
+    uncategorisedActual: uncategorisedActual,
+    scheduledExpensesTotal: scheduledTotal,
+    loansTotal: loansMonthlyPayments,
+  );
+}
+
 /// =============================================================
 /// Phase 14: schedule / period-aware daily allowance + loan math
 /// =============================================================
