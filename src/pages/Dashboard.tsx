@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { format, subDays, addDays, isSameDay, isWithinInterval, parseISO, differenceInCalendarDays, startOfDay } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { CheckCircle2, Circle, XCircle, Target, Activity, ArrowRight, ChevronLeft, ChevronRight, MinusCircle, Plus, Minus, TrendingUp, ChevronDown, ChevronUp, X, Sun, Moon, Coffee, Home as HomeIcon, Calendar, Plane, Award, Dumbbell, Flame, Zap, GripVertical, Eye, EyeOff, LayoutGrid, Clock, ShoppingCart } from 'lucide-react';
+import { CheckCircle2, Circle, XCircle, Target, Activity, ArrowRight, ChevronLeft, ChevronRight, MinusCircle, Plus, Minus, TrendingUp, ChevronDown, ChevronUp, X, Sun, Moon, Coffee, Home as HomeIcon, Calendar, Plane, Award, Dumbbell, Flame, Zap, GripVertical, Eye, EyeOff, LayoutGrid, Clock, ShoppingCart, Wallet, ListChecks } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -476,25 +476,50 @@ export function Dashboard() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <SmartGreeting currentDate={currentDate} todaysTasks={todaysTasks} />
+
+      {/* Quick Actions row — главные действия в один тап */}
+      <div className="grid grid-cols-4 gap-2 sm:gap-3 -mt-2">
+        {[
+          { to: '/tasks', icon: ListChecks, label: 'Задача', color: 'from-emerald-500 to-emerald-600', shadow: 'shadow-emerald-500/30' },
+          { to: '/finance', icon: Wallet, label: 'Расход', color: 'from-amber-500 to-orange-600', shadow: 'shadow-orange-500/30' },
+          { to: '/workouts', icon: Dumbbell, label: 'Спорт', color: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-500/30' },
+          { to: '/habits', icon: Flame, label: 'Навык', color: 'from-rose-500 to-pink-600', shadow: 'shadow-rose-500/30' },
+        ].map(action => (
+          <Link
+            key={action.to}
+            to={action.to}
+            className={cn(
+              'group flex flex-col items-center justify-center gap-1.5 px-2 py-3 sm:py-3.5 rounded-2xl text-white font-semibold text-[11px] sm:text-xs',
+              'bg-gradient-to-br shadow-md transition-transform active:scale-95',
+              action.color,
+              action.shadow,
+            )}
+          >
+            <action.icon className="w-5 h-5 sm:w-6 sm:h-6 shrink-0 transition-transform group-hover:scale-110" />
+            <span className="leading-none">{action.label}</span>
+          </Link>
+        ))}
+      </div>
+
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-zinc-900">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-xl font-extrabold tracking-tight text-zinc-900">
             С возвращением
           </h1>
-          <p className="text-xs text-zinc-500 mt-1">
-            Ваш обзор на {format(new Date(), 'EEEE, d MMMM', { locale: ru })}.
+          <p className="text-xs text-zinc-500 mt-0.5">
+            Обзор на {format(new Date(), 'd MMMM', { locale: ru })}
           </p>
         </div>
         <button
           onClick={() => setIsEditMode(!isEditMode)}
           className={cn(
-            "px-4 py-2 rounded-2xl text-xs font-medium transition-all flex items-center gap-2",
-            isEditMode ? "bg-white text-black" : "bg-white text-zinc-500 border border-stone-200 hover:text-zinc-900"
+            "px-3 py-1.5 rounded-2xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0",
+            isEditMode ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/30" : "bg-white text-zinc-600 border border-stone-200 hover:text-emerald-700 hover:border-emerald-300"
           )}
         >
-          {isEditMode ? <CheckCircle2 className="w-4 h-4" /> : <Activity className="w-4 h-4" />}
+          {isEditMode ? <CheckCircle2 className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
           {isEditMode ? "Готово" : "Настроить"}
         </button>
       </div>
