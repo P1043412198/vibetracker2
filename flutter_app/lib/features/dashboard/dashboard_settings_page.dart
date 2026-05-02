@@ -140,6 +140,8 @@ IconData _iconFor(String name) {
       return Icons.savings_outlined;
     case 'credit_score':
       return Icons.credit_score_outlined;
+    case 'emoji_events':
+      return Icons.emoji_events_outlined;
     default:
       return Icons.dashboard_outlined;
   }

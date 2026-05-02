@@ -860,3 +860,222 @@ class LoansOverviewWidget extends ConsumerWidget {
 // shared palette lives in `dashboard_widgets_v2.dart` (see `_palette` const
 // at the top of this file).
 List<Color> dashboardChartPalette() => List<Color>.unmodifiable(_palette);
+
+/// Phase 15: Challenges overview — list of active challenges with progress.
+class ChallengesOverviewWidget extends ConsumerWidget {
+  const ChallengesOverviewWidget({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final challenges = ref.watch(challengesProvider);
+    final checkIns = ref.watch(challengeCheckInsProvider);
+    final active =
+        challenges.where((c) => !c.archived).toList(growable: false);
+    if (challenges.isEmpty) {
+      return Card(
+        child: ListTile(
+          leading: const Icon(Icons.emoji_events_outlined),
+          title: const Text('Челленджи'),
+          subtitle:
+              const Text('Поставь себе вызов: 30 дней без, 21 день делать'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/challenges'),
+        ),
+      );
+    }
+    var done = 0;
+    var failed = 0;
+    var total = 0;
+    final entries = <_ChallengeRow>[];
+    for (final c in active) {
+      final stats = _quickStats(c, checkIns);
+      done += stats.done;
+      failed += stats.failed;
+      total += c.durationDays;
+      entries.add(_ChallengeRow(
+        title: c.title,
+        icon: c.icon ?? (c.kind == 'avoid' ? '🚫' : '✅'),
+        color: c.color != null ? Color(c.color!) : const Color(0xFF6D5CFF),
+        fraction: c.durationDays == 0
+            ? 0
+            : (stats.done / c.durationDays).clamp(0.0, 1.0),
+        sub: '${stats.dayIndex} / ${c.durationDays} дн., серия ${stats.streak}',
+      ));
+    }
+    final pending =
+        (total - done - failed).clamp(0, double.infinity).toInt();
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/challenges'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const Icon(Icons.emoji_events_outlined),
+                const SizedBox(width: 8),
+                Text('Челленджи',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                Text('$done / $total',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 14)),
+              ]),
+              const SizedBox(height: 8),
+              if (active.isNotEmpty)
+                SizedBox(
+                  height: 80,
+                  child: PieChart(
+                    PieChartData(
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 16,
+                      sections: [
+                        if (done > 0)
+                          PieChartSectionData(
+                            value: done.toDouble(),
+                            color: const Color(0xFF22C55E),
+                            title: '',
+                            radius: 16,
+                          ),
+                        if (failed > 0)
+                          PieChartSectionData(
+                            value: failed.toDouble(),
+                            color: const Color(0xFFEF4444),
+                            title: '',
+                            radius: 16,
+                          ),
+                        if (pending > 0)
+                          PieChartSectionData(
+                            value: pending.toDouble(),
+                            color: const Color(0xFF94A3B8),
+                            title: '',
+                            radius: 16,
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 6),
+              for (final e in entries.take(4))
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Text(e.icon, style: const TextStyle(fontSize: 14)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(e.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        Text('${(e.fraction * 100).round()}%',
+                            style: TextStyle(
+                                color: e.color,
+                                fontWeight: FontWeight.w800)),
+                      ]),
+                      const SizedBox(height: 2),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: e.fraction.toDouble(),
+                          minHeight: 6,
+                          color: e.color,
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Text(e.sub,
+                            style:
+                                Theme.of(context).textTheme.labelSmall),
+                      ),
+                    ],
+                  ),
+                ),
+              if (entries.length > 4)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('+ ещё ${entries.length - 4}',
+                      style: Theme.of(context).textTheme.labelSmall),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChallengeRow {
+  _ChallengeRow({
+    required this.title,
+    required this.icon,
+    required this.color,
+    required this.fraction,
+    required this.sub,
+  });
+  final String title;
+  final String icon;
+  final Color color;
+  final num fraction;
+  final String sub;
+}
+
+class _ChallengeQuickStats {
+  _ChallengeQuickStats({
+    required this.dayIndex,
+    required this.done,
+    required this.failed,
+    required this.streak,
+  });
+  final int dayIndex;
+  final int done;
+  final int failed;
+  final int streak;
+}
+
+_ChallengeQuickStats _quickStats(
+    Challenge c, List<ChallengeCheckIn> checkIns) {
+  final start = DateTime.tryParse(c.startDate);
+  if (start == null) {
+    return _ChallengeQuickStats(
+        dayIndex: 0, done: 0, failed: 0, streak: 0);
+  }
+  final today = DateTime.now();
+  final byDate = <String, ChallengeCheckIn>{
+    for (final ci in checkIns.where((x) => x.challengeId == c.id))
+      ci.date: ci,
+  };
+  final dayIndex = (today
+              .difference(DateTime(start.year, start.month, start.day))
+              .inDays +
+          1)
+      .clamp(0, c.durationDays);
+  var done = 0;
+  var failed = 0;
+  var streak = 0;
+  for (var i = 0; i < c.durationDays; i++) {
+    final d = DateTime(start.year, start.month, start.day + i);
+    if (d.isAfter(today)) break;
+    final ci = byDate[DateFormat('yyyy-MM-dd').format(d)];
+    if (ci?.status == 'done') {
+      done++;
+      streak++;
+    } else if (ci?.status == 'failed') {
+      failed++;
+      streak = 0;
+    } else if (ci?.status != 'skip') {
+      streak = 0;
+    }
+  }
+  return _ChallengeQuickStats(
+      dayIndex: dayIndex, done: done, failed: failed, streak: streak);
+}

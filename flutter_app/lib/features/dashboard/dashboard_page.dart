@@ -205,6 +205,8 @@ class DashboardPage extends ConsumerWidget {
           return const FinanceFreeFundsWidget();
         case 'loans_overview':
           return const LoansOverviewWidget();
+        case 'challenges_overview':
+          return const ChallengesOverviewWidget();
       }
       return null;
     }

@@ -144,6 +144,14 @@ const List<DashboardWidgetMeta> kDashboardWidgets = [
     icon: 'credit_score',
     route: '/loans',
   ),
+  // Phase 15: challenges & body progress.
+  DashboardWidgetMeta(
+    id: 'challenges_overview',
+    title: 'Челленджи',
+    subtitle: 'Активные с прогрессом',
+    icon: 'emoji_events',
+    route: '/challenges',
+  ),
 ];
 
 class DashboardConfig {
