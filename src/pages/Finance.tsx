@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Wallet, ShoppingCart, LineChart as LineChartIcon, Plus, Trash2, ImagePlus, Camera, X, ArrowUpRight, ArrowDownRight, CreditCard, Banknote, Calculator, Eye, EyeOff, Download, Bot, Loader2, Clock, ChevronDown, ChevronUp, PiggyBank, TrendingUp, Activity, Globe } from 'lucide-react';
+import { Wallet, ShoppingCart, LineChart as LineChartIcon, Plus, Trash2, ImagePlus, Camera, X, ArrowUpRight, ArrowDownRight, CreditCard, Banknote, Calculator, Eye, EyeOff, Download, Upload, Bot, Loader2, Clock, ChevronDown, ChevronUp, PiggyBank, TrendingUp, Activity, Globe } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { startOfWeek, startOfMonth, startOfYear, subWeeks, subMonths, subYears, isAfter, isBefore, format, parseISO, getDaysInMonth, getDate, eachMonthOfInterval, endOfMonth, isWithinInterval, isSameMonth } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -15,6 +15,7 @@ import { BudgetControlTab } from '../components/BudgetControlTab';
 import { AccountsTab } from '../components/AccountsTab';
 import { SmartFinanceAlerts } from '../components/SmartFinanceAlerts';
 import { MonthlyBudgetPlanTab } from '../components/MonthlyBudgetPlanTab';
+import { BankCsvImportModal } from '../components/BankCsvImportModal';
 // Heavy / rarely-used finance tabs are split out so the initial bundle stays small.
 const ProAnalyticsTab = lazy(() => import('../components/ProAnalyticsTab').then(m => ({ default: m.ProAnalyticsTab })));
 const VacationPlanner = lazy(() => import('../components/VacationPlanner').then(m => ({ default: m.VacationPlanner })));
@@ -24,6 +25,7 @@ const WealthTree = lazy(() => import('../components/WealthTree').then(m => ({ de
 const SubscriptionsTab = lazy(() => import('../components/SubscriptionsTab').then(m => ({ default: m.SubscriptionsTab })));
 const FIRECalculatorTab = lazy(() => import('../components/FIRECalculatorTab').then(m => ({ default: m.FIRECalculatorTab })));
 const PredictiveBudgetTab = lazy(() => import('../components/PredictiveBudgetTab').then(m => ({ default: m.PredictiveBudgetTab })));
+const FinanceVisualsTab = lazy(() => import('../components/FinanceVisualsTab').then(m => ({ default: m.FinanceVisualsTab })));
 
 function LazyTabFallback() {
   return (
@@ -49,7 +51,7 @@ export function Finance() {
     fetchRates,
     setBaseCurrency
   } = useStore();
-  const [activeTab, setActiveTab] = useState<'transactions' | 'accounts' | 'shopping' | 'analytics' | 'pro-analytics' | 'loans' | 'ai' | 'plan' | 'control' | 'vacation' | 'savings' | 'debt-strategy' | 'budget-planning' | 'monthly-plan' | 'wealth' | 'subscriptions' | 'fire' | 'predictive'>('monthly-plan');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'accounts' | 'shopping' | 'analytics' | 'visuals' | 'pro-analytics' | 'loans' | 'ai' | 'plan' | 'control' | 'vacation' | 'savings' | 'debt-strategy' | 'budget-planning' | 'monthly-plan' | 'wealth' | 'subscriptions' | 'fire' | 'predictive'>('monthly-plan');
   const [aiPrompt, setAiPrompt] = useState<string | undefined>();
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
 
@@ -120,6 +122,7 @@ export function Finance() {
     ],
     'Аналитика': [
       { id: 'analytics', label: 'Анализ', icon: LineChartIcon },
+      { id: 'visuals', label: 'Графики', icon: Activity, color: 'text-emerald-500' },
       { id: 'pro-analytics', label: 'Pro', icon: Sparkles, color: 'text-purple-400' },
       { id: 'ai', label: 'ИИ', icon: Bot },
     ],
@@ -287,6 +290,11 @@ export function Finance() {
         {activeTab === 'control' && <BudgetControlTab />}
         {activeTab === 'monthly-plan' && <MonthlyBudgetPlanTab />}
         {activeTab === 'analytics' && <FinanceAnalyticsTab />}
+        {activeTab === 'visuals' && (
+          <Suspense fallback={<LazyTabFallback />}>
+            <FinanceVisualsTab />
+          </Suspense>
+        )}
         {activeTab === 'ai' && <AIFinanceAssistant initialPrompt={aiPrompt} />}
         <Suspense fallback={<LazyTabFallback />}>
           {activeTab === 'vacation' && <VacationPlanner />}
@@ -584,6 +592,7 @@ function SavingsTab() {
 function TransactionsTab() {
   const { transactions = [], accounts = [], regularPayments = [], addTransaction, deleteTransaction, updateTransaction, rates = {}, baseCurrency = 'USD' } = useStore();
   const [isAdding, setIsAdding] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [type, setType] = useState<TransactionType>('expense');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
@@ -1025,6 +1034,13 @@ function TransactionsTab() {
         <h2 className="text-lg font-semibold text-zinc-900">История операций</h2>
         <div className="flex gap-2">
           <button
+            onClick={() => setShowImport(true)}
+            className="p-2 bg-stone-100 text-zinc-700 rounded-lg hover:bg-stone-200 transition-colors"
+            title="Импорт CSV-выписки"
+          >
+            <Upload className="w-5 h-5" />
+          </button>
+          <button
             onClick={exportToCSV}
             className="p-2 bg-stone-100 text-zinc-700 rounded-lg hover:bg-stone-200 transition-colors"
             title="Экспорт в CSV"
@@ -1039,6 +1055,7 @@ function TransactionsTab() {
           </button>
         </div>
       </div>
+      <BankCsvImportModal open={showImport} onClose={() => setShowImport(false)} />
 
       <AnimatePresence>
         {isAdding && (

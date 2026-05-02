@@ -201,7 +201,13 @@ export type PasswordEntry = {
 };
 
 export type Currency = 'BYN' | 'USD' | 'EUR' | 'RUB' | 'PLN' | 'USDT' | string;
-export type AccountType = 'card' | 'cash' | 'deposit' | 'crypto' | 'other';
+export type AccountType =
+  | 'card'
+  | 'cash'
+  | 'deposit'
+  | 'crypto'
+  | 'installment' // карты рассрочки (Халва, Магнит, Карта покупок)
+  | 'other';
 
 export type Account = {
   id: string;
