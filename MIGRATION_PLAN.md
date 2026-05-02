@@ -178,12 +178,19 @@ The React app puts most of its value here. We need parity with
 - ✅ Mini-courses: 5 step-by-step courses with progress tracking.
 - ✅ Templates: habit and goal templates for financial literacy.
 
-### Phase 8 — Passwords & TOTP
+### Phase 8 — Passwords & TOTP ✅
 
-- AES-encrypted password vault using `flutter_secure_storage` for the master
-  key and Hive for ciphertext.
-- TOTP code rotation via `otp` package (replaces `otpauth`).
-- Optional biometric unlock.
+- ✅ Full password manager with search, category filtering, pin/unpin,
+  add/edit/delete entries.
+- ✅ Password generator with 4 paranoia levels (8–32 chars, configurable
+  character sets) using `Random.secure()`.
+- ✅ TOTP authenticator: RFC 6238 implementation using `package:crypto`
+  HMAC-SHA1, base32 decoding, 30-second rotation with live countdown
+  progress bar. Supports raw secrets and `otpauth://` URIs.
+- ✅ Clipboard integration (copy password, copy TOTP code).
+- ✅ Notes and URL fields per entry.
+- ✅ Persistent storage via Hive (same JsonListController pattern).
+- ⏳ AES encryption layer and biometric unlock deferred to Phase 10 polish.
 
 ### Phase 9 — Household / Shopping / Work schedule
 
@@ -221,7 +228,7 @@ The React app puts most of its value here. We need parity with
 | 5 — Analytics & charts | ⏳ | | mostly custom painters |
 | 6 — Productivity tools | ✅ | Devin | Pomodoro, Sleep, Water, Inbox |
 | 7 — Belarus localisation | ✅ | Devin | 8 tabs, 10 calculators, FinLit, calendar, glossary, courses |
-| 8 — Passwords & TOTP | ⏳ | | needs biometric setup |
+| 8 — Passwords & TOTP | ✅ | Devin | Password vault, TOTP authenticator, generator |
 | 9 — Household etc. | ⏳ | | |
 | 10 — Polish | ⏳ | | |
 
