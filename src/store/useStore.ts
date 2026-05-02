@@ -72,6 +72,17 @@ interface AppState {
   baseCurrency: Currency;
   fetchRates: () => Promise<void>;
   setBaseCurrency: (currency: Currency) => void;
+  /** Дата последнего успешного обновления курсов НБРБ. */
+  ratesUpdatedAt?: string;
+  /** Ставка рефинансирования НБРБ, %. */
+  refinancingRate?: number;
+  /** Дата последнего обновления ставки рефинансирования. */
+  refinancingRateUpdatedAt?: string;
+  fetchRefinancingRate: () => Promise<void>;
+
+  // Locale
+  locale?: 'ru' | 'be' | 'en';
+  setLocale: (locale: 'ru' | 'be' | 'en') => void;
   
   // AI Settings
   customGeminiKey: string | null;
@@ -346,7 +357,8 @@ export const useStore = create<AppState>()(
       dailyActivities: [],
       hideHabitNames: false,
       rates: {},
-      baseCurrency: 'USD',
+      baseCurrency: 'BYN',
+      locale: 'ru',
       pomodoro: {
         timeLeft: 25 * 60,
         totalTime: 25 * 60,
@@ -382,27 +394,64 @@ export const useStore = create<AppState>()(
 
       setBaseCurrency: (currency) => set({ baseCurrency: currency }),
 
+      setLocale: (locale) => set({ locale }),
+
       fetchRates: async () => {
+        // Skip refetching if we already updated within the last 6 hours
+        // and the cache is still valid — saves an API hit on every cold start.
+        const last = get().ratesUpdatedAt;
+        if (last) {
+          const ageMs = Date.now() - new Date(last).getTime();
+          if (ageMs < 6 * 60 * 60 * 1000 && Object.keys(get().rates).length > 0) {
+            return;
+          }
+        }
         try {
           const response = await fetch('https://api.nbrb.by/exrates/rates?periodicity=0');
           if (!response.ok) throw new Error('Failed to fetch rates');
           const data = await response.json();
-          
+
           const newRates: Record<string, number> = {};
-          // NBRB returns rates relative to 1 or 100 units of foreign currency in BYN
-          // We want to store how many BYN is 1 unit of foreign currency
+          // NBRB returns rates relative to 1 or 100 units of foreign currency in BYN.
+          // We store how many BYN is 1 unit of foreign currency.
           data.forEach((item: any) => {
-            if (['USD', 'EUR', 'RUB', 'PLN'].includes(item.Cur_Abbreviation)) {
+            if (['USD', 'EUR', 'RUB', 'PLN', 'CNY', 'GBP', 'CHF'].includes(item.Cur_Abbreviation)) {
               newRates[item.Cur_Abbreviation] = item.Cur_OfficialRate / item.Cur_Scale;
             }
           });
-          
-          // Add BYN as 1 since it's the anchor for NBRB
+          // BYN is the anchor for NBRB.
           newRates['BYN'] = 1;
-          
-          set({ rates: newRates });
+
+          set({ rates: newRates, ratesUpdatedAt: new Date().toISOString() });
         } catch (error) {
+          // Keep previously cached rates from `persist` so the app stays usable offline.
           console.error('Error fetching NBRB rates:', error);
+        }
+      },
+
+      fetchRefinancingRate: async () => {
+        const last = get().refinancingRateUpdatedAt;
+        if (last) {
+          const ageMs = Date.now() - new Date(last).getTime();
+          if (ageMs < 24 * 60 * 60 * 1000 && get().refinancingRate != null) {
+            return;
+          }
+        }
+        try {
+          const response = await fetch('https://api.nbrb.by/refinancingrate');
+          if (!response.ok) throw new Error('Failed to fetch refinancing rate');
+          const data = await response.json();
+          // Endpoint returns either an array of {Date, Value} or a single object.
+          const latest = Array.isArray(data) ? data.at(-1) : data;
+          const value = Number(latest?.Value);
+          if (Number.isFinite(value)) {
+            set({
+              refinancingRate: value,
+              refinancingRateUpdatedAt: new Date().toISOString(),
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching NBRB refinancing rate:', error);
         }
       },
 

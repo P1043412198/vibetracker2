@@ -5,6 +5,7 @@ import { CheckCircle2, XCircle, ListTodo, Target, Activity, MinusCircle, Flame, 
 import { analyzeWeek } from '../services/aiService';
 import ReactMarkdown from 'react-markdown';
 import { cn } from '../lib/utils';
+import { AdvancedChartsSection } from '../components/AdvancedChartsSection';
 
 export function Analytics() {
   const { tasks, spheres, habits, habitLogs, workSchedule, goals, exerciseLogs, hideHabitNames } = useStore();
@@ -900,6 +901,7 @@ export function Analytics() {
           </div>
         </div>
       </div>
+      <AdvancedChartsSection />
     </div>
   );
 }
