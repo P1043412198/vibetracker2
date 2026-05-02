@@ -63,34 +63,50 @@ class AppShell extends StatelessWidget {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
+      // Cap initial size so the user can drag to expand and the list scrolls.
       builder: (sheetContext) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    'Ещё',
-                    style: Theme.of(sheetContext).textTheme.titleLarge,
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.7,
+          minChildSize: 0.4,
+          maxChildSize: 0.95,
+          builder: (ctx, scrollController) {
+            return SafeArea(
+              top: false,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Ещё',
+                        style: Theme.of(sheetContext).textTheme.titleLarge,
+                      ),
+                    ),
                   ),
-                ),
-                ..._moreItems.map(
-                  (m) => ListTile(
-                    leading: Icon(m.icon),
-                    title: Text(m.label),
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      context.go(m.path);
-                    },
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 24),
+                      itemCount: _moreItems.length,
+                      itemBuilder: (_, i) {
+                        final m = _moreItems[i];
+                        return ListTile(
+                          leading: Icon(m.icon),
+                          title: Text(m.label),
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            context.go(m.path);
+                          },
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
