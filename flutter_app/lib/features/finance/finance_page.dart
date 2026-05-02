@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../services/finance_calc.dart';
@@ -80,6 +81,18 @@ class _FinancePageState extends ConsumerState<FinancePage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Финансы'),
+        actions: [
+          IconButton(
+            tooltip: 'Чеки',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: () => context.push('/receipts'),
+          ),
+          IconButton(
+            tooltip: 'Финансовая грамотность',
+            icon: const Icon(Icons.school_outlined),
+            onPressed: () => context.push('/tools'),
+          ),
+        ],
         bottom: TabBar(
           controller: _controller,
           isScrollable: true,

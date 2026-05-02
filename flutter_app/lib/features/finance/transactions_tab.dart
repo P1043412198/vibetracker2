@@ -1,10 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
 import '../../models/finance.dart';
+import '../../models/misc.dart';
+import '../../services/receipt_scanner.dart';
+import '../../services/receipt_service.dart';
 import '../../state/providers.dart';
 import 'finance_shared.dart';
 
@@ -276,8 +282,12 @@ class _TransactionTile extends ConsumerWidget {
         ? '${account?.name ?? '—'} → ${to?.name ?? '—'}'
         : account?.name ?? '';
 
+    final receiptCount = transaction.receiptPaths?.length ?? 0;
     return Card(
       child: ListTile(
+        onTap: receiptCount > 0
+            ? () => _openReceipts(context, transaction)
+            : null,
         leading: Container(
           width: 40,
           height: 40,
@@ -295,13 +305,42 @@ class _TransactionTile extends ConsumerWidget {
             color: color,
           ),
         ),
-        title: Text(
-          isTransfer ? 'Перевод' : transaction.category,
-          style: const TextStyle(fontWeight: FontWeight.w600),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                isTransfer
+                    ? 'Перевод'
+                    : (transaction.merchant?.isNotEmpty == true
+                        ? transaction.merchant!
+                        : transaction.category),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (receiptCount > 0) ...[
+              const SizedBox(width: 6),
+              Icon(Icons.receipt_long_outlined,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary),
+              if (receiptCount > 1)
+                Padding(
+                  padding: const EdgeInsets.only(left: 2),
+                  child: Text('×$receiptCount',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.primary,
+                      )),
+                ),
+            ],
+          ],
         ),
         subtitle: Text(
           [
             transaction.date,
+            if (transaction.merchant?.isNotEmpty == true && !isTransfer)
+              transaction.category,
             if (accountLabel.isNotEmpty) accountLabel,
             if (transaction.notes != null) transaction.notes!,
           ].join(' · '),
@@ -339,6 +378,77 @@ class _TransactionTile extends ConsumerWidget {
           borderRadius: BorderRadius.circular(20),
         ),
       ),
+    );
+  }
+
+  Future<void> _openReceipts(BuildContext context, Transaction tx) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _ReceiptViewerSheet(transaction: tx),
+    );
+  }
+}
+
+class _ReceiptViewerSheet extends StatelessWidget {
+  const _ReceiptViewerSheet({required this.transaction});
+  final Transaction transaction;
+
+  @override
+  Widget build(BuildContext context) {
+    final paths = transaction.receiptPaths ?? const [];
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.8,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      builder: (ctx, scroll) {
+        return SafeArea(
+          top: false,
+          child: ListView(
+            controller: scroll,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            children: [
+              if (transaction.merchant?.isNotEmpty == true)
+                Text(transaction.merchant!,
+                    style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                '${transaction.date} · ${transaction.category}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              for (final p in paths)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: FutureBuilder<File>(
+                      future: ReceiptService.instance.resolve(p),
+                      builder: (context, snap) {
+                        final f = snap.data;
+                        if (f == null) {
+                          return const SizedBox(
+                            height: 120,
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        return Image.file(f, fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Center(
+                                      child: Icon(
+                                          Icons.broken_image_outlined,
+                                          size: 48)),
+                                ));
+                      },
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -383,16 +493,21 @@ class _TransactionFormSheetState
   final _amountController = TextEditingController();
   final _categoryController = TextEditingController();
   final _notesController = TextEditingController();
+  final _merchantController = TextEditingController();
   TransactionType _type = TransactionType.expense;
   DateTime _date = DateTime.now();
   String? _accountId;
   String? _toAccountId;
+  final List<String> _receiptPaths = [];
+  List<ReceiptLineItem> _scannedItems = const [];
+  bool _scanning = false;
 
   @override
   void dispose() {
     _amountController.dispose();
     _categoryController.dispose();
     _notesController.dispose();
+    _merchantController.dispose();
     super.dispose();
   }
 
@@ -524,6 +639,31 @@ class _TransactionFormSheetState
               maxLines: 2,
               decoration: const InputDecoration(labelText: 'Заметка'),
             ),
+            if (_type != TransactionType.transfer) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _merchantController,
+                decoration: const InputDecoration(
+                  labelText: 'Магазин / продавец',
+                  hintText: 'Заполнится после сканирования чека',
+                ),
+              ),
+              const SizedBox(height: 12),
+              _ReceiptSection(
+                paths: _receiptPaths,
+                scanning: _scanning,
+                onPick: _pickReceipt,
+                onScan: _pickAndScanReceipt,
+                onRemove: _removeReceiptAt,
+              ),
+              if (_scannedItems.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _ScannedItems(
+                  items: _scannedItems,
+                  onSavePrices: _savePricesFromScan,
+                ),
+              ],
+            ],
             const SizedBox(height: 12),
             OutlinedButton.icon(
               icon: const Icon(Icons.calendar_today),
@@ -553,6 +693,7 @@ class _TransactionFormSheetState
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
     if (amount <= 0) return;
     if (_type == TransactionType.transfer && _toAccountId == null) return;
+    final merchant = _merchantController.text.trim();
     final tx = Transaction(
       id: const Uuid().v4(),
       type: _type,
@@ -568,8 +709,284 @@ class _TransactionFormSheetState
           : _notesController.text.trim(),
       accountId: _accountId,
       toAccountId: _type == TransactionType.transfer ? _toAccountId : null,
+      merchant: merchant.isEmpty ? null : merchant,
+      receiptPaths: _receiptPaths.isEmpty ? null : List.of(_receiptPaths),
     );
     await ref.read(transactionsProvider.notifier).add(tx);
     if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _pickReceipt() async {
+    final source = await _askSource();
+    if (source == null) return;
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: source,
+      imageQuality: 80,
+    );
+    if (picked == null) return;
+    final stored = await ReceiptService.instance.persist(File(picked.path));
+    if (!mounted) return;
+    setState(() => _receiptPaths.add(stored));
+  }
+
+  Future<void> _pickAndScanReceipt() async {
+    final source = await _askSource();
+    if (source == null) return;
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: source,
+      imageQuality: 90,
+    );
+    if (picked == null) return;
+    setState(() => _scanning = true);
+    try {
+      final stored = await ReceiptService.instance.persist(File(picked.path));
+      final result = await ReceiptScanner.instance.scan(picked.path);
+      if (!mounted) return;
+      setState(() {
+        _receiptPaths.add(stored);
+        if (result.merchant != null && _merchantController.text.isEmpty) {
+          _merchantController.text = result.merchant!;
+        }
+        if (result.total != null && _amountController.text.isEmpty) {
+          _amountController.text = result.total!.toStringAsFixed(2);
+        }
+        if (result.dateIso != null) {
+          final parsed = DateTime.tryParse(result.dateIso!);
+          if (parsed != null) _date = parsed;
+        }
+        _scannedItems = result.items;
+      });
+    } finally {
+      if (mounted) setState(() => _scanning = false);
+    }
+  }
+
+  Future<ImageSource?> _askSource() async {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Камера'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Галерея'),
+              onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _removeReceiptAt(int index) {
+    final path = _receiptPaths[index];
+    setState(() => _receiptPaths.removeAt(index));
+    // Best-effort cleanup of the on-disk copy.
+    ReceiptService.instance.remove(path);
+  }
+
+  Future<void> _savePricesFromScan() async {
+    if (_scannedItems.isEmpty) return;
+    final store = _merchantController.text.trim();
+    final dateIso = DateFormat('yyyy-MM-dd').format(_date);
+    final notifier = ref.read(priceHistoryProvider.notifier);
+    for (final item in _scannedItems) {
+      await notifier.add(PriceHistoryEntry(
+        id: const Uuid().v4(),
+        itemName: item.name,
+        price: item.price,
+        date: dateIso,
+        store: store.isEmpty ? null : store,
+      ));
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Сохранено в историю цен: ${_scannedItems.length}')),
+    );
+    setState(() => _scannedItems = const []);
+  }
+}
+
+class _ReceiptSection extends StatelessWidget {
+  const _ReceiptSection({
+    required this.paths,
+    required this.scanning,
+    required this.onPick,
+    required this.onScan,
+    required this.onRemove,
+  });
+
+  final List<String> paths;
+  final bool scanning;
+  final Future<void> Function() onPick;
+  final Future<void> Function() onScan;
+  final void Function(int index) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: scanning ? null : onPick,
+                icon: const Icon(Icons.attach_file),
+                label: const Text('Прикрепить'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.tonalIcon(
+                onPressed: scanning ? null : onScan,
+                icon: scanning
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.document_scanner_outlined),
+                label: Text(scanning ? 'Распознаю…' : 'Сканировать'),
+              ),
+            ),
+          ],
+        ),
+        if (paths.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 88,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: paths.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) => _ReceiptThumb(
+                relativePath: paths[i],
+                onRemove: () => onRemove(i),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ReceiptThumb extends StatelessWidget {
+  const _ReceiptThumb({required this.relativePath, required this.onRemove});
+
+  final String relativePath;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<File>(
+      future: ReceiptService.instance.resolve(relativePath),
+      builder: (context, snap) {
+        final file = snap.data;
+        return Stack(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 88,
+                height: 88,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: file == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : Image.file(file, fit: BoxFit.cover, errorBuilder: (_, __, ___) {
+                        return const Icon(Icons.broken_image_outlined);
+                      }),
+              ),
+            ),
+            Positioned(
+              top: 2,
+              right: 2,
+              child: Material(
+                color: Colors.black54,
+                shape: const CircleBorder(),
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: onRemove,
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(Icons.close,
+                        size: 14, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ScannedItems extends StatelessWidget {
+  const _ScannedItems({required this.items, required this.onSavePrices});
+
+  final List<ReceiptLineItem> items;
+  final Future<void> Function() onSavePrices;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      color: scheme.surfaceContainerLow,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.receipt_long_outlined, size: 18),
+                const SizedBox(width: 8),
+                Text('Распознано позиций: ${items.length}',
+                    style: Theme.of(context).textTheme.titleSmall),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...items.take(6).map(
+                  (i) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(i.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        Text(i.price.toStringAsFixed(2),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+            if (items.length > 6)
+              Text('и ещё ${items.length - 6}',
+                  style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onSavePrices,
+                icon: const Icon(Icons.price_change_outlined),
+                label: const Text('В историю цен'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

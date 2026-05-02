@@ -67,6 +67,10 @@ android {
             signingConfig = keystorePropertiesFile.exists()
                 ? signingConfigs.release
                 : signingConfigs.debug
+            // R8 is on by default in AGP 8.x; supply -dontwarn rules for
+            // optional MLKit text-recognition scripts we don't bundle.
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
         }
     }
 }

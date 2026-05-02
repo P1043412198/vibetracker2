@@ -33,9 +33,10 @@ class AppShell extends StatelessWidget {
     _MoreItem('/household', 'Хозяйство', Icons.home_outlined),
     _MoreItem('/shopping-list', 'Список покупок', Icons.shopping_cart_outlined),
     _MoreItem('/work-schedule', 'График работы', Icons.calendar_today_outlined),
+    _MoreItem('/receipts', 'Чеки', Icons.receipt_long_outlined),
     _MoreItem('/analytics', 'Аналитика', Icons.analytics_outlined),
     _MoreItem('/passwords', 'Пароли', Icons.lock_outline),
-    _MoreItem('/tools', 'Инструменты', Icons.handyman_outlined),
+    _MoreItem('/tools', 'Финграмотность', Icons.handyman_outlined),
     _MoreItem('/settings', 'Настройки', Icons.settings_outlined),
   ];
 

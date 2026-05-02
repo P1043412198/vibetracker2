@@ -50,6 +50,9 @@ dependencies:
   google_mlkit_pose_detection: ^0.13.0
   http: ^1.2.2
 
+  # Receipts: OCR scanning of paper checks
+  google_mlkit_text_recognition: ^0.14.0
+
   # Phase 8: Passwords & TOTP
   crypto: ^3.0.6
 

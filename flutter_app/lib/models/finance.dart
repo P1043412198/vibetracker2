@@ -58,6 +58,8 @@ class Transaction {
     this.toAccountId,
     this.tags,
     this.source,
+    this.merchant,
+    this.receiptPaths,
   });
 
   final String id;
@@ -73,6 +75,11 @@ class Transaction {
   final String? toAccountId;
   final List<String>? tags;
   final String? source;
+  // Phase 11: cashier / merchant name parsed from receipt OCR.
+  final String? merchant;
+  // Phase 11: relative paths (under app docs `receipts/`) of receipt
+  // photos. Multiple per transaction supported (front + back of slip etc).
+  final List<String>? receiptPaths;
 
   Transaction copyWith({
     TransactionType? type,
@@ -84,6 +91,8 @@ class Transaction {
     String? toAccountId,
     List<String>? tags,
     String? source,
+    String? merchant,
+    List<String>? receiptPaths,
   }) {
     return Transaction(
       id: id,
@@ -99,6 +108,8 @@ class Transaction {
       toAccountId: toAccountId ?? this.toAccountId,
       tags: tags ?? this.tags,
       source: source ?? this.source,
+      merchant: merchant ?? this.merchant,
+      receiptPaths: receiptPaths ?? this.receiptPaths,
     );
   }
 
@@ -116,6 +127,9 @@ class Transaction {
         if (toAccountId != null) 'toAccountId': toAccountId,
         if (tags != null) 'tags': tags,
         if (source != null) 'source': source,
+        if (merchant != null) 'merchant': merchant,
+        if (receiptPaths != null && receiptPaths!.isNotEmpty)
+          'receiptPaths': receiptPaths,
       };
 
   factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
@@ -136,6 +150,9 @@ class Transaction {
         toAccountId: json['toAccountId'] as String?,
         tags: (json['tags'] as List?)?.whereType<String>().toList(),
         source: json['source'] as String?,
+        merchant: json['merchant'] as String?,
+        receiptPaths:
+            (json['receiptPaths'] as List?)?.whereType<String>().toList(),
       );
 }
 
