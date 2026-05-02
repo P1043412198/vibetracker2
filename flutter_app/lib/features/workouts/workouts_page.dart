@@ -6,7 +6,9 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
 import '../../models/misc.dart';
+import '../../services/ai_service.dart';
 import '../../state/providers.dart';
+import 'workout_camera_page.dart';
 
 /// Counterpart of `src/pages/Workouts.tsx`. Phase 4 ships four tabs:
 /// programs (tree of folders/exercises), calendar (planned workouts),
@@ -40,6 +42,21 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Тренировки'),
+        actions: [
+          IconButton(
+            tooltip: 'Камера-тренер',
+            icon: const Icon(Icons.videocam_outlined),
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const WorkoutCameraPage()));
+            },
+          ),
+          IconButton(
+            tooltip: 'AI-план',
+            icon: const Icon(Icons.auto_awesome_outlined),
+            onPressed: () => _showAiPlanDialog(context, ref),
+          ),
+        ],
         bottom: TabBar(
           controller: _tab,
           isScrollable: true,
@@ -1506,3 +1523,245 @@ String _measurementLabel(String key) => switch (key) {
       'calves' => 'икры',
       _ => key,
     };
+
+/* ───────────────────────────── AI plan ─────────────────────────────── */
+
+Future<void> _showAiPlanDialog(BuildContext context, WidgetRef ref) async {
+  if (AiService.apiKey == null) {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Нужен GEMINI_API_KEY'),
+        content: const Text(
+            'Чтобы сгенерировать план тренировки, добавь ключ в Настройки → '
+            'AI (Gemini).'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Отмена')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Открыть Настройки')),
+        ],
+      ),
+    );
+    if (go == true && context.mounted) {
+      // Settings is reachable via the bottom nav "Ещё" sheet. We don't have
+      // a global push for it from here, so just hint and close.
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Открой «Ещё» → Настройки и сохрани ключ.'),
+      ));
+    }
+    return;
+  }
+
+  Set<MuscleGroup> targets = {MuscleGroup.legs};
+  int duration = 60;
+  String focus = 'general';
+  String equipment = 'all';
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (sheetCtx) {
+      return StatefulBuilder(
+        builder: (ctx, setState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 4,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('AI-план тренировки',
+                    style: Theme.of(ctx).textTheme.titleLarge),
+                const SizedBox(height: 12),
+                Text('Целевые группы',
+                    style: Theme.of(ctx).textTheme.labelMedium),
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final g in MuscleGroup.values)
+                      FilterChip(
+                        label: Text(_muscleLabel(g)),
+                        selected: targets.contains(g),
+                        onSelected: (v) => setState(() {
+                          if (v) {
+                            targets.add(g);
+                          } else {
+                            targets.remove(g);
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        value: duration,
+                        decoration: const InputDecoration(
+                            labelText: 'Длительность'),
+                        items: const [
+                          DropdownMenuItem(value: 30, child: Text('30 мин')),
+                          DropdownMenuItem(value: 45, child: Text('45 мин')),
+                          DropdownMenuItem(value: 60, child: Text('60 мин')),
+                          DropdownMenuItem(value: 90, child: Text('90 мин')),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => duration = v ?? 60),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: focus,
+                        decoration:
+                            const InputDecoration(labelText: 'Фокус'),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'general', child: Text('Общий')),
+                          DropdownMenuItem(
+                              value: 'strength', child: Text('Сила')),
+                          DropdownMenuItem(
+                              value: 'hypertrophy',
+                              child: Text('Гипертрофия')),
+                          DropdownMenuItem(
+                              value: 'endurance',
+                              child: Text('Выносливость')),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => focus = v ?? 'general'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: equipment,
+                  decoration:
+                      const InputDecoration(labelText: 'Инвентарь'),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('Любой')),
+                    DropdownMenuItem(
+                        value: 'bodyweight', child: Text('Без снарядов')),
+                    DropdownMenuItem(
+                        value: 'dumbbells', child: Text('Гантели')),
+                    DropdownMenuItem(
+                        value: 'barbell',
+                        child: Text('Штанга + гантели')),
+                    DropdownMenuItem(
+                        value: 'gym', child: Text('Тренажёрный зал')),
+                  ],
+                  onChanged: (v) =>
+                      setState(() => equipment = v ?? 'all'),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  icon: const Icon(Icons.auto_awesome),
+                  onPressed: targets.isEmpty
+                      ? null
+                      : () async {
+                          Navigator.of(ctx).pop();
+                          await _runAiPlan(
+                            context,
+                            ref,
+                            targets: targets.toList(),
+                            duration: duration,
+                            focus: focus,
+                            equipment: equipment,
+                          );
+                        },
+                  label: const Text('Сгенерировать'),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+Future<void> _runAiPlan(
+  BuildContext context,
+  WidgetRef ref, {
+  required List<MuscleGroup> targets,
+  required int duration,
+  required String focus,
+  required String equipment,
+}) async {
+  final scaffold = ScaffoldMessenger.of(context);
+  final progress = scaffold.showSnackBar(const SnackBar(
+    content: Text('Запрашиваем план у Gemini…'),
+    duration: Duration(seconds: 30),
+  ));
+  try {
+    final logs =
+        ref.read(exerciseLogsProvider).take(50).map((l) => l.toJson()).toList();
+    final result = await AiService.generateWorkout(
+      targetMuscleGroups: targets.map((g) => g.name).toList(),
+      duration: duration,
+      focus: focus,
+      equipment: [equipment],
+      pastLogs: logs,
+    );
+    progress.close();
+    if (result == null) {
+      scaffold.showSnackBar(const SnackBar(
+          content: Text('Не удалось распарсить ответ Gemini.')));
+      return;
+    }
+    final title = (result['title'] as String?) ?? 'AI-план';
+    final exercises = (result['exercises'] as List?) ?? const [];
+    if (exercises.isEmpty) {
+      scaffold.showSnackBar(
+          const SnackBar(content: Text('AI вернул пустой план.')));
+      return;
+    }
+    final folderId = const Uuid().v4();
+    await ref.read(workoutNodesProvider.notifier).add(WorkoutNode(
+          id: folderId,
+          parentId: null,
+          name: '🤖 $title',
+          type: WorkoutNodeType.folder,
+          isTemplate: true,
+        ));
+    final primaryGroup = targets.first;
+    for (final raw in exercises) {
+      if (raw is! Map) continue;
+      final name = (raw['name'] as String?)?.trim() ?? '';
+      if (name.isEmpty) continue;
+      final sets = (raw['sets'] as num?)?.toInt();
+      final reps = (raw['reps'] as String?)?.trim();
+      final notes = [
+        if (sets != null) '$sets подх.',
+        if (reps != null && reps.isNotEmpty) reps,
+        if ((raw['notes'] as String?)?.isNotEmpty == true)
+          raw['notes'] as String,
+      ].join(' · ');
+      await ref.read(workoutNodesProvider.notifier).add(WorkoutNode(
+            id: const Uuid().v4(),
+            parentId: folderId,
+            name: name,
+            type: WorkoutNodeType.exercise,
+            metrics: const [WorkoutMetric.weight, WorkoutMetric.reps],
+            muscleGroup: primaryGroup,
+            notes: notes.isEmpty ? null : notes,
+          ));
+    }
+    scaffold.showSnackBar(SnackBar(
+      content: Text('Добавлен план «$title» (${exercises.length} упр.)'),
+    ));
+  } catch (e) {
+    progress.close();
+    scaffold.showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+  }
+}
