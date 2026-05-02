@@ -27,6 +27,11 @@ class DashboardPage extends ConsumerWidget {
     final spheres = ref.watch(spheresProvider);
     final currency = ref.watch(defaultCurrencyProvider);
 
+    final pomodoro = ref.watch(pomodoroProvider);
+    final waterLogs = ref.watch(waterLogsProvider);
+    final waterGoal = ref.watch(waterGoalProvider);
+    final sleepLogs = ref.watch(sleepLogsProvider);
+
     final today = DateTime.now();
     final todayStr =
         '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
@@ -134,6 +139,46 @@ class DashboardPage extends ConsumerWidget {
               icon: Icons.shopping_cart_outlined,
               accent: const Color(0xFF3B82F6),
               onTap: () => context.go('/shopping-list'),
+            ),
+            const SizedBox(height: 16),
+            // Phase 6 widgets
+            _StatsRow(
+              cards: [
+                _StatData(
+                  label: 'Pomodoro',
+                  value: pomodoro.isRunning
+                      ? '${pomodoro.timeLeft ~/ 60}:${(pomodoro.timeLeft % 60).toString().padLeft(2, '0')}'
+                      : '${pomodoro.sessionsCompleted} сессий',
+                  icon: Icons.timer,
+                  color: scheme.primary,
+                  onTap: () => context.go('/pomodoro'),
+                ),
+                _StatData(
+                  label: 'Вода сегодня',
+                  value: () {
+                    final todayW = waterLogs
+                        .where((l) => l.date == todayStr)
+                        .fold<num>(0, (s, l) => s + l.amount);
+                    return '${todayW.toInt()} / $waterGoal мл';
+                  }(),
+                  icon: Icons.water_drop,
+                  color: const Color(0xFF3B82F6),
+                  onTap: () => context.go('/water'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _SectionCard(
+              title: 'Сон и Восстановление',
+              subtitle: () {
+                if (sleepLogs.isEmpty) return 'Нет записей';
+                final avg = sleepLogs.fold<num>(0, (s, l) => s + l.hours) /
+                    sleepLogs.length;
+                return 'Среднее ${avg.toStringAsFixed(1)}ч';
+              }(),
+              icon: Icons.bedtime_outlined,
+              accent: const Color(0xFF8B5CF6),
+              onTap: () => context.go('/sleep'),
             ),
           ],
         ),

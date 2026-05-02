@@ -380,6 +380,105 @@ class BodyMeasurement {
   }
 }
 
+class PomodoroSettings {
+  PomodoroSettings({
+    this.workTime = 25,
+    this.shortBreakTime = 5,
+    this.longBreakTime = 15,
+    this.soundEnabled = true,
+  });
+
+  final int workTime;
+  final int shortBreakTime;
+  final int longBreakTime;
+  final bool soundEnabled;
+
+  Map<String, dynamic> toJson() => {
+        'workTime': workTime,
+        'shortBreakTime': shortBreakTime,
+        'longBreakTime': longBreakTime,
+        'soundEnabled': soundEnabled,
+      };
+
+  factory PomodoroSettings.fromJson(Map<String, dynamic> json) =>
+      PomodoroSettings(
+        workTime: ((json['workTime'] ?? 25) as num).toInt(),
+        shortBreakTime: ((json['shortBreakTime'] ?? 5) as num).toInt(),
+        longBreakTime: ((json['longBreakTime'] ?? 15) as num).toInt(),
+        soundEnabled: (json['soundEnabled'] ?? true) as bool,
+      );
+
+  PomodoroSettings copyWith({
+    int? workTime,
+    int? shortBreakTime,
+    int? longBreakTime,
+    bool? soundEnabled,
+  }) {
+    return PomodoroSettings(
+      workTime: workTime ?? this.workTime,
+      shortBreakTime: shortBreakTime ?? this.shortBreakTime,
+      longBreakTime: longBreakTime ?? this.longBreakTime,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+    );
+  }
+}
+
+class PomodoroState {
+  PomodoroState({
+    required this.timeLeft,
+    required this.totalTime,
+    this.isRunning = false,
+    this.type = 'work',
+    this.sessionsCompleted = 0,
+    PomodoroSettings? settings,
+  }) : settings = settings ?? PomodoroSettings();
+
+  final int timeLeft;
+  final int totalTime;
+  final bool isRunning;
+  final String type; // 'work' | 'shortBreak' | 'longBreak'
+  final int sessionsCompleted;
+  final PomodoroSettings settings;
+
+  Map<String, dynamic> toJson() => {
+        'timeLeft': timeLeft,
+        'totalTime': totalTime,
+        'isRunning': isRunning,
+        'type': type,
+        'sessionsCompleted': sessionsCompleted,
+        'settings': settings.toJson(),
+      };
+
+  factory PomodoroState.fromJson(Map<String, dynamic> json) => PomodoroState(
+        timeLeft: ((json['timeLeft'] ?? 1500) as num).toInt(),
+        totalTime: ((json['totalTime'] ?? 1500) as num).toInt(),
+        isRunning: (json['isRunning'] ?? false) as bool,
+        type: (json['type'] ?? 'work') as String,
+        sessionsCompleted: ((json['sessionsCompleted'] ?? 0) as num).toInt(),
+        settings: json['settings'] is Map<String, dynamic>
+            ? PomodoroSettings.fromJson(json['settings'] as Map<String, dynamic>)
+            : PomodoroSettings(),
+      );
+
+  PomodoroState copyWith({
+    int? timeLeft,
+    int? totalTime,
+    bool? isRunning,
+    String? type,
+    int? sessionsCompleted,
+    PomodoroSettings? settings,
+  }) {
+    return PomodoroState(
+      timeLeft: timeLeft ?? this.timeLeft,
+      totalTime: totalTime ?? this.totalTime,
+      isRunning: isRunning ?? this.isRunning,
+      type: type ?? this.type,
+      sessionsCompleted: sessionsCompleted ?? this.sessionsCompleted,
+      settings: settings ?? this.settings,
+    );
+  }
+}
+
 class PlannedWorkout {
   PlannedWorkout({
     required this.id,

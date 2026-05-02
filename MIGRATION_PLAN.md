@@ -144,13 +144,17 @@ The React app puts most of its value here. We need parity with
 - Currency donut, expenses calendar heatmap, net-worth chart, sphere radar,
   task velocity, task close heatmap.
 
-### Phase 6 — Productivity micro-tools
+### Phase 6 — Productivity micro-tools ✅
 
-- Pomodoro timer with persisted state (port `PomodoroState` from
-  [`types.ts`](./src/types.ts)).
-- Inbox of thoughts.
-- Sleep tracker (already modelled, needs UI).
-- Water intake widget with cup/bottle visualization.
+- ✅ Pomodoro timer with persisted state (port `PomodoroState` from
+  [`types.ts`](./src/types.ts)): circular progress ring, work/break/long-break
+  toggle, configurable durations, session counter.
+- ✅ Inbox of thoughts (already done in an earlier pass).
+- ✅ Sleep tracker: log hours + quality (1–5), 7-day area chart, readiness
+  score, history list with delete.
+- ✅ Water intake widget with cup/bottle visualization: custom `CustomPainter`
+  vessel with animated wave fill, configurable daily goal and increment,
+  today's log list.
 
 ### Phase 7 — Belarus localisation pack
 
@@ -200,7 +204,7 @@ The React app puts most of its value here. We need parity with
 | 3 — Goals + Spheres deep | ⏳ | | |
 | 4 — Workouts & body | ⏳ | | needs camera permission flow |
 | 5 — Analytics & charts | ⏳ | | mostly custom painters |
-| 6 — Productivity tools | ⏳ | | |
+| 6 — Productivity tools | ✅ | Devin | Pomodoro, Sleep, Water, Inbox |
 | 7 — Belarus localisation | ⏳ | | |
 | 8 — Passwords & TOTP | ⏳ | | needs biometric setup |
 | 9 — Household etc. | ⏳ | | |

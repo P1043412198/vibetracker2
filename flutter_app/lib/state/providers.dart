@@ -6,6 +6,7 @@ import '../models/habit.dart';
 import '../models/misc.dart';
 import '../models/sphere.dart';
 import '../models/task.dart';
+import '../services/storage.dart';
 import 'json_list_controller.dart';
 
 /// One controller per entity type. The storage keys mirror the React Zustand
@@ -324,4 +325,101 @@ class PlannedWorkoutsController extends JsonListController<PlannedWorkout> {
 final plannedWorkoutsProvider = StateNotifierProvider<
     PlannedWorkoutsController, List<PlannedWorkout>>((ref) {
   return PlannedWorkoutsController();
+});
+
+/// Pomodoro state — persisted as a single JSON map (not a list).
+class PomodoroController extends StateNotifier<PomodoroState> {
+  PomodoroController()
+      : super(PomodoroState(timeLeft: 25 * 60, totalTime: 25 * 60)) {
+    _load();
+  }
+
+  static const _key = 'pomodoro';
+
+  void _load() {
+    final map = AppStorage.readMap(_key);
+    if (map != null) {
+      final loaded = PomodoroState.fromJson(map);
+      state = loaded.copyWith(isRunning: false);
+    }
+  }
+
+  Future<void> _persist() async {
+    await AppStorage.writeMap(_key, state.toJson());
+  }
+
+  void tick() {
+    if (!state.isRunning || state.timeLeft <= 0) return;
+    final newTime = state.timeLeft - 1;
+    if (newTime <= 0) {
+      state = state.copyWith(
+        timeLeft: 0,
+        isRunning: false,
+        sessionsCompleted: state.type == 'work'
+            ? state.sessionsCompleted + 1
+            : state.sessionsCompleted,
+      );
+    } else {
+      state = state.copyWith(timeLeft: newTime);
+    }
+    _persist();
+  }
+
+  void toggleRunning() {
+    state = state.copyWith(isRunning: !state.isRunning);
+    _persist();
+  }
+
+  void startType(String type) {
+    final settings = state.settings;
+    int time;
+    switch (type) {
+      case 'shortBreak':
+        time = settings.shortBreakTime * 60;
+        break;
+      case 'longBreak':
+        time = settings.longBreakTime * 60;
+        break;
+      default:
+        time = settings.workTime * 60;
+    }
+    state = state.copyWith(
+      type: type,
+      timeLeft: time,
+      totalTime: time,
+      isRunning: false,
+    );
+    _persist();
+  }
+
+  void reset() {
+    final settings = state.settings;
+    int time;
+    switch (state.type) {
+      case 'shortBreak':
+        time = settings.shortBreakTime * 60;
+        break;
+      case 'longBreak':
+        time = settings.longBreakTime * 60;
+        break;
+      default:
+        time = settings.workTime * 60;
+    }
+    state = state.copyWith(
+      timeLeft: time,
+      totalTime: time,
+      isRunning: false,
+    );
+    _persist();
+  }
+
+  Future<void> updateSettings(PomodoroSettings settings) async {
+    state = state.copyWith(settings: settings);
+    await _persist();
+  }
+}
+
+final pomodoroProvider =
+    StateNotifierProvider<PomodoroController, PomodoroState>((ref) {
+  return PomodoroController();
 });
