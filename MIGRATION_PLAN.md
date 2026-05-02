@@ -156,12 +156,27 @@ The React app puts most of its value here. We need parity with
   vessel with animated wave fill, configurable daily goal and increment,
   today's log list.
 
-### Phase 7 — Belarus localisation pack
+### Phase 7 — Belarus localisation pack ✅
 
-- Salary deductions calculator (port [`Tools.tsx`](./src/pages/Tools.tsx)
-  Belarus-specific logic from `src/lib/belarus/`).
-- BY-2026 financial-literacy module (FinLit).
-- Loan calculator, bank-rate converter.
+- ✅ Full "Tools" page with 8 tabs: Calculators, FinLit, Tax Calendar,
+  What-If, FX Converter, Glossary, Mini-courses, Templates.
+- ✅ 10 financial calculators ported from React:
+  - Compound interest, Deposit BY (with 13% tax), Loan (annuity/differential),
+    Salary deductions (gross→net with FSZN 1%, income tax 13%, standard/child
+    deductions), IP USN (5%/3%), NPD (self-employed 10%/20%), Safety fund,
+    FX stress test, Vacation pay, FIRE.
+- ✅ Belarus tax calculation library (`lib/finance/by_tax.dart`) and generic
+  financial calculators (`lib/finance/calculators.dart`).
+- ✅ BY-2026 financial-literacy module: 9 categories, 55+ tips with kind
+  badges (tip/warning/rule/fact), tag chips, color accents.
+- ✅ Tax calendar for 2026: 15 events, filterable by audience
+  (all/individuals/employed/IP), monthly grouping.
+- ✅ What-If scenario simulator: 6 interactive sliders, real-time FIRE/safety
+  fund/savings projections.
+- ✅ FX converter: multi-currency BYN/USD/EUR/RUB/PLN with swap and rate table.
+- ✅ Glossary: 30+ financial terms in 5 groups (personal/belarus/invest/tax/credit).
+- ✅ Mini-courses: 5 step-by-step courses with progress tracking.
+- ✅ Templates: habit and goal templates for financial literacy.
 
 ### Phase 8 — Passwords & TOTP
 
@@ -205,7 +220,7 @@ The React app puts most of its value here. We need parity with
 | 4 — Workouts & body | ⏳ | | needs camera permission flow |
 | 5 — Analytics & charts | ⏳ | | mostly custom painters |
 | 6 — Productivity tools | ✅ | Devin | Pomodoro, Sleep, Water, Inbox |
-| 7 — Belarus localisation | ⏳ | | |
+| 7 — Belarus localisation | ✅ | Devin | 8 tabs, 10 calculators, FinLit, calendar, glossary, courses |
 | 8 — Passwords & TOTP | ⏳ | | needs biometric setup |
 | 9 — Household etc. | ⏳ | | |
 | 10 — Polish | ⏳ | | |
