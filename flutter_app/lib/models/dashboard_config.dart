@@ -108,6 +108,42 @@ const List<DashboardWidgetMeta> kDashboardWidgets = [
     icon: 'bar_chart',
     route: '/tasks',
   ),
+  // Phase 14: more analytics widgets — habits/goals/finance.
+  DashboardWidgetMeta(
+    id: 'inbox',
+    title: 'Входящие',
+    subtitle: 'Захват мыслей и идей',
+    icon: 'inbox',
+    route: '/inbox',
+  ),
+  DashboardWidgetMeta(
+    id: 'habits_overview',
+    title: 'Привычки: обзор',
+    subtitle: 'Хорошие vs вредные, пробег по неделе',
+    icon: 'donut_large',
+    route: '/habits',
+  ),
+  DashboardWidgetMeta(
+    id: 'goals_overview',
+    title: 'Цели: статусы',
+    subtitle: 'Pie + средний прогресс',
+    icon: 'pie_chart',
+    route: '/goals',
+  ),
+  DashboardWidgetMeta(
+    id: 'finance_free_funds',
+    title: 'Свободно в день',
+    subtitle: 'С учётом кредитов и графика',
+    icon: 'savings',
+    route: '/finance',
+  ),
+  DashboardWidgetMeta(
+    id: 'loans_overview',
+    title: 'Кредиты',
+    subtitle: 'Остаток, переплата, прогресс',
+    icon: 'credit_score',
+    route: '/loans',
+  ),
 ];
 
 class DashboardConfig {

@@ -189,16 +189,83 @@ class BudgetLimit {
 }
 
 class CategoryPlan {
-  CategoryPlan({required this.category, required this.planned});
+  CategoryPlan({
+    required this.category,
+    required this.planned,
+    this.dueDay,
+  });
   final String category;
   final num planned;
 
-  Map<String, dynamic> toJson() =>
-      {'category': category, 'planned': planned};
+  /// Optional day-of-month (1..31) when this expense actually leaves the
+  /// account — used by the period-aware daily-allowance calculator. When
+  /// null, the expense is treated as evenly spread over the month.
+  final int? dueDay;
+
+  CategoryPlan copyWith({
+    String? category,
+    num? planned,
+    Object? dueDay = _planSentinel,
+  }) =>
+      CategoryPlan(
+        category: category ?? this.category,
+        planned: planned ?? this.planned,
+        dueDay:
+            identical(dueDay, _planSentinel) ? this.dueDay : dueDay as int?,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'category': category,
+        'planned': planned,
+        if (dueDay != null) 'dueDay': dueDay,
+      };
 
   factory CategoryPlan.fromJson(Map<String, dynamic> json) => CategoryPlan(
         category: (json['category'] ?? '') as String,
         planned: (json['planned'] ?? 0) as num,
+        dueDay: (json['dueDay'] as num?)?.toInt(),
+      );
+}
+
+const Object _planSentinel = Object();
+
+/// Phase 14: scheduled income line inside a monthly plan. Captures multiple
+/// salary/bonus inflows with the day they arrive so the daily-allowance
+/// calculator can split the month into periods.
+class IncomeEntry {
+  IncomeEntry({
+    required this.id,
+    required this.name,
+    required this.amount,
+    required this.day,
+  });
+
+  final String id;
+  final String name;
+  final num amount;
+
+  /// Day-of-month (1..31). Day > daysInMonth is clamped to the last day.
+  final int day;
+
+  IncomeEntry copyWith({String? name, num? amount, int? day}) => IncomeEntry(
+        id: id,
+        name: name ?? this.name,
+        amount: amount ?? this.amount,
+        day: day ?? this.day,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'amount': amount,
+        'day': day,
+      };
+
+  factory IncomeEntry.fromJson(Map<String, dynamic> json) => IncomeEntry(
+        id: (json['id'] ?? '') as String,
+        name: (json['name'] ?? '') as String,
+        amount: (json['amount'] ?? 0) as num,
+        day: (json['day'] as num?)?.toInt() ?? 1,
       );
 }
 
@@ -215,6 +282,7 @@ class MonthlyBudgetPlan {
     this.rollover,
     this.notes,
     this.excludedAccountIds,
+    this.incomes,
   });
 
   final String id;
@@ -232,6 +300,37 @@ class MonthlyBudgetPlan {
   // budgeting).
   final List<String>? excludedAccountIds;
 
+  /// Phase 14: scheduled income lines (e.g. salary on the 5th, bonus on the
+  /// 25th). When non-empty, [plannedIncome] is treated as a fallback total —
+  /// the period-aware daily-allowance calculator uses individual entries.
+  final List<IncomeEntry>? incomes;
+
+  MonthlyBudgetPlan copyWith({
+    num? plannedIncome,
+    Currency? currency,
+    List<CategoryPlan>? categoryPlans,
+    num? freeFundsTarget,
+    bool? rollover,
+    String? notes,
+    List<String>? excludedAccountIds,
+    List<IncomeEntry>? incomes,
+    String? updatedAt,
+  }) =>
+      MonthlyBudgetPlan(
+        id: id,
+        monthKey: monthKey,
+        plannedIncome: plannedIncome ?? this.plannedIncome,
+        currency: currency ?? this.currency,
+        categoryPlans: categoryPlans ?? this.categoryPlans,
+        freeFundsTarget: freeFundsTarget ?? this.freeFundsTarget,
+        rollover: rollover ?? this.rollover,
+        notes: notes ?? this.notes,
+        excludedAccountIds: excludedAccountIds ?? this.excludedAccountIds,
+        incomes: incomes ?? this.incomes,
+        createdAt: createdAt,
+        updatedAt: updatedAt ?? DateTime.now().toIso8601String(),
+      );
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'monthKey': monthKey,
@@ -243,6 +342,8 @@ class MonthlyBudgetPlan {
         if (notes != null) 'notes': notes,
         if (excludedAccountIds != null && excludedAccountIds!.isNotEmpty)
           'excludedAccountIds': excludedAccountIds,
+        if (incomes != null && incomes!.isNotEmpty)
+          'incomes': incomes!.map((e) => e.toJson()).toList(),
         'createdAt': createdAt,
         'updatedAt': updatedAt,
       };
@@ -263,6 +364,11 @@ class MonthlyBudgetPlan {
         notes: json['notes'] as String?,
         excludedAccountIds: (json['excludedAccountIds'] as List?)
             ?.map((e) => e.toString())
+            .toList(),
+        incomes: (json['incomes'] as List?)
+            ?.whereType<Map>()
+            .map((e) => IncomeEntry.fromJson(
+                e.map((k, v) => MapEntry(k.toString(), v))))
             .toList(),
         createdAt: json['createdAt'] as String,
         updatedAt: json['updatedAt'] as String,
@@ -285,6 +391,8 @@ class Loan {
     this.accountId,
     this.notes,
     this.kind,
+    this.paymentDay,
+    this.termMonths,
   });
 
   final String id;
@@ -309,6 +417,15 @@ class Loan {
   /// 'consumer', 'mortgage', 'card', 'auto', 'personal', 'other'.
   final String? kind;
 
+  /// Phase 14: day-of-month (1..31) when the monthly payment is debited.
+  /// Used by the monthly-plan period calculator and the "real free funds"
+  /// dashboard widget.
+  final int? paymentDay;
+
+  /// Phase 14: full term in months (used to project total payoff & interest
+  /// even when [endDate] is not set).
+  final int? termMonths;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': title,
@@ -322,6 +439,8 @@ class Loan {
         if (accountId != null) 'accountId': accountId,
         if (notes != null) 'notes': notes,
         if (kind != null) 'kind': kind,
+        if (paymentDay != null) 'paymentDay': paymentDay,
+        if (termMonths != null) 'termMonths': termMonths,
       };
 
   factory Loan.fromJson(Map<String, dynamic> json) => Loan(
@@ -337,6 +456,8 @@ class Loan {
         accountId: json['accountId'] as String?,
         notes: json['notes'] as String?,
         kind: json['kind'] as String?,
+        paymentDay: (json['paymentDay'] as num?)?.toInt(),
+        termMonths: (json['termMonths'] as num?)?.toInt(),
       );
 
   Loan copyWith({
@@ -351,6 +472,8 @@ class Loan {
     Object? accountId = _loanSentinel,
     Object? notes = _loanSentinel,
     Object? kind = _loanSentinel,
+    Object? paymentDay = _loanSentinel,
+    Object? termMonths = _loanSentinel,
   }) {
     return Loan(
       id: id,
@@ -371,6 +494,12 @@ class Loan {
           ? this.notes
           : notes as String?,
       kind: identical(kind, _loanSentinel) ? this.kind : kind as String?,
+      paymentDay: identical(paymentDay, _loanSentinel)
+          ? this.paymentDay
+          : paymentDay as int?,
+      termMonths: identical(termMonths, _loanSentinel)
+          ? this.termMonths
+          : termMonths as int?,
     );
   }
 }

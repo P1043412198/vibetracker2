@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:intl/intl.dart';
 
 import '../models/enums.dart';
@@ -172,4 +174,302 @@ FreeFunds computeFreeFunds({
 num dailyAllowance(num freeFunds, int daysLeft) {
   if (daysLeft <= 0) return 0;
   return freeFunds > 0 ? freeFunds / daysLeft : 0;
+}
+
+/// =============================================================
+/// Phase 14: schedule / period-aware daily allowance + loan math
+/// =============================================================
+
+/// One day inside the cashflow timeline.
+class CashflowDay {
+  CashflowDay({
+    required this.date,
+    required this.dayOfMonth,
+    required this.income,
+    required this.expense,
+    required this.balance,
+  });
+  final DateTime date;
+  final int dayOfMonth;
+  final num income;
+  final num expense;
+  /// Accumulated free funds remaining at the END of this day, after applying
+  /// the day's income & scheduled expenses.
+  final num balance;
+}
+
+/// One spending period — between two scheduled cashflow events. The daily
+/// allowance is constant within each period.
+class CashflowPeriod {
+  CashflowPeriod({
+    required this.startDay,
+    required this.endDay,
+    required this.startBalance,
+    required this.endBalance,
+    required this.daysInclusive,
+    required this.dailyAllowance,
+    required this.label,
+  });
+  final int startDay;
+  final int endDay;
+  final num startBalance;
+  final num endBalance;
+  final int daysInclusive;
+  final num dailyAllowance;
+  final String label;
+}
+
+class CashflowResult {
+  CashflowResult({
+    required this.timeline,
+    required this.periods,
+    required this.totalIncome,
+    required this.totalScheduled,
+    required this.endOfMonthBalance,
+  });
+  final List<CashflowDay> timeline;
+  final List<CashflowPeriod> periods;
+  final num totalIncome;
+  final num totalScheduled;
+  final num endOfMonthBalance;
+}
+
+/// Builds a day-by-day cashflow for a given month, taking scheduled income
+/// (from `plan.incomes`), scheduled category expenses (from
+/// `plan.categoryPlans` with `dueDay`), and loan monthly payments
+/// (`Loan.paymentDay`, in plan currency via [convert]) into account.
+///
+/// Categories without a `dueDay` are treated as evenly spread daily expenses.
+CashflowResult buildCashflow({
+  required DateTime month,
+  required MonthlyBudgetPlan plan,
+  List<Loan> loans = const [],
+  required String planCurrency,
+  required num Function(num amount, String from, String to) convert,
+}) {
+  final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+  final incomes = (plan.incomes ?? const <IncomeEntry>[]);
+  final scheduledByDay = List<num>.filled(daysInMonth + 1, 0);
+  final incomesByDay = List<num>.filled(daysInMonth + 1, 0);
+
+  num totalIncome = 0;
+  for (final inc in incomes) {
+    final day = inc.day.clamp(1, daysInMonth);
+    incomesByDay[day] += inc.amount;
+    totalIncome += inc.amount;
+  }
+  // Fallback to plannedIncome on day 1 if no granular incomes are set.
+  if (incomes.isEmpty && plan.plannedIncome > 0) {
+    incomesByDay[1] += plan.plannedIncome;
+    totalIncome += plan.plannedIncome;
+  }
+
+  num scheduled = 0;
+  num undated = 0; // categories without a dueDay → spread evenly.
+  for (final cp in plan.categoryPlans) {
+    if (cp.planned <= 0) continue;
+    if (cp.dueDay != null) {
+      final d = cp.dueDay!.clamp(1, daysInMonth);
+      scheduledByDay[d] += cp.planned;
+      scheduled += cp.planned;
+    } else {
+      undated += cp.planned;
+    }
+  }
+  // Loan monthly payments — converted into the plan currency.
+  for (final l in loans) {
+    if (l.balance <= 0 || l.monthlyPayment <= 0) continue;
+    final d = (l.paymentDay ?? 1).clamp(1, daysInMonth);
+    final amount = convert(l.monthlyPayment, l.currency, planCurrency);
+    scheduledByDay[d] += amount;
+    scheduled += amount;
+  }
+
+  final dailyUndated = daysInMonth > 0 ? undated / daysInMonth : 0;
+  final timeline = <CashflowDay>[];
+  num running = 0;
+  for (var d = 1; d <= daysInMonth; d++) {
+    final dayDate = DateTime(month.year, month.month, d);
+    final inc = incomesByDay[d];
+    final exp = scheduledByDay[d] + dailyUndated;
+    running += inc - exp;
+    timeline.add(CashflowDay(
+      date: dayDate,
+      dayOfMonth: d,
+      income: inc,
+      expense: exp,
+      balance: running,
+    ));
+  }
+
+  // Build period list: split the month at every income or scheduled-expense
+  // event. Within each period, "free per day" stays constant.
+  final eventDays = <int>{1, daysInMonth};
+  for (var d = 1; d <= daysInMonth; d++) {
+    if (incomesByDay[d] != 0 || scheduledByDay[d] != 0) {
+      eventDays.add(d);
+      if (d > 1) eventDays.add(d); // start of new period at d
+    }
+  }
+  final sortedEvents = eventDays.toList()..sort();
+  final periods = <CashflowPeriod>[];
+  for (var i = 0; i < sortedEvents.length - 1; i++) {
+    final start = sortedEvents[i];
+    final end = sortedEvents[i + 1] - 1;
+    if (end < start) continue;
+    final startBal = start == 1 ? 0 : timeline[start - 2].balance;
+    final endBal = timeline[end - 1].balance;
+    final days = end - start + 1;
+    final spendable = endBal - startBal +
+        (days * dailyUndated); // we add back evenly-spread money allotted
+    final daily = days > 0 ? spendable / days : 0;
+    periods.add(CashflowPeriod(
+      startDay: start,
+      endDay: end,
+      startBalance: startBal,
+      endBalance: endBal,
+      daysInclusive: days,
+      dailyAllowance: daily,
+      label: start == end ? 'День $start' : 'Дни $start–$end',
+    ));
+  }
+
+  return CashflowResult(
+    timeline: timeline,
+    periods: periods,
+    totalIncome: totalIncome,
+    totalScheduled: scheduled + undated,
+    endOfMonthBalance: timeline.isEmpty ? 0 : timeline.last.balance,
+  );
+}
+
+/// =============================================================
+/// Loan amortization
+/// =============================================================
+
+class AmortizationRow {
+  AmortizationRow({
+    required this.month,
+    required this.payment,
+    required this.principal,
+    required this.interest,
+    required this.balance,
+  });
+  final int month;
+  final num payment;
+  final num principal;
+  final num interest;
+  final num balance;
+}
+
+class LoanProjection {
+  LoanProjection({
+    required this.schedule,
+    required this.totalPaid,
+    required this.totalInterest,
+    required this.months,
+  });
+  final List<AmortizationRow> schedule;
+  final num totalPaid;
+  final num totalInterest;
+  final int months;
+}
+
+/// Build a remaining-life amortization schedule for the loan (annuity).
+/// Stops when the balance reaches zero; safe-guards against rates so high
+/// the payment can't cover interest by capping at 600 months.
+LoanProjection projectLoan(Loan loan, {num extraPerMonth = 0}) {
+  final schedule = <AmortizationRow>[];
+  if (loan.balance <= 0 || loan.monthlyPayment <= 0) {
+    return LoanProjection(
+      schedule: schedule,
+      totalPaid: 0,
+      totalInterest: 0,
+      months: 0,
+    );
+  }
+  final monthlyRate = loan.annualRate / 12 / 100;
+  num balance = loan.balance.toDouble();
+  num totalInterest = 0;
+  num totalPaid = 0;
+  var month = 0;
+  while (balance > 0.005 && month < 600) {
+    month++;
+    final interest = balance * monthlyRate;
+    var pay = (loan.monthlyPayment + extraPerMonth).toDouble();
+    if (pay <= interest && extraPerMonth == 0) {
+      // Payment can't even cover interest → schedule diverges; bail out.
+      break;
+    }
+    var principal = pay - interest;
+    if (principal > balance) {
+      principal = balance.toDouble();
+      pay = principal + interest;
+    }
+    balance -= principal;
+    totalInterest += interest;
+    totalPaid += pay;
+    schedule.add(AmortizationRow(
+      month: month,
+      payment: pay,
+      principal: principal,
+      interest: interest,
+      balance: balance < 0 ? 0 : balance,
+    ));
+  }
+  return LoanProjection(
+    schedule: schedule,
+    totalPaid: totalPaid,
+    totalInterest: totalInterest,
+    months: schedule.length,
+  );
+}
+
+/// Total nominal payoff (principal + interest) over the full life of the
+/// loan from inception (using `principal`, not `balance`). Useful for the
+/// "итоговая сумма по кредиту" figure.
+LoanProjection projectLoanFromOrigination(Loan loan) {
+  if (loan.principal <= 0 || loan.monthlyPayment <= 0) {
+    return LoanProjection(schedule: const [], totalPaid: 0, totalInterest: 0, months: 0);
+  }
+  final tmp = Loan(
+    id: loan.id,
+    title: loan.title,
+    principal: loan.principal,
+    balance: loan.principal,
+    annualRate: loan.annualRate,
+    monthlyPayment: loan.monthlyPayment,
+    startDate: loan.startDate,
+    currency: loan.currency,
+  );
+  return projectLoan(tmp);
+}
+
+/// Suggested annuity payment for a hypothetical loan — useful in the loan
+/// editor to back-fill the "monthlyPayment" field.
+num suggestAnnuityPayment({
+  required num principal,
+  required num annualRatePct,
+  required int months,
+}) {
+  if (months <= 0 || principal <= 0) return 0;
+  final r = annualRatePct / 12 / 100;
+  if (r <= 0) return principal / months;
+  final pow = math.pow(1 + r, months);
+  return principal * (r * pow) / (pow - 1);
+}
+
+/// Totals of monthly loan burden in the given currency (converted via
+/// [convert]). Active loans only (balance > 0).
+num monthlyLoanBurden({
+  required List<Loan> loans,
+  required String currency,
+  required num Function(num amount, String from, String to) convert,
+}) {
+  num total = 0;
+  for (final l in loans) {
+    if (l.balance <= 0 || l.monthlyPayment <= 0) continue;
+    total += convert(l.monthlyPayment, l.currency, currency);
+  }
+  return total;
 }

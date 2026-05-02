@@ -1,11 +1,13 @@
 import 'dart:math' as math;
 
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/finance.dart';
+import '../../services/finance_calc.dart';
 import '../../state/providers.dart';
 import '../../state/settings_state.dart';
 
@@ -132,6 +134,8 @@ class _LoanCard extends ConsumerWidget {
         ? 0.0
         : (1.0 - (loan.balance / loan.principal)).clamp(0.0, 1.0);
     final months = _projectMonths(loan, extra: 0);
+    final projection = projectLoan(loan);
+    final fullProjection = projectLoanFromOrigination(loan);
     final payments = ref.watch(loanPaymentsProvider)
       .where((p) => p.loanId == loan.id)
       .toList()
@@ -150,6 +154,9 @@ class _LoanCard extends ConsumerWidget {
                       style: const TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 16)),
                 ),
+                Text('${(progress * 100).round()}%',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 14)),
                 IconButton(
                   icon: const Icon(Icons.edit_outlined),
                   onPressed: () => _editLoan(context, ref,
@@ -180,10 +187,25 @@ class _LoanCard extends ConsumerWidget {
                     '${loan.annualRate.toStringAsFixed(1)} %'),
                 _Pill('Осталось',
                     months == null ? '—' : '$months мес.'),
+                if (loan.paymentDay != null)
+                  _Pill('Дата платежа', '${loan.paymentDay} число'),
                 if (accountName != null)
                   _Pill('Счёт', accountName!),
               ],
             ),
+            const SizedBox(height: 12),
+            if (fullProjection.totalPaid > 0)
+              _PayoffSummary(loan: loan, full: fullProjection),
+            if (projection.schedule.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 110,
+                child: _AmortizationChart(
+                  schedule: projection.schedule,
+                  scheme: Theme.of(context).colorScheme,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [
@@ -437,6 +459,14 @@ Future<void> _editLoan(
       text: existing?.annualRate.toStringAsFixed(2) ?? '');
   final paymentCtl = TextEditingController(
       text: existing?.monthlyPayment.toStringAsFixed(2) ?? '');
+  final paymentDayCtl = TextEditingController(
+      text: existing?.paymentDay == null
+          ? ''
+          : existing!.paymentDay.toString());
+  final termMonthsCtl = TextEditingController(
+      text: existing?.termMonths == null
+          ? ''
+          : existing!.termMonths.toString());
   final notesCtl = TextEditingController(text: existing?.notes ?? '');
   String currency = existing?.currency ?? defaultCurrency;
   String? accountId = existing?.accountId;
@@ -513,6 +543,30 @@ Future<void> _editLoan(
                   ),
                 ]),
                 const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: paymentDayCtl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'День платежа (1–31)',
+                        helperText: 'для cashflow и графика месяца',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: termMonthsCtl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Срок, мес. (опц.)',
+                        helperText: 'для прогноза итоговой суммы',
+                      ),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: currency,
                   decoration: const InputDecoration(labelText: 'Валюта'),
@@ -566,6 +620,12 @@ Future<void> _editLoan(
                         final payment =
                             num.tryParse(paymentCtl.text.replaceAll(',', '.')) ??
                                 0;
+                        final pd = int.tryParse(paymentDayCtl.text.trim());
+                        final paymentDay =
+                            (pd != null && pd >= 1 && pd <= 31) ? pd : null;
+                        final tm = int.tryParse(termMonthsCtl.text.trim());
+                        final termMonths =
+                            (tm != null && tm > 0 && tm <= 600) ? tm : null;
                         if (existing == null) {
                           await ref.read(loansProvider.notifier).add(Loan(
                                 id: const Uuid().v4(),
@@ -580,6 +640,8 @@ Future<void> _editLoan(
                                 notes: notesCtl.text.trim().isEmpty
                                     ? null
                                     : notesCtl.text.trim(),
+                                paymentDay: paymentDay,
+                                termMonths: termMonths,
                               ));
                         } else {
                           await ref
@@ -595,6 +657,8 @@ Future<void> _editLoan(
                                 notes: notesCtl.text.trim().isEmpty
                                     ? null
                                     : notesCtl.text.trim(),
+                                paymentDay: paymentDay,
+                                termMonths: termMonths,
                               ));
                         }
                         if (ctx2.mounted) Navigator.of(ctx2).pop();
@@ -623,4 +687,155 @@ Future<void> _editLoan(
       });
     },
   );
+}
+
+class _PayoffSummary extends StatelessWidget {
+  const _PayoffSummary({required this.loan, required this.full});
+  final Loan loan;
+  final LoanProjection full;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final principal = (full.totalPaid - full.totalInterest)
+        .clamp(0.0, double.infinity);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 90,
+            height: 90,
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 2,
+                centerSpaceRadius: 18,
+                sections: [
+                  PieChartSectionData(
+                    value: principal.toDouble(),
+                    color: const Color(0xFF22C55E),
+                    title: 'Тело',
+                    radius: 26,
+                    titleStyle: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10),
+                  ),
+                  PieChartSectionData(
+                    value:
+                        math.max(full.totalInterest, 1).toDouble(),
+                    color: const Color(0xFFEF4444),
+                    title: '%',
+                    radius: 26,
+                    titleStyle: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Итог по кредиту',
+                    style: Theme.of(context).textTheme.labelSmall),
+                Text(
+                  '${_fmt(full.totalPaid)} ${loan.currency}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Переплата: ${_fmt(full.totalInterest)} ${loan.currency} '
+                  '(${full.totalPaid == 0 ? 0 : ((full.totalInterest / full.totalPaid) * 100).round()}%)',
+                  style: const TextStyle(
+                      color: Color(0xFFEF4444),
+                      fontWeight: FontWeight.w600),
+                ),
+                Text('Срок: ${full.months} мес.',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AmortizationChart extends StatelessWidget {
+  const _AmortizationChart({required this.schedule, required this.scheme});
+  final List<AmortizationRow> schedule;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    if (schedule.isEmpty) return const SizedBox.shrink();
+    final maxPay = schedule
+        .map((r) => r.payment.toDouble())
+        .reduce((a, b) => a > b ? a : b);
+    // Sample at most 24 bars to keep it readable.
+    final step = math.max(1, (schedule.length / 24).ceil());
+    final sampled = <AmortizationRow>[];
+    for (var i = 0; i < schedule.length; i += step) {
+      sampled.add(schedule[i]);
+    }
+    return BarChart(
+      BarChartData(
+        gridData: const FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        titlesData: FlTitlesData(
+          leftTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 18,
+              interval: math.max(1, (sampled.length / 5).ceil()).toDouble(),
+              getTitlesWidget: (v, _) => Text('${v.toInt() * step}',
+                  style: const TextStyle(fontSize: 9)),
+            ),
+          ),
+        ),
+        maxY: maxPay,
+        barGroups: [
+          for (var i = 0; i < sampled.length; i++)
+            BarChartGroupData(
+              x: i,
+              barRods: [
+                BarChartRodData(
+                  toY: sampled[i].payment.toDouble(),
+                  width: 6,
+                  rodStackItems: [
+                    BarChartRodStackItem(
+                      0,
+                      sampled[i].principal.toDouble(),
+                      const Color(0xFF22C55E),
+                    ),
+                    BarChartRodStackItem(
+                      sampled[i].principal.toDouble(),
+                      sampled[i].payment.toDouble(),
+                      const Color(0xFFEF4444),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
 }
