@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
 import '../../models/habit.dart';
+import '../../services/notification_service.dart';
 import '../../services/streak.dart';
 import '../../state/providers.dart';
 import '../../widgets/habit_heatmap.dart';
@@ -53,6 +54,8 @@ class HabitDetailsPage extends ConsumerWidget {
           _StreakHero(habit: habit, stats: stats),
           const SizedBox(height: 16),
           _HeatmapCard(habit: habit, logs: logs),
+          const SizedBox(height: 16),
+          _ReminderCard(habit: habit),
           const SizedBox(height: 16),
           _LogList(
             habit: habit,
@@ -451,6 +454,133 @@ class _LogForToday extends StatelessWidget {
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+const _weekdayShort = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+class _ReminderCard extends ConsumerWidget {
+  const _ReminderCard({required this.habit});
+  final Habit habit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasReminder = (habit.reminderTime ?? '').isNotEmpty &&
+        (habit.reminderDays?.isNotEmpty ?? false);
+    final time = habit.reminderTime ?? '09:00';
+    final days = habit.reminderDays?.toSet() ?? {1, 2, 3, 4, 5, 6, 7};
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.notifications_active_outlined, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text('Напоминание',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                Switch(
+                  value: hasReminder,
+                  onChanged: (v) async {
+                    if (v) {
+                      final granted = await NotificationService.instance
+                          .requestPermissions();
+                      if (!granted && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text(
+                                  'Разреши уведомления в настройках Android')),
+                        );
+                        return;
+                      }
+                      await ref
+                          .read(habitsProvider.notifier)
+                          .update(habit.id, (h) => h.copyWith(
+                                reminderTime: time,
+                                reminderDays:
+                                    days.toList()..sort(),
+                              ));
+                    } else {
+                      await ref
+                          .read(habitsProvider.notifier)
+                          .update(habit.id, (h) =>
+                              h.copyWith(clearReminder: true));
+                    }
+                  },
+                ),
+              ],
+            ),
+            if (hasReminder) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.schedule, size: 16),
+                  const SizedBox(width: 6),
+                  TextButton(
+                    onPressed: () async {
+                      final parts = time.split(':');
+                      final picked = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay(
+                          hour: int.tryParse(parts[0]) ?? 9,
+                          minute:
+                              parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0,
+                        ),
+                      );
+                      if (picked == null) return;
+                      final hh = picked.hour.toString().padLeft(2, '0');
+                      final mm = picked.minute.toString().padLeft(2, '0');
+                      await ref.read(habitsProvider.notifier).update(
+                          habit.id, (h) => h.copyWith(reminderTime: '$hh:$mm'));
+                    },
+                    child: Text(time,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 16)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (var i = 1; i <= 7; i++)
+                    FilterChip(
+                      label: Text(_weekdayShort[i - 1]),
+                      selected: days.contains(i),
+                      onSelected: (sel) async {
+                        final next = {...days};
+                        if (sel) {
+                          next.add(i);
+                        } else {
+                          next.remove(i);
+                        }
+                        if (next.isEmpty) {
+                          await ref.read(habitsProvider.notifier).update(
+                              habit.id, (h) => h.copyWith(clearReminder: true));
+                        } else {
+                          final list = next.toList()..sort();
+                          await ref.read(habitsProvider.notifier).update(
+                              habit.id,
+                              (h) => h.copyWith(reminderDays: list));
+                        }
+                      },
+                    ),
+                ],
+              ),
+            ] else
+              Text(
+                'Включи, чтобы получать пуш каждый день в выбранное время',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
           ],
         ),
       ),

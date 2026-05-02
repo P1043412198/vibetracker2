@@ -35,6 +35,7 @@ class TaskItem {
     this.isPinned,
     this.priority,
     this.context,
+    this.reminderAt,
   });
 
   final String id;
@@ -51,6 +52,9 @@ class TaskItem {
   final TaskPriority? priority;
   final String? context;
 
+  /// Optional ISO-8601 datetime to fire a one-shot reminder for this task.
+  final String? reminderAt;
+
   TaskItem copyWith({
     String? title,
     String? sphereId,
@@ -63,8 +67,10 @@ class TaskItem {
     bool? isPinned,
     TaskPriority? priority,
     String? context,
+    String? reminderAt,
     bool clearPriority = false,
     bool clearContext = false,
+    bool clearReminder = false,
   }) {
     return TaskItem(
       id: id,
@@ -80,6 +86,7 @@ class TaskItem {
       isPinned: isPinned ?? this.isPinned,
       priority: clearPriority ? null : (priority ?? this.priority),
       context: clearContext ? null : (context ?? this.context),
+      reminderAt: clearReminder ? null : (reminderAt ?? this.reminderAt),
     );
   }
 
@@ -98,6 +105,7 @@ class TaskItem {
         if (isPinned != null) 'isPinned': isPinned,
         if (priority != null) 'priority': priority!.name,
         if (context != null) 'context': context,
+        if (reminderAt != null) 'reminderAt': reminderAt,
       };
 
   factory TaskItem.fromJson(Map<String, dynamic> json) => TaskItem(
@@ -122,5 +130,6 @@ class TaskItem {
                 TaskPriority.later)
             : null,
         context: json['context'] as String?,
+        reminderAt: json['reminderAt'] as String?,
       );
 }

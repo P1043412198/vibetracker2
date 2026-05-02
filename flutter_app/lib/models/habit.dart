@@ -37,6 +37,8 @@ class Habit {
     this.icon,
     this.isPinned,
     this.order,
+    this.reminderTime,
+    this.reminderDays,
   });
 
   final String id;
@@ -51,6 +53,13 @@ class Habit {
   final bool? isPinned;
   final int? order;
 
+  /// `HH:mm` time of day for the daily reminder. Null = no reminder.
+  final String? reminderTime;
+
+  /// ISO weekday numbers (Mon=1..Sun=7) when the reminder fires. Empty or
+  /// null means "no reminder".
+  final List<int>? reminderDays;
+
   Habit copyWith({
     String? title,
     HabitTypeKind? type,
@@ -61,6 +70,9 @@ class Habit {
     String? icon,
     bool? isPinned,
     int? order,
+    String? reminderTime,
+    List<int>? reminderDays,
+    bool clearReminder = false,
   }) {
     return Habit(
       id: id,
@@ -74,6 +86,8 @@ class Habit {
       icon: icon ?? this.icon,
       isPinned: isPinned ?? this.isPinned,
       order: order ?? this.order,
+      reminderTime: clearReminder ? null : (reminderTime ?? this.reminderTime),
+      reminderDays: clearReminder ? null : (reminderDays ?? this.reminderDays),
     );
   }
 
@@ -89,6 +103,8 @@ class Habit {
         if (icon != null) 'icon': icon,
         if (isPinned != null) 'isPinned': isPinned,
         if (order != null) 'order': order,
+        if (reminderTime != null) 'reminderTime': reminderTime,
+        if (reminderDays != null) 'reminderDays': reminderDays,
       };
 
   factory Habit.fromJson(Map<String, dynamic> json) => Habit(
@@ -107,6 +123,11 @@ class Habit {
         icon: json['icon'] as String?,
         isPinned: json['isPinned'] as bool?,
         order: (json['order'] as num?)?.toInt(),
+        reminderTime: json['reminderTime'] as String?,
+        reminderDays: (json['reminderDays'] as List?)
+            ?.whereType<num>()
+            .map((e) => e.toInt())
+            .toList(),
       );
 }
 

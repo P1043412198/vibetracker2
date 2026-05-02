@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
 import '../../models/task.dart';
+import '../../services/notification_service.dart';
 import '../../state/providers.dart';
 
 /// Counterpart of `src/pages/Tasks.tsx`. Lists tasks grouped by period
@@ -617,6 +618,7 @@ class _TaskFormSheetState extends ConsumerState<_TaskFormSheet> {
   late final TextEditingController _contextController;
   TaskPriority? _priority;
   bool _pinned = false;
+  DateTime? _reminderAt;
 
   @override
   void initState() {
@@ -626,6 +628,8 @@ class _TaskFormSheetState extends ConsumerState<_TaskFormSheet> {
         TextEditingController(text: widget.existing?.context ?? '');
     _priority = widget.existing?.priority;
     _pinned = widget.existing?.isPinned ?? false;
+    final raw = widget.existing?.reminderAt;
+    _reminderAt = (raw == null || raw.isEmpty) ? null : DateTime.tryParse(raw);
   }
 
   @override
@@ -651,6 +655,7 @@ class _TaskFormSheetState extends ConsumerState<_TaskFormSheet> {
         context: _contextController.text.trim().isEmpty
             ? null
             : _contextController.text.trim(),
+        reminderAt: _reminderAt?.toIso8601String(),
         createdAt: DateTime.now().toIso8601String(),
       );
       await ref.read(tasksProvider.notifier).add(task);
@@ -665,6 +670,8 @@ class _TaskFormSheetState extends ConsumerState<_TaskFormSheet> {
               isPinned: _pinned,
               context: ctxText.isEmpty ? null : ctxText,
               clearContext: ctxText.isEmpty,
+              reminderAt: _reminderAt?.toIso8601String(),
+              clearReminder: _reminderAt == null,
             ),
           );
     }
@@ -724,6 +731,55 @@ class _TaskFormSheetState extends ConsumerState<_TaskFormSheet> {
             title: const Text('Закрепить наверху'),
             value: _pinned,
             onChanged: (v) => setState(() => _pinned = v),
+          ),
+          const SizedBox(height: 4),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.notifications_active_outlined),
+            title: Text(_reminderAt == null
+                ? 'Напомнить (не выбрано)'
+                : 'Напомнить: '
+                    '${DateFormat("d MMM, HH:mm", 'ru').format(_reminderAt!)}'),
+            trailing: _reminderAt == null
+                ? const Icon(Icons.add)
+                : IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => setState(() => _reminderAt = null),
+                  ),
+            onTap: () async {
+              final granted = await NotificationService.instance
+                  .requestPermissions();
+              if (!context.mounted) return;
+              if (!granted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content:
+                          Text('Разреши уведомления в настройках Android')),
+                );
+                return;
+              }
+              final base = _reminderAt ?? DateTime.now();
+              final date = await showDatePicker(
+                context: context,
+                initialDate: base,
+                firstDate: DateTime.now()
+                    .subtract(const Duration(days: 1)),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (date == null) return;
+              if (!context.mounted) return;
+              final time = await showTimePicker(
+                context: context,
+                initialTime: TimeOfDay.fromDateTime(base),
+              );
+              if (time == null) return;
+              setState(() => _reminderAt = DateTime(
+                  date.year,
+                  date.month,
+                  date.day,
+                  time.hour,
+                  time.minute));
+            },
           ),
           const SizedBox(height: 12),
           FilledButton(
