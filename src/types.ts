@@ -94,6 +94,8 @@ export type Subtask = {
   completed: boolean;
 };
 
+export type TaskPriority = 'urgent_important' | 'important' | 'urgent' | 'later';
+
 export type Task = {
   id: string;
   title: string;
@@ -106,6 +108,11 @@ export type Task = {
   subtasks?: Subtask[];
   order?: number;
   isPinned?: boolean;
+  /** Eisenhower-квадрант: urgent_important = «Срочно+Важно», important = «Важно, не срочно»,
+   *  urgent = «Срочно, не важно», later = «Не срочно, не важно». */
+  priority?: TaskPriority;
+  /** GTD-контекст: @home, @work, @errands и т.д. */
+  context?: string;
 };
 
 export type HabitType = 'good' | 'bad';

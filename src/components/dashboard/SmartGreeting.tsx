@@ -12,12 +12,15 @@ export const SmartGreeting: React.FC<SmartGreetingProps> = ({ currentDate, today
   const { habits, habitLogs, exerciseLogs } = useStore();
   const dateStr = format(currentDate, 'yyyy-MM-dd');
 
-  const { greeting, Icon, color } = useMemo(() => {
+  const { greeting, Icon, gradient, iconColor } = useMemo(() => {
     const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) return { greeting: 'Доброе утро', Icon: Coffee, color: 'text-amber-400' };
-    if (hour >= 12 && hour < 18) return { greeting: 'Добрый день', Icon: Sun, color: 'text-amber-500' };
-    if (hour >= 18 && hour < 23) return { greeting: 'Добрый вечер', Icon: Sunset, color: 'text-orange-400' };
-    return { greeting: 'Доброй ночи', Icon: Moon, color: 'text-indigo-400' };
+    if (hour >= 5 && hour < 12)
+      return { greeting: 'Доброе утро', Icon: Coffee, gradient: 'from-amber-100 via-orange-50 to-rose-50', iconColor: 'bg-amber-200/70 text-amber-700' };
+    if (hour >= 12 && hour < 18)
+      return { greeting: 'Добрый день', Icon: Sun, gradient: 'from-emerald-100 via-teal-50 to-sky-50', iconColor: 'bg-amber-200/70 text-amber-700' };
+    if (hour >= 18 && hour < 23)
+      return { greeting: 'Добрый вечер', Icon: Sunset, gradient: 'from-orange-100 via-rose-50 to-purple-50', iconColor: 'bg-orange-200/70 text-orange-700' };
+    return { greeting: 'Доброй ночи', Icon: Moon, gradient: 'from-indigo-100 via-purple-50 to-slate-50', iconColor: 'bg-indigo-200/70 text-indigo-700' };
   }, []);
 
   const summary = useMemo(() => {
@@ -45,13 +48,14 @@ export const SmartGreeting: React.FC<SmartGreetingProps> = ({ currentDate, today
   }, [todaysTasks, exerciseLogs, habits, habitLogs, dateStr]);
 
   return (
-    <div className="bg-white/60 p-6 rounded-3xl border border-stone-200/70 mb-6 flex items-start sm:items-center gap-4">
-      <div className={`p-3 rounded-2xl bg-stone-100/60 ${color}`}>
-        <Icon className="w-8 h-8" />
+    <div className={`relative overflow-hidden bg-gradient-to-br ${gradient} p-5 sm:p-6 rounded-3xl border border-white shadow-md mb-6 flex items-start sm:items-center gap-4`}>
+      <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/40 rounded-full blur-2xl pointer-events-none" />
+      <div className={`p-3 rounded-2xl shadow-sm ${iconColor} shrink-0 relative`}>
+        <Icon className="w-7 h-7 sm:w-8 sm:h-8" />
       </div>
-      <div>
-        <h1 className="text-2xl font-bold text-zinc-900 mb-1">{greeting}!</h1>
-        <p className="text-sm text-zinc-500">{summary}</p>
+      <div className="relative min-w-0 flex-1">
+        <h1 className="text-xl sm:text-2xl font-extrabold text-zinc-900 mb-0.5 truncate">{greeting}!</h1>
+        <p className="text-xs sm:text-sm text-zinc-700/90">{summary}</p>
       </div>
     </div>
   );

@@ -54,41 +54,45 @@ export function Layout() {
   return (
     <div className="flex flex-col md:flex-row h-screen bg-[var(--vs-bg)] text-zinc-900 font-sans">
       {/* Sidebar for Desktop */}
-      <aside className="hidden md:flex w-64 bg-white border-r border-stone-200 flex-col">
+      <aside className="hidden md:flex w-64 bg-gradient-to-b from-white to-emerald-50/30 border-r border-stone-200 flex-col">
         <div className="p-6">
-          <h1 className="text-xl font-bold tracking-tight text-emerald-800 flex items-center gap-2">
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-600 text-white">
-              <Target className="w-4 h-4" />
+          <h1 className="text-xl font-extrabold tracking-tight text-emerald-900 flex items-center gap-2.5">
+            <span className="inline-flex items-center justify-center w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-md shadow-emerald-500/30">
+              <Target className="w-5 h-5" />
             </span>
             Vibesight
           </h1>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
+        <nav className="flex-1 px-3 space-y-0.5 overflow-y-auto">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
+                  'group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all',
                   isActive
-                    ? 'bg-emerald-50 text-emerald-800'
-                    : 'text-zinc-500 hover:bg-stone-50 hover:text-zinc-800'
+                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/30'
+                    : 'text-zinc-600 hover:bg-emerald-50/60 hover:text-emerald-800'
                 )
               }
             >
-              <item.icon className="w-5 h-5" />
-              {item.label}
+              {({ isActive }) => (
+                <>
+                  <item.icon className={cn("w-[18px] h-[18px] shrink-0", isActive ? "text-white" : "text-zinc-400 group-hover:text-emerald-600")} />
+                  <span className="truncate">{item.label}</span>
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
       </aside>
 
       {/* Mobile Header */}
-      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white/90 backdrop-blur-md border-b border-stone-200 pt-safe sticky top-0 z-40">
-        <div className="flex items-center gap-2 text-emerald-800 font-bold text-lg">
-          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-600 text-white">
+      <header className="md:hidden flex items-center justify-between px-4 py-2.5 bg-white/95 backdrop-blur-xl border-b border-stone-200 pt-safe sticky top-0 z-40">
+        <div className="flex items-center gap-2 text-emerald-900 font-extrabold text-lg">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-md shadow-emerald-500/30">
             <Target className="w-4 h-4" />
           </span>
           Vibesight
@@ -98,7 +102,7 @@ export function Layout() {
           className={({ isActive }) =>
             cn(
               'p-2 rounded-full transition-colors',
-              isActive ? 'bg-stone-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-stone-100/60'
+              isActive ? 'bg-emerald-100 text-emerald-700' : 'text-zinc-500 hover:text-zinc-900 hover:bg-stone-100/60'
             )
           }
         >
@@ -162,38 +166,48 @@ export function Layout() {
       </AnimatePresence>
 
       {/* Bottom Navigation for Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-stone-200 z-50 pb-safe">
-        <div className="flex justify-around items-center px-2 pt-2 pb-1.5 w-full">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-stone-200 z-50 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+        <div className="flex justify-around items-stretch px-1 pt-1.5 pb-1 w-full gap-0.5">
           {mainMobileNav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-lg transition-colors',
+                  'relative flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-2xl transition-all',
                   isActive && !isMoreOpen
-                    ? 'text-emerald-700'
-                    : 'text-zinc-500 hover:text-zinc-700'
+                    ? 'text-emerald-700 bg-emerald-50'
+                    : 'text-zinc-500 active:bg-stone-100'
                 )
               }
             >
-              <item.icon className="w-5 h-5 shrink-0" />
-              <span className="text-[10px] leading-none tracking-tighter font-medium truncate w-full text-center px-0.5">
-                {item.shortLabel}
-              </span>
+              {({ isActive }) => (
+                <>
+                  {isActive && !isMoreOpen && (
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600" />
+                  )}
+                  <item.icon className={cn("w-[22px] h-[22px] shrink-0 transition-transform", isActive && !isMoreOpen && "scale-110")} />
+                  <span className="text-[10px] leading-none font-semibold truncate w-full text-center px-0.5">
+                    {item.shortLabel}
+                  </span>
+                </>
+              )}
             </NavLink>
           ))}
           <button
             onClick={() => setIsMoreOpen(!isMoreOpen)}
             className={cn(
-              'flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-lg transition-colors',
+              'relative flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-2xl transition-all',
               isMoreOpen || moreMobileNav.some(item => location.pathname === item.to)
-                ? 'text-emerald-700'
-                : 'text-zinc-500 hover:text-zinc-700'
+                ? 'text-emerald-700 bg-emerald-50'
+                : 'text-zinc-500 active:bg-stone-100'
             )}
           >
-            <Menu className="w-5 h-5 shrink-0" />
-            <span className="text-[10px] leading-none tracking-tighter font-medium truncate w-full text-center px-0.5">
+            {(isMoreOpen || moreMobileNav.some(item => location.pathname === item.to)) && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-1 rounded-b-full bg-emerald-600" />
+            )}
+            <Menu className={cn("w-[22px] h-[22px] shrink-0 transition-transform", isMoreOpen && "scale-110")} />
+            <span className="text-[10px] leading-none font-semibold truncate w-full text-center px-0.5">
               Еще
             </span>
           </button>

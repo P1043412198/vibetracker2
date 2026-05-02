@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { Plus, CheckCircle2, XCircle, Circle, Trash2, X, Edit2, ChevronLeft, ChevronRight, GripVertical, ChevronDown, ChevronUp, Pin, PinOff, History } from 'lucide-react';
-import { TaskPeriod, Task } from '../types';
+import { Plus, CheckCircle2, XCircle, Circle, Trash2, X, Edit2, ChevronLeft, ChevronRight, GripVertical, ChevronDown, ChevronUp, Pin, PinOff, History, LayoutGrid, List, AlertTriangle, Clock, Coffee, Tag, Hash } from 'lucide-react';
+import { TaskPeriod, Task, TaskPriority } from '../types';
 import { cn } from '../lib/utils';
 import { format, subDays, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, subWeeks, addWeeks, subMonths, addMonths, subYears, addYears } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -23,6 +23,29 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+export const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  urgent_important: 'Срочно + важно',
+  important: 'Важно',
+  urgent: 'Срочно',
+  later: 'Не срочно',
+};
+
+export const PRIORITY_HINTS: Record<TaskPriority, string> = {
+  urgent_important: 'Сделать сейчас',
+  important: 'Запланировать',
+  urgent: 'Делегировать или сделать быстро',
+  later: 'Удалить или отложить',
+};
+
+export const PRIORITY_COLORS: Record<TaskPriority, { bg: string; text: string; border: string; ring: string }> = {
+  urgent_important: { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', ring: 'ring-rose-300' },
+  important: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', ring: 'ring-blue-300' },
+  urgent: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', ring: 'ring-amber-300' },
+  later: { bg: 'bg-stone-50', text: 'text-zinc-600', border: 'border-stone-200', ring: 'ring-stone-300' },
+};
+
+const DEFAULT_CONTEXTS = ['@дом', '@работа', '@звонки', '@магазин', '@улица', '@компьютер'];
 
 interface SortableTaskProps {
   task: Task;
@@ -139,6 +162,22 @@ function SortableTask({
                   {sphere.title}
                 </span>
               )}
+              {task.priority && (
+                <span className={cn(
+                  "px-1.5 py-0.5 rounded-md font-medium border",
+                  task.priority === 'urgent_important' && "bg-rose-50 text-rose-700 border-rose-200",
+                  task.priority === 'important' && "bg-blue-50 text-blue-700 border-blue-200",
+                  task.priority === 'urgent' && "bg-amber-50 text-amber-700 border-amber-200",
+                  task.priority === 'later' && "bg-stone-50 text-zinc-600 border-stone-200"
+                )}>
+                  {PRIORITY_LABELS[task.priority]}
+                </span>
+              )}
+              {task.context && (
+                <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded-md font-medium">
+                  {task.context}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -240,6 +279,9 @@ export function Tasks() {
   const [title, setTitle] = useState('');
   const [sphereId, setSphereId] = useState('');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [priority, setPriority] = useState<TaskPriority | ''>('');
+  const [context, setContext] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'list' | 'matrix' | 'context'>('list');
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -345,27 +387,35 @@ export function Tasks() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    
+
+    const period = activePeriod === 'history' ? 'day' : activePeriod;
+
     if (editingTaskId) {
       updateTask(editingTaskId, {
         title,
         sphereId: sphereId || undefined,
-        period: activePeriod,
+        period,
         date: new Date(date).toISOString(),
+        priority: priority || undefined,
+        context: context.trim() || undefined,
       });
     } else {
       addTask({
         title,
         sphereId: sphereId || undefined,
-        period: activePeriod,
+        period,
         date: new Date(date).toISOString(),
+        priority: priority || undefined,
+        context: context.trim() || undefined,
       });
     }
-    
+
     setIsAdding(false);
     setEditingTaskId(null);
     setTitle('');
     setSphereId('');
+    setPriority('');
+    setContext('');
   };
 
   const handleEdit = (task: any) => {
@@ -373,6 +423,8 @@ export function Tasks() {
     setTitle(task.title);
     setSphereId(task.sphereId || '');
     setDate(format(new Date(task.date), 'yyyy-MM-dd'));
+    setPriority(task.priority || '');
+    setContext(task.context || '');
     setIsAdding(true);
   };
 
@@ -381,6 +433,8 @@ export function Tasks() {
     setEditingTaskId(null);
     setTitle('');
     setSphereId('');
+    setPriority('');
+    setContext('');
   };
 
   const periods: { value: TaskPeriod; label: string }[] = [
@@ -406,6 +460,38 @@ export function Tasks() {
           <p className="text-sm text-zinc-500 mt-1">Управляйте своими целями на разных временных отрезках.</p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex bg-white border border-stone-200 rounded-xl p-0.5">
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all",
+                viewMode === 'list' ? 'bg-stone-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-800'
+              )}
+              title="Список"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode('matrix')}
+              className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all",
+                viewMode === 'matrix' ? 'bg-stone-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-800'
+              )}
+              title="Матрица Эйзенхауэра"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode('context')}
+              className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all",
+                viewMode === 'context' ? 'bg-stone-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-800'
+              )}
+              title="По контекстам"
+            >
+              <Hash className="w-3.5 h-3.5" />
+            </button>
+          </div>
           <button
             onClick={() => setActivePeriod(activePeriod === 'history' ? 'day' : 'history')}
             className={cn(
@@ -563,6 +649,67 @@ export function Tasks() {
                 />
               </div>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">Приоритет (Eisenhower)</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(['urgent_important', 'important', 'urgent', 'later'] as TaskPriority[]).map((p) => {
+                    const active = priority === p;
+                    const colors = PRIORITY_COLORS[p];
+                    return (
+                      <button
+                        type="button"
+                        key={p}
+                        onClick={() => setPriority(active ? '' : p)}
+                        className={cn(
+                          "px-2 py-2 rounded-xl text-[11px] font-medium border transition-all text-left",
+                          active
+                            ? `${colors.bg} ${colors.text} ${colors.border} ring-2 ${colors.ring}`
+                            : "bg-stone-50 text-zinc-600 border-stone-200 hover:bg-stone-100"
+                        )}
+                      >
+                        <div className="flex items-center gap-1">
+                          {p === 'urgent_important' && <AlertTriangle className="w-3 h-3" />}
+                          {p === 'important' && <Tag className="w-3 h-3" />}
+                          {p === 'urgent' && <Clock className="w-3 h-3" />}
+                          {p === 'later' && <Coffee className="w-3 h-3" />}
+                          {PRIORITY_LABELS[p]}
+                        </div>
+                        <div className="text-[10px] opacity-70 mt-0.5">{PRIORITY_HINTS[p]}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">Контекст (GTD)</label>
+                <input
+                  type="text"
+                  value={context}
+                  onChange={(e) => setContext(e.target.value)}
+                  className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                  placeholder="@дом, @работа, @звонки..."
+                />
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {DEFAULT_CONTEXTS.map((c) => (
+                    <button
+                      type="button"
+                      key={c}
+                      onClick={() => setContext(c)}
+                      className={cn(
+                        "px-2 py-0.5 rounded-md text-[10px] font-medium border transition-all",
+                        context === c
+                          ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                          : "bg-stone-50 text-zinc-600 border-stone-200 hover:bg-stone-100"
+                      )}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
@@ -589,6 +736,22 @@ export function Tasks() {
             <p className="text-base font-medium text-zinc-700">Задачи не найдены</p>
             <p className="text-sm mt-1">Добавьте задачу на этот период, чтобы начать.</p>
           </div>
+        ) : viewMode === 'matrix' ? (
+          <EisenhowerMatrix
+            tasks={sortedTasks}
+            updateTaskPriority={(id, p) => updateTask(id, { priority: p })}
+            onToggleCompletion={toggleTaskCompletion}
+            onEdit={handleEdit}
+          />
+        ) : viewMode === 'context' ? (
+          <ContextGroupedView
+            tasks={sortedTasks}
+            spheres={spheres}
+            updateTaskContext={(id, c) => updateTask(id, { context: c })}
+            onToggleCompletion={toggleTaskCompletion}
+            onEdit={handleEdit}
+            onDelete={deleteTask}
+          />
         ) : (
           <div className="space-y-3">
             <DndContext
@@ -635,9 +798,237 @@ export function Tasks() {
           </div>
         )}
       </div>
-      <div className="text-center text-xs text-zinc-600 mt-4">
-        Перетаскивайте задачи за иконку слева, чтобы изменить порядок
+      {viewMode === 'list' && (
+        <div className="text-center text-xs text-zinc-600 mt-4">
+          Перетаскивайте задачи за иконку слева, чтобы изменить порядок
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface QuadrantProps {
+  priority: TaskPriority;
+  tasks: Task[];
+  onAssign: (taskId: string, p: TaskPriority) => void;
+  onToggleCompletion: (id: string) => void;
+  onEdit: (task: Task) => void;
+}
+
+function EisenhowerQuadrant({ priority, tasks, onAssign, onToggleCompletion, onEdit }: QuadrantProps) {
+  const colors = PRIORITY_COLORS[priority];
+  const Icon = priority === 'urgent_important' ? AlertTriangle
+    : priority === 'important' ? Tag
+    : priority === 'urgent' ? Clock
+    : Coffee;
+
+  return (
+    <div
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        const id = e.dataTransfer.getData('text/plain');
+        if (id) onAssign(id, priority);
+      }}
+      className={cn(
+        'rounded-3xl border-2 p-3 sm:p-4 min-h-[180px] flex flex-col gap-2',
+        colors.bg, colors.border
+      )}
+    >
+      <div className={cn('flex items-center gap-2 font-semibold text-sm', colors.text)}>
+        <Icon className="w-4 h-4" />
+        <span>{PRIORITY_LABELS[priority]}</span>
+        <span className="ml-auto text-[10px] font-medium opacity-60">{tasks.length}</span>
       </div>
+      <p className="text-[10px] opacity-70 -mt-1">{PRIORITY_HINTS[priority]}</p>
+      <div className="flex-1 space-y-1.5">
+        {tasks.length === 0 ? (
+          <p className="text-[11px] opacity-50 text-center py-4">
+            Перетащите задачу сюда
+          </p>
+        ) : (
+          tasks.map((t) => (
+            <div
+              key={t.id}
+              draggable
+              onDragStart={(e) => e.dataTransfer.setData('text/plain', t.id)}
+              className="bg-white/80 border border-stone-200 rounded-xl p-2 text-xs flex items-start gap-2 cursor-grab active:cursor-grabbing"
+            >
+              <button
+                onClick={() => onToggleCompletion(t.id)}
+                className={cn('mt-0.5 transition-colors', t.completed ? 'text-zinc-900' : 'text-zinc-500 hover:text-zinc-900')}
+              >
+                {t.completed ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                onClick={() => onEdit(t)}
+                className={cn(
+                  'flex-1 text-left',
+                  t.completed && 'line-through text-zinc-500'
+                )}
+              >
+                {t.title}
+                {t.context && <span className="ml-1 text-[10px] text-indigo-600">{t.context}</span>}
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EisenhowerMatrix({
+  tasks,
+  updateTaskPriority,
+  onToggleCompletion,
+  onEdit,
+}: {
+  tasks: Task[];
+  updateTaskPriority: (id: string, p: TaskPriority) => void;
+  onToggleCompletion: (id: string) => void;
+  onEdit: (task: Task) => void;
+}) {
+  const grouped = (p: TaskPriority) => tasks.filter(t => (t.priority || 'later') === p && !t.completed && !t.failed);
+  const completed = tasks.filter(t => t.completed);
+  const unassigned = tasks.filter(t => !t.priority && !t.completed && !t.failed);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <EisenhowerQuadrant priority="urgent_important" tasks={grouped('urgent_important')}
+          onAssign={updateTaskPriority} onToggleCompletion={onToggleCompletion} onEdit={onEdit} />
+        <EisenhowerQuadrant priority="important" tasks={grouped('important')}
+          onAssign={updateTaskPriority} onToggleCompletion={onToggleCompletion} onEdit={onEdit} />
+        <EisenhowerQuadrant priority="urgent" tasks={grouped('urgent')}
+          onAssign={updateTaskPriority} onToggleCompletion={onToggleCompletion} onEdit={onEdit} />
+        <EisenhowerQuadrant priority="later" tasks={grouped('later').filter(t => unassigned.indexOf(t) === -1)}
+          onAssign={updateTaskPriority} onToggleCompletion={onToggleCompletion} onEdit={onEdit} />
+      </div>
+
+      {unassigned.length > 0 && (
+        <div className="bg-white rounded-3xl border border-stone-200 p-4">
+          <div className="flex items-center gap-2 mb-2 text-zinc-700 font-medium text-sm">
+            <Hash className="w-4 h-4" />
+            <span>Без приоритета</span>
+            <span className="ml-auto text-[10px] font-normal text-zinc-500">{unassigned.length}</span>
+          </div>
+          <p className="text-[11px] text-zinc-500 mb-3">Перетащите эти задачи в один из квадрантов выше или нажмите и выберите.</p>
+          <div className="flex flex-wrap gap-1.5">
+            {unassigned.map((t) => (
+              <div
+                key={t.id}
+                draggable
+                onDragStart={(e) => e.dataTransfer.setData('text/plain', t.id)}
+                className="bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5 text-xs cursor-grab active:cursor-grabbing flex items-center gap-1.5"
+              >
+                <span>{t.title}</span>
+                <select
+                  value=""
+                  onChange={(e) => updateTaskPriority(t.id, e.target.value as TaskPriority)}
+                  className="bg-transparent text-[10px] text-zinc-500 border-0 outline-0 cursor-pointer"
+                >
+                  <option value="">→</option>
+                  <option value="urgent_important">Срочно+важно</option>
+                  <option value="important">Важно</option>
+                  <option value="urgent">Срочно</option>
+                  <option value="later">Не срочно</option>
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {completed.length > 0 && (
+        <details className="bg-white rounded-3xl border border-stone-200 p-4">
+          <summary className="cursor-pointer text-sm font-medium text-zinc-700">
+            Выполненные ({completed.length})
+          </summary>
+          <div className="mt-2 space-y-1 text-xs text-zinc-500">
+            {completed.map((t) => (
+              <div key={t.id} className="line-through">{t.title}</div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function ContextGroupedView({
+  tasks,
+  spheres,
+  updateTaskContext,
+  onToggleCompletion,
+  onEdit,
+  onDelete,
+}: {
+  tasks: Task[];
+  spheres: any[];
+  updateTaskContext: (id: string, c: string) => void;
+  onToggleCompletion: (id: string) => void;
+  onEdit: (task: Task) => void;
+  onDelete: (id: string) => void;
+}) {
+  const groups = new Map<string, Task[]>();
+  tasks.forEach(t => {
+    const key = t.context || '— Без контекста';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(t);
+  });
+
+  const sorted = [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0], 'ru'));
+
+  return (
+    <div className="space-y-4">
+      {sorted.map(([context, items]) => (
+        <div key={context} className="bg-white rounded-3xl border border-stone-200 p-4">
+          <div className="flex items-center gap-2 text-zinc-700 font-medium text-sm mb-3">
+            <Hash className="w-4 h-4 text-indigo-600" />
+            <span>{context}</span>
+            <span className="ml-auto text-[10px] font-normal text-zinc-500">{items.length}</span>
+          </div>
+          <div className="space-y-1.5">
+            {items.map((t) => {
+              const sphere = spheres.find((s: any) => s.id === t.sphereId);
+              return (
+                <div key={t.id} className="bg-stone-50 border border-stone-200 rounded-xl p-2.5 flex items-center gap-2 text-xs">
+                  <button
+                    onClick={() => onToggleCompletion(t.id)}
+                    className={cn('transition-colors', t.completed ? 'text-zinc-900' : 'text-zinc-500 hover:text-zinc-900')}
+                  >
+                    {t.completed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                  </button>
+                  <button onClick={() => onEdit(t)} className={cn('flex-1 text-left', t.completed && 'line-through text-zinc-500')}>
+                    {t.title}
+                  </button>
+                  {t.priority && (
+                    <span className={cn('px-1.5 py-0.5 rounded-md text-[10px] font-medium border',
+                      PRIORITY_COLORS[t.priority].bg, PRIORITY_COLORS[t.priority].text, PRIORITY_COLORS[t.priority].border
+                    )}>
+                      {PRIORITY_LABELS[t.priority]}
+                    </span>
+                  )}
+                  {sphere && <span className="text-[10px] text-zinc-500">{sphere.title}</span>}
+                  <button onClick={() => onDelete(t.id)} className="text-zinc-400 hover:text-rose-500">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  {context === '— Без контекста' && (
+                    <select
+                      value=""
+                      onChange={(e) => updateTaskContext(t.id, e.target.value)}
+                      className="text-[10px] bg-transparent border-0 text-indigo-600 cursor-pointer"
+                    >
+                      <option value="">+ контекст</option>
+                      {DEFAULT_CONTEXTS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -295,6 +295,10 @@ export function MonthlyBudgetPlanTab() {
   const [editCurrency, setEditCurrency] = useState<Currency>(planCurrency);
   const [editRollover, setEditRollover] = useState<boolean>(false);
 
+  // Reset edit form ONLY when the modal opens (toggle from false→true) or
+  // when switching to a different month/plan. Do NOT depend on `stats`,
+  // `baseCurrency` or other refs that change on every render — that wipes
+  // user input on every keystroke.
   useEffect(() => {
     if (!isEditing) return;
     setEditIncome(plan?.plannedIncome ? String(plan.plannedIncome) : '');
@@ -308,7 +312,8 @@ export function MonthlyBudgetPlanTab() {
       const cats = seed.length > 0 ? seed : DEFAULT_CATEGORIES;
       setEditCategories(cats.map(c => ({ category: c, planned: '' })));
     }
-  }, [isEditing, plan, stats.expenseByCategory, baseCurrency]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, plan?.id]);
 
   const handleSavePlan = () => {
     const parsedIncome = Number(editIncome) || 0;
@@ -397,10 +402,10 @@ export function MonthlyBudgetPlanTab() {
           <MonthPicker value={month} onChange={setMonth} />
           <button
             onClick={() => setEditing(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-zinc-900 text-sm font-semibold shadow-sm transition-colors"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-bold shadow-md transition-colors"
           >
             {plan ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-            {plan ? 'Редактировать план' : 'Создать план'}
+            {plan ? 'Редактировать' : 'Создать план'}
           </button>
         </div>
       </div>
@@ -553,14 +558,14 @@ export function MonthlyBudgetPlanTab() {
         )}
       </div>
 
-      {/* Edit modal */}
+      {/* Edit modal — full-screen on mobile, centered card on desktop */}
       <AnimatePresence>
         {isEditing && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-zinc-900/20 p-2 sm:p-6"
+            className="fixed inset-0 z-[100] flex items-stretch sm:items-center justify-center bg-zinc-900/40 sm:p-6"
             onClick={() => setEditing(false)}
           >
             <motion.div
@@ -568,21 +573,24 @@ export function MonthlyBudgetPlanTab() {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 40, opacity: 0 }}
               onClick={e => e.stopPropagation()}
-              className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
+              className="bg-white w-full max-w-2xl shadow-2xl flex flex-col h-full sm:h-auto sm:max-h-[92vh] sm:rounded-3xl overflow-hidden"
             >
-              <div className="flex items-center justify-between p-5 border-b border-emerald-100 sticky top-0 bg-white z-10">
-                <div>
-                  <h3 className="text-lg font-bold text-emerald-900 capitalize">
+              <div
+                className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-emerald-100 bg-white shrink-0"
+                style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+              >
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-base sm:text-lg font-bold text-emerald-900 capitalize truncate">
                     План на {format(month, 'LLLL yyyy', { locale: ru })}
                   </h3>
-                  <p className="text-xs text-emerald-700/60">Зарплата + лимиты по категориям</p>
+                  <p className="text-[11px] sm:text-xs text-emerald-700/60 truncate">Зарплата и лимиты по категориям</p>
                 </div>
-                <button onClick={() => setEditing(false)} className="p-2 hover:bg-emerald-50 rounded-xl text-emerald-700">
+                <button onClick={() => setEditing(false)} className="p-2 hover:bg-emerald-50 rounded-xl text-emerald-700 shrink-0">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="p-5 space-y-4">
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-5 space-y-4">
                 {/* Quick actions: copy plan / seed from facts / subscriptions */}
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -614,39 +622,36 @@ export function MonthlyBudgetPlanTab() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
+                <div className="space-y-3">
                   <div>
                     <label className="text-xs font-bold uppercase text-emerald-700/70 tracking-wide block mb-1.5">
                       Планируемый доход
                     </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={editIncome}
-                      onChange={e => setEditIncome(e.target.value)}
-                      placeholder="0"
-                      className="w-full px-4 py-3 rounded-2xl border border-emerald-200 bg-emerald-50/40 text-emerald-900 text-lg font-semibold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={editIncome}
+                        onChange={e => setEditIncome(e.target.value)}
+                        placeholder="0"
+                        className="flex-1 min-w-0 px-4 py-3 rounded-2xl border border-emerald-200 bg-emerald-50/40 text-emerald-900 text-lg font-semibold focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                      />
+                      <select
+                        value={editCurrency}
+                        onChange={e => setEditCurrency(e.target.value as Currency)}
+                        className="w-24 px-2 py-3 rounded-2xl border border-emerald-200 bg-white text-emerald-900 text-base font-semibold focus:outline-none focus:border-emerald-500"
+                      >
+                        {CURRENCIES.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
                     <button
                       onClick={applyTemplate503020}
                       className="mt-2 text-xs font-semibold text-emerald-700 hover:text-emerald-900 inline-flex items-center gap-1"
                     >
                       <Sparkles className="w-3.5 h-3.5" /> Применить 50/30/20
                     </button>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold uppercase text-emerald-700/70 tracking-wide block mb-1.5">
-                      Валюта плана
-                    </label>
-                    <select
-                      value={editCurrency}
-                      onChange={e => setEditCurrency(e.target.value as Currency)}
-                      className="w-full px-3 py-3 rounded-2xl border border-emerald-200 bg-white text-emerald-900 text-base font-semibold focus:outline-none focus:border-emerald-500"
-                    >
-                      {CURRENCIES.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
                   </div>
                 </div>
 
@@ -702,7 +707,7 @@ export function MonthlyBudgetPlanTab() {
                     {editCategories.map((c, i) => (
                       <div
                         key={i}
-                        className="bg-emerald-50/30 border border-emerald-100 rounded-2xl p-2 sm:p-2.5 space-y-1.5 sm:space-y-0 sm:grid sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-2"
+                        className="bg-emerald-50/30 border border-emerald-100 rounded-2xl p-2 flex items-center gap-2"
                       >
                         <input
                           type="text"
@@ -712,33 +717,31 @@ export function MonthlyBudgetPlanTab() {
                             const v = e.target.value;
                             setEditCategories(prev => prev.map((x, idx) => idx === i ? { ...x, category: v } : x));
                           }}
-                          className="w-full min-w-0 px-3 py-2 rounded-xl border border-emerald-200 bg-white text-sm focus:outline-none focus:border-emerald-500"
+                          className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-emerald-200 bg-white text-sm focus:outline-none focus:border-emerald-500"
                         />
-                        <div className="flex items-center gap-2 sm:gap-2">
-                          <div className="relative flex-1 sm:flex-initial">
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              value={c.planned}
-                              placeholder="0"
-                              onChange={e => {
-                                const v = e.target.value;
-                                setEditCategories(prev => prev.map((x, idx) => idx === i ? { ...x, planned: v } : x));
-                              }}
-                              className="w-full sm:w-28 px-3 py-2 pr-12 rounded-xl border border-emerald-200 bg-white text-sm font-semibold text-right focus:outline-none focus:border-emerald-500"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-emerald-700/60 pointer-events-none">
-                              {editCurrency}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => setEditCategories(prev => prev.filter((_, idx) => idx !== i))}
-                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl shrink-0"
-                            aria-label="Удалить категорию"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        <div className="relative shrink-0">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            value={c.planned}
+                            placeholder="0"
+                            onChange={e => {
+                              const v = e.target.value;
+                              setEditCategories(prev => prev.map((x, idx) => idx === i ? { ...x, planned: v } : x));
+                            }}
+                            className="w-24 sm:w-28 px-3 py-2 pr-10 rounded-xl border border-emerald-200 bg-white text-sm font-semibold text-right focus:outline-none focus:border-emerald-500"
+                          />
+                          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-emerald-700/60 pointer-events-none">
+                            {editCurrency}
+                          </span>
                         </div>
+                        <button
+                          onClick={() => setEditCategories(prev => prev.filter((_, idx) => idx !== i))}
+                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl shrink-0"
+                          aria-label="Удалить категорию"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -779,18 +782,21 @@ export function MonthlyBudgetPlanTab() {
                 </div>
               </div>
 
-              <div className="p-5 border-t border-emerald-100 flex items-center justify-end gap-2 sticky bottom-0 bg-white">
+              <div
+                className="px-4 py-3 sm:px-5 sm:py-4 border-t border-emerald-100 bg-white flex items-center gap-2 shrink-0"
+                style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+              >
                 <button
                   onClick={() => setEditing(false)}
-                  className="px-4 py-2 rounded-2xl text-emerald-700 hover:bg-emerald-50 font-semibold text-sm"
+                  className="px-4 py-3 rounded-2xl text-emerald-700 hover:bg-emerald-50 font-semibold text-sm shrink-0"
                 >
                   Отмена
                 </button>
                 <button
                   onClick={handleSavePlan}
-                  className="px-5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-zinc-900 font-semibold text-sm flex items-center gap-2 shadow-sm transition-colors"
+                  className="flex-1 px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-base flex items-center justify-center gap-2 shadow-md transition-colors active:scale-[0.98]"
                 >
-                  <Save className="w-4 h-4" /> Сохранить план
+                  <Save className="w-5 h-5" /> Сохранить план
                 </button>
               </div>
             </motion.div>
