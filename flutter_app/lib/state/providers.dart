@@ -423,3 +423,82 @@ final pomodoroProvider =
     StateNotifierProvider<PomodoroController, PomodoroState>((ref) {
   return PomodoroController();
 });
+
+class ShoppingCategoriesController
+    extends JsonListController<ShoppingCategory> {
+  ShoppingCategoriesController()
+      : super(
+          storageKey: 'shoppingCategories',
+          fromJson: ShoppingCategory.fromJson,
+          toJson: (c) => c.toJson(),
+        );
+
+  @override
+  String idOf(ShoppingCategory item) => item.id;
+}
+
+final shoppingCategoriesProvider = StateNotifierProvider<
+    ShoppingCategoriesController, List<ShoppingCategory>>((ref) {
+  return ShoppingCategoriesController();
+});
+
+class PriceHistoryController extends JsonListController<PriceHistoryEntry> {
+  PriceHistoryController()
+      : super(
+          storageKey: 'priceHistory',
+          fromJson: PriceHistoryEntry.fromJson,
+          toJson: (p) => p.toJson(),
+        );
+
+  @override
+  String idOf(PriceHistoryEntry item) => item.id;
+}
+
+final priceHistoryProvider =
+    StateNotifierProvider<PriceHistoryController, List<PriceHistoryEntry>>(
+        (ref) {
+  return PriceHistoryController();
+});
+
+class WorkScheduleController extends StateNotifier<WorkScheduleData?> {
+  WorkScheduleController() : super(null) {
+    _load();
+  }
+
+  static const _key = 'workSchedule';
+
+  void _load() {
+    final map = AppStorage.readMap(_key);
+    if (map != null) state = WorkScheduleData.fromJson(map);
+  }
+
+  Future<void> _persist() async {
+    if (state != null) {
+      await AppStorage.writeMap(_key, state!.toJson());
+    }
+  }
+
+  Future<void> save(WorkScheduleData data) async {
+    state = data;
+    await _persist();
+  }
+
+  Future<void> addVacation(Vacation v) async {
+    if (state == null) return;
+    state = state!.copyWith(vacations: [...state!.vacations, v]);
+    await _persist();
+  }
+
+  Future<void> deleteVacation(String id) async {
+    if (state == null) return;
+    state = state!.copyWith(
+      vacations: state!.vacations.where((v) => v.id != id).toList(),
+    );
+    await _persist();
+  }
+}
+
+final workScheduleProvider =
+    StateNotifierProvider<WorkScheduleController, WorkScheduleData?>((ref) {
+  return WorkScheduleController();
+});

@@ -527,3 +527,133 @@ class PlannedWorkout {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Phase 9 models
+// ---------------------------------------------------------------------------
+
+class Vacation {
+  Vacation({
+    required this.id,
+    required this.title,
+    required this.startDate,
+    required this.endDate,
+  });
+
+  final String id;
+  final String title;
+  final String startDate;
+  final String endDate;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'startDate': startDate,
+        'endDate': endDate,
+      };
+
+  factory Vacation.fromJson(Map<String, dynamic> json) => Vacation(
+        id: json['id'] as String,
+        title: (json['title'] ?? '') as String,
+        startDate: json['startDate'] as String,
+        endDate: json['endDate'] as String,
+      );
+}
+
+class WorkScheduleData {
+  WorkScheduleData({
+    required this.anchorDate,
+    required this.cycle,
+    this.vacations = const [],
+  });
+
+  final String anchorDate;
+  final List<String> cycle;
+  final List<Vacation> vacations;
+
+  Map<String, dynamic> toJson() => {
+        'anchorDate': anchorDate,
+        'cycle': cycle,
+        'vacations': vacations.map((v) => v.toJson()).toList(),
+      };
+
+  factory WorkScheduleData.fromJson(Map<String, dynamic> json) =>
+      WorkScheduleData(
+        anchorDate: json['anchorDate'] as String,
+        cycle: (json['cycle'] as List?)?.whereType<String>().toList() ?? [],
+        vacations: (json['vacations'] as List?)
+                ?.map((e) => Vacation.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
+      );
+
+  WorkScheduleData copyWith({
+    String? anchorDate,
+    List<String>? cycle,
+    List<Vacation>? vacations,
+  }) {
+    return WorkScheduleData(
+      anchorDate: anchorDate ?? this.anchorDate,
+      cycle: cycle ?? this.cycle,
+      vacations: vacations ?? this.vacations,
+    );
+  }
+}
+
+class ShoppingCategory {
+  ShoppingCategory({
+    required this.id,
+    required this.name,
+    required this.color,
+  });
+
+  final String id;
+  final String name;
+  final String color;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'color': color,
+      };
+
+  factory ShoppingCategory.fromJson(Map<String, dynamic> json) =>
+      ShoppingCategory(
+        id: json['id'] as String,
+        name: (json['name'] ?? '') as String,
+        color: (json['color'] ?? '#71717a') as String,
+      );
+}
+
+class PriceHistoryEntry {
+  PriceHistoryEntry({
+    required this.id,
+    required this.itemName,
+    required this.price,
+    required this.date,
+    this.store,
+  });
+
+  final String id;
+  final String itemName;
+  final num price;
+  final String date;
+  final String? store;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'itemName': itemName,
+        'price': price,
+        'date': date,
+        if (store != null) 'store': store,
+      };
+
+  factory PriceHistoryEntry.fromJson(Map<String, dynamic> json) =>
+      PriceHistoryEntry(
+        id: json['id'] as String,
+        itemName: (json['itemName'] ?? '') as String,
+        price: (json['price'] ?? 0) as num,
+        date: json['date'] as String,
+        store: json['store'] as String?,
+      );
+}

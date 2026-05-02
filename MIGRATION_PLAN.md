@@ -192,12 +192,23 @@ The React app puts most of its value here. We need parity with
 - ✅ Persistent storage via Hive (same JsonListController pattern).
 - ⏳ AES encryption layer and biometric unlock deferred to Phase 10 polish.
 
-### Phase 9 — Household / Shopping / Work schedule
+### Phase 9 — Household / Shopping / Work schedule ✅
 
-- Port [`Household.tsx`](./src/pages/Household.tsx),
-  [`ShoppingList.tsx`](./src/pages/ShoppingList.tsx) (full version with
-  categories, hashtags, photos, price history),
-  [`WorkSchedule.tsx`](./src/pages/WorkSchedule.tsx) (cyclic shift schedule).
+- ✅ **Быт и Дом** (`Household.tsx`): daily tasks by 4 categories
+  (Чистота, Ремонт, Вода, Свет), date navigation, add/complete/delete
+  per day. Uses existing `tasksProvider` with `sphereId=household_*`.
+- ✅ **Список покупок** (`ShoppingList.tsx`): 3-tab layout (List / Analytics /
+  Categories). Add items with price, category, hashtags. Toggle
+  completed, show/hide completed section, clear completed. Analytics
+  tab shows spending by category & by hashtag with progress bars.
+  Category management with color picker.
+- ✅ **График работы** (`WorkSchedule.tsx`): cyclic shift calendar with
+  5 presets (2/2/2/2, 2/2, 5/2, 3/3, 1/3). Tap-to-cycle shift editor,
+  anchor date picker, 3-day preview. Monthly calendar view with
+  colour-coded shifts. Vacation planning with date range picker.
+- ✅ New models: `WorkScheduleData`, `Vacation`, `ShoppingCategory`,
+  `PriceHistoryEntry`. New providers: `workScheduleProvider`,
+  `shoppingCategoriesProvider`, `priceHistoryProvider`.
 
 ### Phase 10 — Cross-cutting polish
 
@@ -229,7 +240,7 @@ The React app puts most of its value here. We need parity with
 | 6 — Productivity tools | ✅ | Devin | Pomodoro, Sleep, Water, Inbox |
 | 7 — Belarus localisation | ✅ | Devin | 8 tabs, 10 calculators, FinLit, calendar, glossary, courses |
 | 8 — Passwords & TOTP | ✅ | Devin | Password vault, TOTP authenticator, generator |
-| 9 — Household etc. | ⏳ | | |
+| 9 — Household etc. | ✅ | Devin | Household, ShoppingList, WorkSchedule |
 | 10 — Polish | ⏳ | | |
 
 ## Build & run (Phase 0)
