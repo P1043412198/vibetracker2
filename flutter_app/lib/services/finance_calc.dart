@@ -162,13 +162,32 @@ class FreeFunds {
   final num free;
 }
 
+/// Free funds = (planned income reference) - committed expense.
+///
+/// * The income reference is the **largest** of [plannedIncome],
+///   [scheduledIncomeTotal] (sum of `plan.incomes[].amount`) and, as a final
+///   fallback when both are zero, [actualIncome]. This ensures dated incomes
+///   ("получка 5го + премия 25го") behave the same as a single
+///   `plannedIncome` field, fixing a bug where free funds ignored
+///   schedule-only income plans.
+/// * The committed expense is `max(actualExpense, plannedExpense)` so that
+///   not-yet-realised but planned outflows (categoryPlans + scheduledExpenses)
+///   already eat into free funds — and once the user has overspent, actual
+///   takes over.
 FreeFunds computeFreeFunds({
   required num plannedIncome,
   required num actualIncome,
   required num actualExpense,
+  num scheduledIncomeTotal = 0,
+  num plannedExpense = 0,
 }) {
-  final ref = plannedIncome > 0 ? plannedIncome : actualIncome;
-  return FreeFunds(incomeRef: ref, free: ref - actualExpense);
+  final plannedTotal = plannedIncome > scheduledIncomeTotal
+      ? plannedIncome
+      : scheduledIncomeTotal;
+  final ref = plannedTotal > 0 ? plannedTotal : actualIncome;
+  final committed =
+      actualExpense > plannedExpense ? actualExpense : plannedExpense;
+  return FreeFunds(incomeRef: ref, free: ref - committed);
 }
 
 num dailyAllowance(num freeFunds, int daysLeft) {

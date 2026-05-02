@@ -64,12 +64,31 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
       excludedAccountIds: excluded,
     );
 
-    final totalPlannedExpense = (plan?.categoryPlans ?? const [])
-            .fold<num>(0, (s, c) => s + c.planned) +
+    // Phase 14: schedule-aware cashflow with loans included.
+    final loans = ref.watch(loansProvider);
+    final planCurrency = plan?.currency ?? baseCurrency;
+    // Sum of all active loan monthly payments converted into the plan
+    // currency. Active = balance > 0 AND monthlyPayment > 0.
+    num loansMonthlyPayments = 0;
+    for (final l in loans) {
+      if (l.balance <= 0 || l.monthlyPayment <= 0) continue;
+      loansMonthlyPayments +=
+          convert(l.monthlyPayment, l.currency, planCurrency);
+    }
+
+    final categoryPlanTotal = (plan?.categoryPlans ?? const [])
+        .fold<num>(0, (s, c) => s + c.planned);
+    final scheduledExpensesTotal =
         (plan?.scheduledExpenses ?? const <ScheduledExpense>[])
             .fold<num>(0, (s, e) => s + e.amount);
+    final totalPlannedExpense =
+        categoryPlanTotal + scheduledExpensesTotal + loansMonthlyPayments;
+    final scheduledIncomeTotal = (plan?.incomes ?? const <IncomeEntry>[])
+        .fold<num>(0, (s, e) => s + e.amount);
     final freeFunds = computeFreeFunds(
       plannedIncome: plan?.plannedIncome ?? 0,
+      scheduledIncomeTotal: scheduledIncomeTotal,
+      plannedExpense: totalPlannedExpense,
       actualIncome: facts.income,
       actualExpense: facts.expense,
     );
@@ -78,9 +97,6 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     final fmt =
         NumberFormat.currency(locale: 'ru_RU', symbol: '', decimalDigits: 2);
 
-    // Phase 14: schedule-aware cashflow with loans included.
-    final loans = ref.watch(loansProvider);
-    final planCurrency = plan?.currency ?? baseCurrency;
     final cashflow = plan == null
         ? null
         : buildCashflow(
@@ -112,7 +128,9 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
         const SizedBox(height: 12),
         _PlanSummaryCard(
           plannedIncome: plan?.plannedIncome ?? 0,
+          scheduledIncomeTotal: scheduledIncomeTotal,
           plannedExpense: totalPlannedExpense,
+          loansMonthlyPayments: loansMonthlyPayments,
           actualIncome: facts.income,
           actualExpense: facts.expense,
           freeFunds: freeFunds.free,
@@ -648,7 +666,9 @@ class _MonthSwitcher extends StatelessWidget {
 class _PlanSummaryCard extends StatelessWidget {
   const _PlanSummaryCard({
     required this.plannedIncome,
+    required this.scheduledIncomeTotal,
     required this.plannedExpense,
+    required this.loansMonthlyPayments,
     required this.actualIncome,
     required this.actualExpense,
     required this.freeFunds,
@@ -662,7 +682,9 @@ class _PlanSummaryCard extends StatelessWidget {
   });
 
   final num plannedIncome;
+  final num scheduledIncomeTotal;
   final num plannedExpense;
+  final num loansMonthlyPayments;
   final num actualIncome;
   final num actualExpense;
   final num freeFunds;
@@ -676,6 +698,9 @@ class _PlanSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectivePlannedIncome = plannedIncome > scheduledIncomeTotal
+        ? plannedIncome
+        : scheduledIncomeTotal;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -688,6 +713,23 @@ class _PlanSummaryCard extends StatelessWidget {
               actionLabel: 'Изменить',
               onAction: onEditIncome,
             ),
+            if (scheduledIncomeTotal > 0) ...[
+              const SizedBox(height: 4),
+              _PlanRow(
+                label: 'Доходы по датам',
+                valueText:
+                    '${fmt.format(scheduledIncomeTotal)} $currency',
+              ),
+              if (scheduledIncomeTotal > plannedIncome) ...[
+                const SizedBox(height: 4),
+                _PlanRow(
+                  label: 'Итого план дохода',
+                  valueText:
+                      '${fmt.format(effectivePlannedIncome)} $currency',
+                  valueColor: const Color(0xFF22C55E),
+                ),
+              ],
+            ],
             const SizedBox(height: 4),
             _PlanRow(
               label: 'Фактический доход',
@@ -698,6 +740,14 @@ class _PlanSummaryCard extends StatelessWidget {
               label: 'Запланированные расходы',
               valueText: '${fmt.format(plannedExpense)} $currency',
             ),
+            if (loansMonthlyPayments > 0) ...[
+              const SizedBox(height: 4),
+              _PlanRow(
+                label: '  · в т.ч. платежи по кредитам',
+                valueText:
+                    '${fmt.format(loansMonthlyPayments)} $currency',
+              ),
+            ],
             const SizedBox(height: 4),
             _PlanRow(
               label: 'Фактические расходы',
