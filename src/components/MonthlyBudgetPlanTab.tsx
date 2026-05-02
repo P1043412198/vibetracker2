@@ -295,6 +295,10 @@ export function MonthlyBudgetPlanTab() {
   const [editCurrency, setEditCurrency] = useState<Currency>(planCurrency);
   const [editRollover, setEditRollover] = useState<boolean>(false);
 
+  // Reset edit form ONLY when the modal opens (toggle from false→true) or
+  // when switching to a different month/plan. Do NOT depend on `stats`,
+  // `baseCurrency` or other refs that change on every render — that wipes
+  // user input on every keystroke.
   useEffect(() => {
     if (!isEditing) return;
     setEditIncome(plan?.plannedIncome ? String(plan.plannedIncome) : '');
@@ -308,7 +312,8 @@ export function MonthlyBudgetPlanTab() {
       const cats = seed.length > 0 ? seed : DEFAULT_CATEGORIES;
       setEditCategories(cats.map(c => ({ category: c, planned: '' })));
     }
-  }, [isEditing, plan, stats.expenseByCategory, baseCurrency]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, plan?.id]);
 
   const handleSavePlan = () => {
     const parsedIncome = Number(editIncome) || 0;
