@@ -1,0 +1,268 @@
+/// Belarus-specific tax calculators (port of src/lib/finance/byTax.ts).
+
+const double baseValueByn = 42;
+const double minWageByn = 626;
+const double stdDeductionIncomeLimit = 1054;
+const double stdDeduction = 174;
+const double childDeduction = 51;
+const double childDeductionTwoPlus = 97;
+const double incomeTaxPct = 13;
+const double fsznEmployeePct = 1;
+
+// NPD
+const double npdLowRatePct = 10;
+const double npdHighRatePct = 20;
+const double npdHighRateThreshold = 60000;
+
+class SalaryDeduction {
+  final String id;
+  final String label;
+  final String kind; // 'percent' | 'fixed'
+  final double value;
+  final bool taxable;
+
+  const SalaryDeduction({
+    required this.id,
+    required this.label,
+    required this.kind,
+    required this.value,
+    this.taxable = false,
+  });
+}
+
+class SalaryDeductionLine {
+  final String id;
+  final String label;
+  final double amount;
+  final bool taxable;
+
+  const SalaryDeductionLine({
+    required this.id,
+    required this.label,
+    required this.amount,
+    required this.taxable,
+  });
+}
+
+class SalaryResult {
+  final double gross;
+  final double fszn;
+  final double taxableBase;
+  final double deductions;
+  final double pretaxDeductions;
+  final double postTaxDeductions;
+  final List<SalaryDeductionLine> extraDeductionsApplied;
+  final double incomeTax;
+  final double net;
+
+  const SalaryResult({
+    required this.gross,
+    required this.fszn,
+    required this.taxableBase,
+    required this.deductions,
+    required this.pretaxDeductions,
+    required this.postTaxDeductions,
+    required this.extraDeductionsApplied,
+    required this.incomeTax,
+    required this.net,
+  });
+}
+
+SalaryResult calcNetSalary({
+  required double gross,
+  int children = 0,
+  int dependents = 0,
+  bool applyStandardDeduction = true,
+  List<SalaryDeduction> extraDeductions = const [],
+}) {
+  double deductions = 0;
+  if (applyStandardDeduction && gross <= stdDeductionIncomeLimit) {
+    deductions += stdDeduction;
+  }
+  if (children > 0) {
+    if (children == 1) {
+      deductions += childDeduction;
+    } else {
+      deductions += children * childDeductionTwoPlus;
+    }
+  }
+  if (dependents > 0) {
+    deductions += dependents * childDeduction;
+  }
+
+  final extraLines = extraDeductions
+      .map((d) => SalaryDeductionLine(
+            id: d.id,
+            label: d.label,
+            amount:
+                d.kind == 'percent' ? (gross * d.value) / 100 : d.value,
+            taxable: d.taxable,
+          ))
+      .toList();
+
+  final pretax =
+      extraLines.where((l) => l.taxable).fold(0.0, (s, l) => s + l.amount);
+  final postTax =
+      extraLines.where((l) => !l.taxable).fold(0.0, (s, l) => s + l.amount);
+
+  final taxBase = (gross - deductions - pretax).clamp(0.0, double.infinity);
+  final tax = (taxBase * incomeTaxPct) / 100;
+  final fszn = (gross * fsznEmployeePct) / 100;
+  final net = gross - tax - fszn - pretax - postTax;
+
+  return SalaryResult(
+    gross: gross,
+    fszn: fszn,
+    taxableBase: taxBase,
+    deductions: deductions,
+    pretaxDeductions: pretax,
+    postTaxDeductions: postTax,
+    extraDeductionsApplied: extraLines,
+    incomeTax: tax,
+    net: net,
+  );
+}
+
+double grossFromNet(double targetNet,
+    {int children = 0,
+    int dependents = 0,
+    bool applyStandardDeduction = true,
+    List<SalaryDeduction> extraDeductions = const []}) {
+  double lo = 0, hi = targetNet * 3, mid = 0;
+  for (int i = 0; i < 80; i++) {
+    mid = (lo + hi) / 2;
+    final r = calcNetSalary(
+      gross: mid,
+      children: children,
+      dependents: dependents,
+      applyStandardDeduction: applyStandardDeduction,
+      extraDeductions: extraDeductions,
+    );
+    if ((r.net - targetNet).abs() < 0.01) return mid;
+    if (r.net < targetNet) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+  return mid;
+}
+
+// --- Deposit BY (13% tax on short-term) ---
+
+class DepositResult {
+  final double totalInterestGross;
+  final double totalTax;
+  final double totalInterestNet;
+  final double finalBalance;
+
+  const DepositResult({
+    required this.totalInterestGross,
+    required this.totalTax,
+    required this.totalInterestNet,
+    required this.finalBalance,
+  });
+}
+
+DepositResult calcDepositBY({
+  required double amount,
+  required double annualRatePct,
+  required int termMonths,
+  bool taxApplies = true,
+  bool capitalize = true,
+}) {
+  final monthlyRate = annualRatePct / 100 / 12;
+  double balance = amount;
+  double interestGross = 0;
+  for (int m = 1; m <= termMonths; m++) {
+    final i = balance * monthlyRate;
+    interestGross += i;
+    if (capitalize) balance += i;
+  }
+  final tax = taxApplies ? (interestGross * incomeTaxPct) / 100 : 0.0;
+  final interestNet = interestGross - tax;
+  return DepositResult(
+    totalInterestGross: interestGross,
+    totalTax: tax,
+    totalInterestNet: interestNet,
+    finalBalance: capitalize ? balance - tax : amount + interestNet,
+  );
+}
+
+// --- IP USN (5% / 3%) ---
+
+class IpUsnResult {
+  final double usnTax;
+  final double fsznTotal;
+  final double totalLoad;
+  final double net;
+  final double effectivePct;
+
+  const IpUsnResult({
+    required this.usnTax,
+    required this.fsznTotal,
+    required this.totalLoad,
+    required this.net,
+    required this.effectivePct,
+  });
+}
+
+IpUsnResult calcIpUsn({
+  required double annualRevenue,
+  required int ratePct,
+  required double fsznMonthly,
+}) {
+  final usnTax = (annualRevenue * ratePct) / 100;
+  final fsznTotal = fsznMonthly * 12;
+  final totalLoad = usnTax + fsznTotal;
+  final net = annualRevenue - totalLoad;
+  return IpUsnResult(
+    usnTax: usnTax,
+    fsznTotal: fsznTotal,
+    totalLoad: totalLoad,
+    net: net,
+    effectivePct: annualRevenue > 0 ? (totalLoad / annualRevenue) * 100 : 0,
+  );
+}
+
+// --- NPD (self-employed) ---
+
+class NpdResult {
+  final double taxLow;
+  final double taxHigh;
+  final double total;
+  final double net;
+  final double effectivePct;
+
+  const NpdResult({
+    required this.taxLow,
+    required this.taxHigh,
+    required this.total,
+    required this.net,
+    required this.effectivePct,
+  });
+}
+
+NpdResult calcNpd({required double annualRevenue}) {
+  final r = annualRevenue;
+  final low = r < npdHighRateThreshold ? r : npdHighRateThreshold;
+  final high = (r - npdHighRateThreshold).clamp(0, double.infinity);
+  final taxLow = (low * npdLowRatePct) / 100;
+  final taxHigh = (high * npdHighRatePct) / 100;
+  final total = taxLow + taxHigh;
+  return NpdResult(
+    taxLow: taxLow,
+    taxHigh: taxHigh,
+    total: total,
+    net: r - total,
+    effectivePct: r > 0 ? (total / r) * 100 : 0,
+  );
+}
+
+// --- Vacation pay ---
+
+({double avgDaily, double payment}) calcVacationPay(
+    double totalEarningsLast12m, int daysOff) {
+  final avgDaily = totalEarningsLast12m / (12 * 29.7);
+  return (avgDaily: avgDaily, payment: avgDaily * daysOff);
+}
