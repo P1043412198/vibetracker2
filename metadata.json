@@ -1,0 +1,5 @@
+{
+  "name": "Remix: Vibesight Tracker",
+  "description": "A comprehensive task, habit, and development tracker with AI image editing capabilities.",
+  "requestFramePermissions": ["camera"]
+}
