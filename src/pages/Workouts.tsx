@@ -10,6 +10,8 @@ import { MuscleHeatmap } from '../components/MuscleHeatmap';
 import { CameraTracker } from '../components/CameraTracker';
 import { HistoryTab } from '../components/HistoryTab';
 import { generateWorkout } from '../services/aiService';
+import { WORKOUT_PROGRAMS, WorkoutProgramTemplate } from '../data/workoutPrograms';
+import { BookOpen } from 'lucide-react';
 
 export function Workouts() {
   const [activeTab, setActiveTab] = useState<'workouts' | 'calendar' | 'analytics' | 'profile' | 'history'>('workouts');
@@ -101,6 +103,35 @@ function WorkoutsTab() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [genParams, setGenParams] = useState({ duration: 60, focus: 'general', equipment: 'all' });
   const [showCamera, setShowCamera] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  const handleApplyProgram = (program: WorkoutProgramTemplate) => {
+    const rootId = addWorkoutNode({
+      parentId: null,
+      name: `${program.emoji} ${program.title}`,
+      type: 'folder',
+      isTemplate: true,
+      notes: program.blurb,
+    });
+    program.days.forEach((day) => {
+      const dayId = addWorkoutNode({
+        parentId: rootId,
+        name: day.name,
+        type: 'folder',
+      });
+      day.exercises.forEach((ex) => {
+        addWorkoutNode({
+          parentId: dayId,
+          name: ex.name,
+          type: 'exercise',
+          metrics: ex.metrics ?? ['weight', 'reps'],
+          muscleGroup: ex.muscleGroup,
+          notes: ex.scheme ? `${ex.scheme}${ex.notes ? '\n' + ex.notes : ''}` : ex.notes,
+        });
+      });
+    });
+    setShowTemplates(false);
+  };
 
   const handleAddRoot = (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,6 +203,14 @@ function WorkoutsTab() {
             <Camera className="w-5 h-5" />
           </button>
           <button
+            onClick={() => setShowTemplates(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs font-medium text-emerald-600 hover:bg-emerald-500/20 transition-all"
+            title="Готовые программы"
+          >
+            <BookOpen className="w-4 h-4" />
+            Шаблоны
+          </button>
+          <button
             onClick={handleGenerateWorkout}
             disabled={isGenerating}
             className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-xs font-medium text-indigo-400 hover:bg-indigo-500/20 transition-all disabled:opacity-50"
@@ -193,6 +232,79 @@ function WorkoutsTab() {
       </div>
 
       {showCamera && <CameraTracker onClose={() => setShowCamera(false)} />}
+
+      <AnimatePresence>
+        {showTemplates && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowTemplates(false)}
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              className="bg-white rounded-t-3xl sm:rounded-3xl border border-stone-200 max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 bg-white border-b border-stone-200 p-4 flex items-center justify-between rounded-t-3xl z-10">
+                <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-emerald-600" />
+                  Готовые программы тренировок
+                </h3>
+                <button onClick={() => setShowTemplates(false)} className="text-zinc-500 hover:text-zinc-900">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 space-y-3">
+                <p className="text-xs text-zinc-500">
+                  Выберите программу — она появится в «Мои программы» как папка с днями и упражнениями. Вы сможете редактировать её под себя.
+                </p>
+                {WORKOUT_PROGRAMS.map((program) => (
+                  <div key={program.id} className="border border-stone-200 rounded-2xl p-4 hover:border-emerald-300 transition-colors">
+                    <div className="flex items-start gap-3 mb-2">
+                      <span className="text-3xl">{program.emoji}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-semibold text-zinc-900">{program.title}</h4>
+                          <span className={cn(
+                            "text-[10px] font-medium px-2 py-0.5 rounded-full border",
+                            program.level === 'beginner' && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                            program.level === 'intermediate' && "bg-amber-50 text-amber-700 border-amber-200",
+                            program.level === 'advanced' && "bg-rose-50 text-rose-700 border-rose-200"
+                          )}>
+                            {program.level === 'beginner' ? 'Новичок' : program.level === 'intermediate' ? 'Средний' : 'Продвинутый'}
+                          </span>
+                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-zinc-600">
+                            {program.daysPerWeek}× в неделю
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-500 mt-1">{program.blurb}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                      {program.days.map((d, i) => (
+                        <div key={i} className="text-[11px] text-zinc-700 bg-stone-50 rounded-lg px-2.5 py-1.5">
+                          <strong className="text-zinc-900">{d.name}:</strong>{' '}
+                          {d.exercises.length} упражнений
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => handleApplyProgram(program)}
+                      className="w-full px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 rounded-xl text-sm font-medium hover:bg-emerald-500/20 transition-colors"
+                    >
+                      Добавить программу в свои
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isAddingRoot && (
         <form onSubmit={handleAddRoot} className="flex flex-col gap-2">

@@ -19,6 +19,9 @@ import {
   ShieldCheck,
   Wind,
   GraduationCap,
+  CalendarDays,
+  Activity as ActivityIcon,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { formatCurrency, formatPercent } from '../lib/format';
@@ -40,17 +43,21 @@ import {
 import { GLOSSARY } from '../data/glossary';
 import { COURSES, type Course } from '../data/courses';
 import { FINLIT_BY_2026, type FinTipCategory, type FinTip } from '../data/finlitTips';
+import { TAX_CALENDAR_2026, type TaxCalendarEvent } from '../data/taxCalendar';
 import { useStore } from '../store/useStore';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, BookmarkPlus, Save } from 'lucide-react';
 import type { SalaryDeductionPreset } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
-type TabId = 'calc' | 'finlit' | 'glossary' | 'courses' | 'templates';
+type TabId = 'calc' | 'finlit' | 'glossary' | 'courses' | 'templates' | 'calendar' | 'whatif' | 'fx';
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<any> }[] = [
   { id: 'calc', label: 'Калькуляторы', icon: Calculator },
   { id: 'finlit', label: 'Финграмотность 2026', icon: GraduationCap },
+  { id: 'calendar', label: 'Налоговый календарь', icon: CalendarDays },
+  { id: 'whatif', label: 'Что если', icon: ActivityIcon },
+  { id: 'fx', label: 'Конвертер валют', icon: ArrowLeftRight },
   { id: 'glossary', label: 'Глоссарий', icon: BookOpen },
   { id: 'courses', label: 'Мини-курсы', icon: BookOpen },
   { id: 'templates', label: 'Шаблоны', icon: Sparkles },
@@ -134,6 +141,9 @@ export function Tools() {
         <CalcsTab calcId={calcId} setCalcId={setCalcId} />
       )}
       {tab === 'finlit' && <FinLitTab />}
+      {tab === 'calendar' && <TaxCalendarTab />}
+      {tab === 'whatif' && <WhatIfTab />}
+      {tab === 'fx' && <FxConverterTab />}
       {tab === 'glossary' && <GlossaryTab />}
       {tab === 'courses' && <CoursesTab />}
       {tab === 'templates' && <TemplatesTab />}
@@ -1240,6 +1250,329 @@ function FinLitTab() {
             </button>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*                       Налоговый календарь РБ                       */
+/* ------------------------------------------------------------------ */
+
+function TaxCalendarTab() {
+  const [filter, setFilter] = useState<'all' | 'individuals' | 'ip' | 'employed'>('all');
+
+  const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+  const events = TAX_CALENDAR_2026.filter(e =>
+    filter === 'all' || e.audience === 'all' || e.audience === filter
+  );
+
+  const monthly = events.filter(e => e.month === null);
+  const byMonth = new Map<number, TaxCalendarEvent[]>();
+  events.filter(e => e.month !== null).forEach(e => {
+    if (!byMonth.has(e.month!)) byMonth.set(e.month!, []);
+    byMonth.get(e.month!)!.push(e);
+  });
+
+  const categoryColors: Record<TaxCalendarEvent['category'], string> = {
+    individual: 'bg-blue-50 text-blue-700 border-blue-200',
+    ip: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    fszn: 'bg-violet-50 text-violet-700 border-violet-200',
+    declaration: 'bg-amber-50 text-amber-700 border-amber-200',
+    utility: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    reminder: 'bg-stone-100 text-zinc-700 border-stone-200',
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-xs text-amber-900">
+        <strong>Налоговый и финансовый календарь РБ на 2026 год.</strong> Все даты — для физлиц, ИП и наёмных работников.
+        Проверяйте актуальность на portal.nalog.gov.by.
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {([
+          { id: 'all', label: 'Все' },
+          { id: 'individuals', label: 'Физлица' },
+          { id: 'employed', label: 'Наёмные' },
+          { id: 'ip', label: 'ИП / самозанятые' },
+        ] as const).map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFilter(f.id)}
+            className={cn(
+              'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
+              filter === f.id
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'bg-stone-50 text-zinc-700 border-stone-200 hover:bg-stone-100'
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {monthly.length > 0 && (
+        <div className="bg-white rounded-2xl border border-stone-200 p-4">
+          <h3 className="text-sm font-semibold text-zinc-900 mb-2 flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-emerald-600" />
+            Регулярные (каждый месяц)
+          </h3>
+          <div className="space-y-2">
+            {monthly.map((e) => (
+              <div key={e.id} className="border border-stone-200 rounded-xl p-3 bg-stone-50/50">
+                <div className="flex items-start gap-2 mb-1">
+                  <span className="text-lg">{e.emoji}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <strong className="text-sm text-zinc-900">{e.title}</strong>
+                      <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border', categoryColors[e.category])}>
+                        {e.category}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 font-medium mt-0.5">{e.due}</p>
+                    <p className="text-xs text-zinc-600 mt-1">{e.description}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {[...byMonth.entries()].sort((a, b) => a[0] - b[0]).map(([month, items]) => (
+          <div key={month} className="bg-white rounded-2xl border border-stone-200 p-4">
+            <h3 className="text-sm font-semibold text-zinc-900 mb-2 flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-blue-600" />
+              {monthNames[month - 1]}
+            </h3>
+            <div className="space-y-2">
+              {items.map((e) => (
+                <div key={e.id} className="border border-stone-200 rounded-xl p-3">
+                  <div className="flex items-start gap-2 mb-1">
+                    <span className="text-lg">{e.emoji}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <strong className="text-sm text-zinc-900">{e.title}</strong>
+                        <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full border', categoryColors[e.category])}>
+                          {e.category}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 font-medium mt-0.5">{e.due}</p>
+                      <p className="text-xs text-zinc-600 mt-1">{e.description}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*                            What-If Сценарии                        */
+/* ------------------------------------------------------------------ */
+
+function WhatIfTab() {
+  const [income, setIncome] = useState(2000);
+  const [expenses, setExpenses] = useState(1500);
+  const [savingsRate, setSavingsRate] = useState(15);
+  const [years, setYears] = useState(5);
+  const [returnRate, setReturnRate] = useState(8);
+  const [emergencyMonths, setEmergencyMonths] = useState(6);
+
+  const monthlySaved = Math.max(0, income - expenses) * (savingsRate / 100);
+  const totalSaved = (() => {
+    let bal = 0;
+    for (let m = 0; m < years * 12; m++) {
+      bal = bal * (1 + returnRate / 100 / 12) + monthlySaved;
+    }
+    return bal;
+  })();
+  const fireTarget = expenses * 12 * 25;
+  const safetyTarget = expenses * emergencyMonths;
+  const yearsToSafety = monthlySaved > 0 ? safetyTarget / (monthlySaved * 12) : Infinity;
+  const yearsToFireValue = monthlySaved > 0 && returnRate > 0 ? Math.log(1 + (fireTarget * returnRate / 100) / (monthlySaved * 12)) / Math.log(1 + returnRate / 100) : Infinity;
+
+  const Slider = ({ label, value, min, max, step, suffix, onChange, hint }: {
+    label: string; value: number; min: number; max: number; step: number; suffix: string;
+    onChange: (v: number) => void; hint?: string;
+  }) => (
+    <div className="bg-white rounded-2xl border border-stone-200 p-3">
+      <div className="flex items-baseline justify-between mb-1">
+        <label className="text-xs font-medium text-zinc-700">{label}</label>
+        <span className="text-sm font-semibold text-emerald-700">
+          {value.toLocaleString('ru-BY')} {suffix}
+        </span>
+      </div>
+      <input
+        type="range"
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        min={min}
+        max={max}
+        step={step}
+        className="w-full h-2 bg-stone-200 rounded-full appearance-none cursor-pointer accent-emerald-600"
+      />
+      {hint && <p className="text-[10px] text-zinc-500 mt-1">{hint}</p>}
+    </div>
+  );
+
+  return (
+    <section className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 text-xs text-blue-900">
+        Поиграйте со слайдерами и посмотрите, как меняется ваш финансовый план.
+        Все расчёты — в BYN.
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <Slider label="Доход в месяц" value={income} min={500} max={10000} step={50} suffix="BYN" onChange={setIncome} />
+        <Slider label="Расходы в месяц" value={expenses} min={300} max={Math.max(income - 100, 9500)} step={50} suffix="BYN" onChange={setExpenses} />
+        <Slider label="Доля сбережений от свободных средств" value={savingsRate} min={0} max={100} step={5} suffix="%" onChange={setSavingsRate}
+          hint={`Откладывается ${monthlySaved.toFixed(0)} BYN/мес`} />
+        <Slider label="Годовая доходность инвестиций" value={returnRate} min={0} max={20} step={0.5} suffix="%" onChange={setReturnRate}
+          hint="Депозит РБ ~10–13%, USD ~5–7%, акции ~8–10%" />
+        <Slider label="Горизонт планирования" value={years} min={1} max={30} step={1} suffix="лет" onChange={setYears} />
+        <Slider label="Подушка безопасности" value={emergencyMonths} min={1} max={24} step={1} suffix="мес" onChange={setEmergencyMonths}
+          hint="Стандарт 3-6 месяцев. Для ИП — больше" />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+          <div className="text-[10px] uppercase text-emerald-700 font-medium tracking-wider">Накоплено за {years} лет</div>
+          <div className="text-2xl font-bold text-emerald-900 mt-1">
+            {totalSaved.toLocaleString('ru-BY', { maximumFractionDigits: 0 })} BYN
+          </div>
+          <div className="text-[11px] text-emerald-700 mt-1">
+            При откладывании {monthlySaved.toFixed(0)} BYN/мес под {returnRate}% годовых
+          </div>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <div className="text-[10px] uppercase text-amber-700 font-medium tracking-wider">Подушка</div>
+          <div className="text-2xl font-bold text-amber-900 mt-1">
+            {safetyTarget.toLocaleString('ru-BY', { maximumFractionDigits: 0 })} BYN
+          </div>
+          <div className="text-[11px] text-amber-700 mt-1">
+            Накопится за <strong>{isFinite(yearsToSafety) ? yearsToSafety.toFixed(1) + ' лет' : '∞'}</strong>
+          </div>
+        </div>
+
+        <div className="bg-violet-50 border border-violet-200 rounded-2xl p-4">
+          <div className="text-[10px] uppercase text-violet-700 font-medium tracking-wider">FIRE-цель (×25 расходов)</div>
+          <div className="text-2xl font-bold text-violet-900 mt-1">
+            {fireTarget.toLocaleString('ru-BY', { maximumFractionDigits: 0 })} BYN
+          </div>
+          <div className="text-[11px] text-violet-700 mt-1">
+            До неё <strong>{isFinite(yearsToFireValue) ? yearsToFireValue.toFixed(0) + ' лет' : '∞'}</strong>
+          </div>
+        </div>
+
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4">
+          <div className="text-[10px] uppercase text-rose-700 font-medium tracking-wider">Свободно в месяц</div>
+          <div className="text-2xl font-bold text-rose-900 mt-1">
+            {(income - expenses).toLocaleString('ru-BY', { maximumFractionDigits: 0 })} BYN
+          </div>
+          <div className="text-[11px] text-rose-700 mt-1">
+            {(income - expenses) <= 0 ? 'Расходы превышают доход!' : `${((income - expenses) / income * 100).toFixed(0)}% от дохода`}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*                       Конвертер валют офлайн                       */
+/* ------------------------------------------------------------------ */
+
+const FX_CURRENCIES = ['BYN', 'USD', 'EUR', 'RUB', 'PLN', 'USDT'];
+
+function FxConverterTab() {
+  const rates = useStore((s) => s.rates);
+  const ratesAt = useStore((s) => s.ratesUpdatedAt);
+  const fetchRates = useStore((s) => s.fetchRates);
+  const [from, setFrom] = useState('USD');
+  const [to, setTo] = useState('BYN');
+  const [amount, setAmount] = useState(100);
+
+  React.useEffect(() => {
+    if (Object.keys(rates).length === 0) fetchRates();
+  }, [fetchRates, rates]);
+
+  // BYN base from store: rates[CUR] = BYN per 1 unit of CUR (typical NBRB-style)
+  // Convert: amount in `from` -> BYN -> `to`
+  const fromRate = from === 'BYN' ? 1 : rates[from] || 0;
+  const toRate = to === 'BYN' ? 1 : rates[to] || 0;
+  const result = toRate > 0 ? (amount * fromRate) / toRate : 0;
+
+  const swap = () => {
+    const f = from;
+    setFrom(to);
+    setTo(f);
+  };
+
+  return (
+    <section className="space-y-4">
+      <div className="bg-cyan-50 border border-cyan-200 rounded-2xl p-3 text-xs text-cyan-900 flex items-center gap-2">
+        <span><strong>Курсы НБРБ.</strong> {ratesAt ? `Обновлено ${new Date(ratesAt).toLocaleString('ru-BY')}` : 'Курсы загружаются...'}</span>
+        <button onClick={() => fetchRates()} className="ml-auto text-cyan-700 underline text-xs">Обновить</button>
+      </div>
+
+      <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+            className="flex-1 px-3 py-2 text-lg font-semibold bg-stone-50 border border-stone-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          />
+          <select value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium">
+            {FX_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        <button onClick={swap} className="w-full py-2 bg-stone-100 hover:bg-stone-200 rounded-xl text-sm text-zinc-700 flex items-center justify-center gap-2">
+          <ArrowLeftRight className="w-4 h-4" />
+          Поменять местами
+        </button>
+
+        <div className="flex items-center gap-2">
+          <div className="flex-1 px-3 py-2 text-lg font-semibold bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900">
+            {result.toLocaleString('ru-BY', { maximumFractionDigits: 4 })}
+          </div>
+          <select value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl font-medium">
+            {FX_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        {fromRate > 0 && toRate > 0 && (
+          <div className="text-xs text-zinc-500 text-center">
+            1 {from} = {(fromRate / toRate).toLocaleString('ru-BY', { maximumFractionDigits: 4 })} {to}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white border border-stone-200 rounded-2xl p-4">
+        <h3 className="text-sm font-semibold text-zinc-900 mb-3">Курсы НБРБ к BYN</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {FX_CURRENCIES.filter(c => c !== 'BYN').map((c) => {
+            const r = rates[c];
+            return (
+              <div key={c} className="border border-stone-200 rounded-xl p-2">
+                <div className="text-[10px] uppercase text-zinc-500">{c}</div>
+                <div className="text-sm font-bold text-zinc-900">
+                  {r ? r.toFixed(4) : '—'} BYN
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

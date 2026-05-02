@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useStore } from '../store/useStore';
-import { Plus, Trash2, X, Activity, AlertCircle, CheckCircle2, XCircle, MinusCircle, History, Target, Flame, Zap, Pin, PinOff, GripVertical, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, X, Activity, AlertCircle, CheckCircle2, XCircle, MinusCircle, History, Target, Flame, Zap, Pin, PinOff, GripVertical, Eye, EyeOff, BookOpen, Grid as GridIcon } from 'lucide-react';
 import { HabitType, HabitFrequency, Habit } from '../types';
+import { HABIT_TEMPLATES } from '../data/habitTemplates';
 import { cn } from '../lib/utils';
-import { format, getDay, subDays, isSameDay, parseISO } from 'date-fns';
+import { format, getDay, subDays, isSameDay, parseISO, startOfWeek as dfStartOfWeek, addDays as dfAddDays, addWeeks as dfAddWeeks, differenceInCalendarDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -280,6 +281,164 @@ function SortableHabit({
   );
 }
 
+interface HabitYearHeatmapProps {
+  habit: Habit;
+  logs: ReturnType<typeof Object.values>;
+}
+
+function HabitYearHeatmap({ habit, logs }: { habit: Habit; logs: { date: string; status: string }[] }) {
+  const today = new Date();
+  // Start = 52 weeks ago, aligned to Monday
+  const start = dfStartOfWeek(dfAddWeeks(today, -52), { weekStartsOn: 1 });
+  const totalDays = differenceInCalendarDays(today, start) + 1;
+  const weeks = Math.ceil(totalDays / 7);
+
+  const dateStatus = new Map<string, string>();
+  logs.forEach((l) => dateStatus.set(l.date, l.status));
+
+  // Build columns (weeks) x rows (Mon..Sun)
+  const cells: { date: string; status?: string; future: boolean }[][] = [];
+  for (let w = 0; w < weeks; w++) {
+    const col: { date: string; status?: string; future: boolean }[] = [];
+    for (let d = 0; d < 7; d++) {
+      const date = dfAddDays(start, w * 7 + d);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const future = date > today;
+      col.push({
+        date: dateStr,
+        status: dateStatus.get(dateStr),
+        future,
+      });
+    }
+    cells.push(col);
+  }
+
+  const totalDone = logs.filter(l => l.status === 'done').length;
+  const totalFailed = logs.filter(l => l.status === 'failed').length;
+
+  return (
+    <div className="bg-white p-4 rounded-3xl border border-stone-200">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <GridIcon className="w-4 h-4 text-zinc-700" />
+          <span className="text-sm font-medium text-zinc-900">{habit.title}</span>
+          <span className={cn(
+            "text-[10px] px-2 py-0.5 rounded-full font-medium",
+            habit.type === 'good' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+          )}>
+            {habit.type === 'good' ? '+' : '−'}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-[10px] text-zinc-500">
+          <span><strong className="text-emerald-600">{totalDone}</strong> {habit.type === 'good' ? 'выполнено' : 'удержано'}</span>
+          <span><strong className="text-rose-600">{totalFailed}</strong> {habit.type === 'good' ? 'провалено' : 'сорвался'}</span>
+        </div>
+      </div>
+      <div className="overflow-x-auto pb-1">
+        <div className="flex gap-[3px]">
+          {cells.map((col, ci) => (
+            <div key={ci} className="flex flex-col gap-[3px]">
+              {col.map((cell) => {
+                let bg = 'bg-stone-100';
+                if (cell.future) bg = 'bg-stone-50';
+                else if (cell.status === 'done') bg = habit.type === 'good' ? 'bg-emerald-500' : 'bg-emerald-400';
+                else if (cell.status === 'failed') bg = 'bg-rose-400';
+                else if (cell.status === 'skipped') bg = 'bg-stone-200';
+                return (
+                  <div
+                    key={cell.date}
+                    title={`${format(parseISO(cell.date), 'd MMM yyyy', { locale: ru })}: ${cell.status || 'нет данных'}`}
+                    className={cn('w-[10px] h-[10px] rounded-[2px]', bg)}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-2 text-[10px] text-zinc-500">
+        <span>Меньше</span>
+        <div className="flex gap-[3px]">
+          <div className="w-[10px] h-[10px] rounded-[2px] bg-stone-100" />
+          <div className="w-[10px] h-[10px] rounded-[2px] bg-emerald-200" />
+          <div className="w-[10px] h-[10px] rounded-[2px] bg-emerald-400" />
+          <div className="w-[10px] h-[10px] rounded-[2px] bg-emerald-500" />
+        </div>
+        <span>Больше</span>
+      </div>
+    </div>
+  );
+}
+
+function StreakAndRateMetrics({ habit, logs }: { habit: Habit; logs: { date: string; status: string }[] }) {
+  // Calculate current/best streak
+  const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const doneSet = new Set(logs.filter(l => l.status === 'done').map(l => l.date));
+
+  let current = 0;
+  let cursor = doneSet.has(todayStr) ? today : subDays(today, 1);
+  while (doneSet.has(format(cursor, 'yyyy-MM-dd'))) {
+    current++;
+    cursor = subDays(cursor, 1);
+  }
+  if (!doneSet.has(format(today, 'yyyy-MM-dd')) && !doneSet.has(format(subDays(today, 1), 'yyyy-MM-dd'))) {
+    current = 0;
+  }
+
+  let max = 0;
+  const sortedDates = [...doneSet].sort();
+  let streak = 0;
+  let prev: Date | null = null;
+  for (const dStr of sortedDates) {
+    const d = parseISO(dStr);
+    if (prev && differenceInCalendarDays(d, prev) === 1) {
+      streak++;
+    } else {
+      streak = 1;
+    }
+    max = Math.max(max, streak);
+    prev = d;
+  }
+
+  // Completion rates
+  const calcRate = (days: number) => {
+    let done = 0;
+    for (let i = 0; i < days; i++) {
+      const dStr = format(subDays(today, i), 'yyyy-MM-dd');
+      if (doneSet.has(dStr)) done++;
+    }
+    return Math.round((done / days) * 100);
+  };
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-center">
+        <div className="text-lg font-bold text-emerald-700 flex items-center justify-center gap-1">
+          <Flame className="w-4 h-4" />
+          {current}
+        </div>
+        <div className="text-[10px] text-emerald-600 uppercase tracking-wider">Текущая</div>
+      </div>
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-2 text-center">
+        <div className="text-lg font-bold text-amber-700 flex items-center justify-center gap-1">
+          <Zap className="w-4 h-4" />
+          {max}
+        </div>
+        <div className="text-[10px] text-amber-600 uppercase tracking-wider">Лучшая</div>
+      </div>
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-2 text-center">
+        <div className="text-lg font-bold text-blue-700">{calcRate(30)}%</div>
+        <div className="text-[10px] text-blue-600 uppercase tracking-wider">30 дней</div>
+      </div>
+      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-2 text-center">
+        <div className="text-lg font-bold text-indigo-700">{calcRate(90)}%</div>
+        <div className="text-[10px] text-indigo-600 uppercase tracking-wider">90 дней</div>
+      </div>
+    </div>
+  );
+}
+
 function HabitHistoryView() {
   const { habits, habitLogs, hideHabitNames } = useStore();
   
@@ -312,7 +471,10 @@ function HabitHistoryView() {
   return (
     <div className="space-y-4">
       {stats.map(habit => (
-        <div key={habit.id} className="bg-white p-5 rounded-3xl border border-stone-200">
+        <div key={habit.id} className="space-y-3">
+          <HabitYearHeatmap habit={habit} logs={habitLogs.filter(l => l.habitId === habit.id) as any} />
+          <StreakAndRateMetrics habit={habit} logs={habitLogs.filter(l => l.habitId === habit.id) as any} />
+          <div className="bg-white p-5 rounded-3xl border border-stone-200">
           <div className="flex justify-between items-start mb-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -372,6 +534,7 @@ function HabitHistoryView() {
                 );
               })}
             </div>
+          </div>
           </div>
         </div>
       ))}
@@ -470,9 +633,21 @@ export function Habits() {
   const [unit, setUnit] = useState<string>('');
   
   const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({});
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const toggleHistory = (habitId: string) => {
     setExpandedHistory(prev => ({ ...prev, [habitId]: !prev[habitId] }));
+  };
+
+  const handleAddTemplate = (tpl: { title: string; type: HabitType; icon?: string; targetValue?: number; unit?: string; frequency?: HabitFrequency }) => {
+    addHabit({
+      title: tpl.title,
+      type: tpl.type,
+      icon: tpl.icon,
+      targetValue: tpl.targetValue,
+      unit: tpl.unit,
+      frequency: tpl.frequency || { type: 'daily' },
+    });
   };
 
   const filteredHabits = habits.filter(h => {
@@ -556,6 +731,13 @@ export function Habits() {
             {hideHabitNames ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
           </button>
           <button
+            onClick={() => setShowTemplates(true)}
+            className="p-3 bg-white text-emerald-600 rounded-2xl hover:bg-emerald-50 transition-colors border border-emerald-200"
+            title="Шаблоны привычек"
+          >
+            <BookOpen className="w-6 h-6" />
+          </button>
+          <button
             onClick={() => setIsAdding(true)}
             className="p-3 bg-emerald-500 text-zinc-900 rounded-2xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
           >
@@ -563,6 +745,70 @@ export function Habits() {
           </button>
         </div>
       </header>
+
+      <AnimatePresence>
+        {showTemplates && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowTemplates(false)}
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              className="bg-white rounded-t-3xl sm:rounded-3xl border border-stone-200 max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 bg-white border-b border-stone-200 p-4 flex items-center justify-between rounded-t-3xl z-10">
+                <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-emerald-600" />
+                  Шаблоны привычек
+                </h3>
+                <button onClick={() => setShowTemplates(false)} className="text-zinc-500 hover:text-zinc-900">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                <p className="text-xs text-zinc-500">
+                  Готовые «атомные» привычки по областям жизни. Тапни — и привычка появится в твоём списке.
+                </p>
+                {HABIT_TEMPLATES.map((cat) => (
+                  <div key={cat.id} className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{cat.emoji}</span>
+                      <div>
+                        <h4 className="font-semibold text-zinc-900 text-sm">{cat.title}</h4>
+                        <p className="text-[11px] text-zinc-500">{cat.blurb}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {cat.templates.map((tpl, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleAddTemplate(tpl)}
+                          className={cn(
+                            "px-2.5 py-1.5 rounded-xl text-xs font-medium border transition-all flex items-center gap-1.5",
+                            tpl.type === 'good'
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                              : "bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100"
+                          )}
+                        >
+                          <span>{tpl.icon}</span>
+                          <span>{tpl.title}</span>
+                          <Plus className="w-3 h-3 opacity-60" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Tabs */}
       <div className="flex bg-white p-1 rounded-xl">
