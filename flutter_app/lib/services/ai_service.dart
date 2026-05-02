@@ -119,6 +119,49 @@ class AiService {
     }
   }
 
+  /// Plain text generation — used by Predictive Budget for natural-language
+  /// insights. Returns the raw model text or throws [AiServiceException].
+  static Future<String> generateContent(String prompt) async {
+    final key = apiKey;
+    if (key == null) {
+      throw const AiServiceException('GEMINI_API_KEY не задан в Настройках.');
+    }
+    final body = jsonEncode({
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': prompt}
+          ],
+        }
+      ],
+    });
+    final uri =
+        Uri.parse('$_endpointBase/$_model:generateContent?key=$key');
+    final resp = await http.post(uri,
+        headers: const {'Content-Type': 'application/json'}, body: body);
+    if (resp.statusCode != 200) {
+      throw AiServiceException(
+          'HTTP ${resp.statusCode}: ${_truncate(resp.body, 200)}');
+    }
+    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final candidates = (data['candidates'] as List?) ?? const [];
+    if (candidates.isEmpty) {
+      throw const AiServiceException('Пустой ответ от Gemini.');
+    }
+    final parts = ((candidates.first as Map?)?['content']
+            as Map?)?['parts'] as List? ??
+        const [];
+    if (parts.isEmpty) {
+      throw const AiServiceException('Пустой ответ от Gemini.');
+    }
+    final text = (parts.first as Map?)?['text'] as String?;
+    if (text == null || text.isEmpty) {
+      throw const AiServiceException('Пустой ответ от Gemini.');
+    }
+    return text.trim();
+  }
+
   static String _truncate(String s, int max) =>
       s.length <= max ? s : '${s.substring(0, max)}…';
 }
