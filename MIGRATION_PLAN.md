@@ -210,18 +210,40 @@ The React app puts most of its value here. We need parity with
   `PriceHistoryEntry`. New providers: `workScheduleProvider`,
   `shoppingCategoriesProvider`, `priceHistoryProvider`.
 
-### Phase 10 — Cross-cutting polish
+### Phase 10 — Cross-cutting polish ✅
 
-- Dashboard widget reorder/visibility settings (port
-  [`DashboardConfig`](./src/types.ts)).
-- PIN-lock screen
-  ([`PinLockScreen.tsx`](./src/components/PinLockScreen.tsx)).
-- Share-target intent handling
-  ([`ShareTarget.tsx`](./src/pages/ShareTarget.tsx)) via Android intent
-  filter + `receive_sharing_intent` package.
-- Light/dark theme switch parity with the React redesign.
-- Localizations: BY (Belarusian) and EN.
-- Release-keystore signing config with documentation.
+- ✅ **Dashboard widget reorder/visibility** — `DashboardConfig` ported to
+  `lib/models/dashboard_config.dart` with the same `widgetsOrder` /
+  `visibleWidgets` storage shape as the React store. New
+  `DashboardSettingsPage` (`/dashboard-settings`) drives a
+  `ReorderableListView` with per-widget visibility switches and a "Reset"
+  action; the dashboard now renders only the visible widgets in the
+  user-defined order.
+- ✅ **PIN-lock screen** — counterpart of `PinLockScreen.tsx`.
+  4-digit numpad lives at `lib/features/security/pin_lock_screen.dart`,
+  setup at `lib/features/security/pin_setup_page.dart`. The main app
+  observes `AppLifecycleState.paused` / `hidden` and re-locks whenever
+  Vibesight leaves the foreground (matches the React `visibilitychange`
+  behaviour). PIN is stored in Hive (privacy gate, not crypto vault).
+- ✅ **Share-target intent** — `ACTION_SEND` / `text/plain` filter in
+  `AndroidManifest.xml`, captured in the new `MainActivity.kt` and
+  forwarded to Flutter via `MethodChannel("ai.vibesight.tracker/share")`.
+  `ShareIntentService` (Dart) writes the shared title + text into the
+  "Заметки" sphere — same destination as the React `ShareTarget.tsx`.
+- ✅ **Localizations** — `flutter_localizations` + `flutter gen-l10n`.
+  ARB files: `lib/l10n/app_ru.arb` (template), `app_be.arb` (Belarusian),
+  `app_en.arb` (English). New "Язык" tile in Settings switches the runtime
+  locale (or follows system); strings used by Settings, dashboard
+  customizer, PIN flow, and bottom-nav metadata are translated.
+- ✅ **Release-keystore signing config** — `android/app/build.gradle` now
+  auto-detects `android/key.properties`. When present, `signingConfigs.release`
+  is wired up with the upload key; otherwise builds fall back to the bundled
+  debug key. `android/key.properties.example` and
+  [`flutter_app/README.md`](./flutter_app/README.md) document the
+  `keytool -genkey` workflow.
+- ✅ **Light/dark theme switch parity** — already covered by the existing
+  `themeModeProvider` (system/light/dark) wired to a SegmentedButton in
+  Settings; verified Phase 10 against the React redesign palette.
 
 ## Status legend
 
@@ -241,7 +263,7 @@ The React app puts most of its value here. We need parity with
 | 7 — Belarus localisation | ✅ | Devin | 8 tabs, 10 calculators, FinLit, calendar, glossary, courses |
 | 8 — Passwords & TOTP | ✅ | Devin | Password vault, TOTP authenticator, generator |
 | 9 — Household etc. | ✅ | Devin | Household, ShoppingList, WorkSchedule |
-| 10 — Polish | ⏳ | | |
+| 10 — Polish | ✅ | Devin | DashboardConfig, PIN, share-target, BY/EN, release keystore |
 
 ## Build & run (Phase 0)
 

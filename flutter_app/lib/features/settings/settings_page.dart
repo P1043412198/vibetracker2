@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../l10n/app_localizations.dart';
 import '../../services/ai_service.dart';
 import '../../services/storage.dart';
 import '../../state/settings_state.dart';
@@ -12,34 +14,37 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
     final currency = ref.watch(defaultCurrencyProvider);
+    final overrideLocale = ref.watch(localeProvider);
+    final pinLock = ref.watch(pinLockProvider);
+    final t = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Настройки')),
+      appBar: AppBar(title: Text(t.navSettings)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          Text('Внешний вид',
+          Text(t.settingsAppearance,
               style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: SegmentedButton<ThemeMode>(
-                segments: const [
+                segments: [
                   ButtonSegment(
                     value: ThemeMode.system,
-                    icon: Icon(Icons.brightness_auto),
-                    label: Text('Авто'),
+                    icon: const Icon(Icons.brightness_auto),
+                    label: Text(t.settingsThemeAuto),
                   ),
                   ButtonSegment(
                     value: ThemeMode.light,
-                    icon: Icon(Icons.light_mode),
-                    label: Text('Светлая'),
+                    icon: const Icon(Icons.light_mode),
+                    label: Text(t.settingsThemeLight),
                   ),
                   ButtonSegment(
                     value: ThemeMode.dark,
-                    icon: Icon(Icons.dark_mode),
-                    label: Text('Тёмная'),
+                    icon: const Icon(Icons.dark_mode),
+                    label: Text(t.settingsThemeDark),
                   ),
                 ],
                 selected: {themeMode},
@@ -48,15 +53,87 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.translate),
+                  title: Text(t.settingsLanguage),
+                  subtitle: Text(_localeLabel(overrideLocale, t)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    final entries = <_LocaleOption>[
+                      _LocaleOption(null, t.settingsLanguageSystem),
+                      _LocaleOption(
+                          const Locale('ru'), t.settingsLanguageRu),
+                      _LocaleOption(
+                          const Locale('be'), t.settingsLanguageBe),
+                      _LocaleOption(
+                          const Locale('en'), t.settingsLanguageEn),
+                    ];
+                    final picked = await showModalBottomSheet<_LocaleOption>(
+                      context: context,
+                      builder: (sheetContext) => SafeArea(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final e in entries)
+                              ListTile(
+                                title: Text(e.label),
+                                selected: e.locale?.languageCode ==
+                                    overrideLocale?.languageCode,
+                                onTap: () =>
+                                    Navigator.of(sheetContext).pop(e),
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                    if (picked != null) {
+                      await ref
+                          .read(localeProvider.notifier)
+                          .set(picked.locale);
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.dashboard_customize_outlined),
+                  title: Text(t.settingsConfigureDashboard),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.go('/dashboard-settings'),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
-          Text('Финансы', style: Theme.of(context).textTheme.labelLarge),
+          Text(t.settingsSecurity,
+              style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: Icon(
+                pinLock.hasPin ? Icons.lock : Icons.lock_open_outlined,
+                color: pinLock.hasPin
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
+              ),
+              title: Text(pinLock.hasPin ? t.pinChange : t.pinSet),
+              subtitle: Text(
+                  pinLock.hasPin ? t.settingsPinSet : t.settingsPinNotSet),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/pin-setup'),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(t.settingsFinance, style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
           Card(
             child: Column(
               children: [
                 ListTile(
                   leading: const Icon(Icons.attach_money),
-                  title: const Text('Валюта по умолчанию'),
+                  title: Text(t.settingsDefaultCurrency),
                   subtitle: Text(currency),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
@@ -98,14 +175,14 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
-          Text('AI (Gemini)',
+          Text(t.settingsAi,
               style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
           Card(
             child: _GeminiKeyTile(),
           ),
           const SizedBox(height: 24),
-          Text('Данные', style: Theme.of(context).textTheme.labelLarge),
+          Text(t.settingsData, style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
           Card(
             child: Column(
@@ -113,21 +190,19 @@ class SettingsPage extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.delete_forever_outlined,
                       color: Color(0xFFEF4444)),
-                  title: const Text('Удалить все данные'),
-                  subtitle: const Text(
-                      'Сбрасывает локальное хранилище. Действие необратимо.'),
+                  title: Text(t.settingsDeleteAll),
+                  subtitle: Text(t.settingsDeleteAllSubtitle),
                   onTap: () async {
                     final ok = await showDialog<bool>(
                       context: context,
                       builder: (dialogContext) => AlertDialog(
-                        title: const Text('Удалить все данные?'),
-                        content: const Text(
-                            'Все задачи, привычки, транзакции и прочие записи будут удалены безвозвратно.'),
+                        title: Text('${t.settingsDeleteAll}?'),
+                        content: Text(t.settingsDeleteAllSubtitle),
                         actions: [
                           TextButton(
                             onPressed: () =>
                                 Navigator.of(dialogContext).pop(false),
-                            child: const Text('Отмена'),
+                            child: Text(t.commonCancel),
                           ),
                           FilledButton.tonal(
                             style: FilledButton.styleFrom(
@@ -136,7 +211,7 @@ class SettingsPage extends ConsumerWidget {
                             ),
                             onPressed: () =>
                                 Navigator.of(dialogContext).pop(true),
-                            child: const Text('Удалить'),
+                            child: Text(t.commonDelete),
                           ),
                         ],
                       ),
@@ -180,6 +255,25 @@ class SettingsPage extends ConsumerWidget {
       ),
     );
   }
+}
+
+String _localeLabel(Locale? locale, AppLocalizations t) {
+  if (locale == null) return t.settingsLanguageSystem;
+  switch (locale.languageCode) {
+    case 'ru':
+      return t.settingsLanguageRu;
+    case 'be':
+      return t.settingsLanguageBe;
+    case 'en':
+      return t.settingsLanguageEn;
+  }
+  return locale.languageCode;
+}
+
+class _LocaleOption {
+  const _LocaleOption(this.locale, this.label);
+  final Locale? locale;
+  final String label;
 }
 
 class _GeminiKeyTile extends ConsumerStatefulWidget {

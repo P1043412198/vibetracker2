@@ -10,9 +10,10 @@ import '../../state/settings_state.dart';
 /// Dashboard / "Главная" — counterpart of `src/pages/Dashboard.tsx`.
 ///
 /// The React version shows ~20 widgets driven by `dashboardConfig`. The
-/// Flutter port currently surfaces the most important totals and a
-/// "next steps" call-to-action grid that lets the user jump into the
-/// subscreens being ported in subsequent passes.
+/// Flutter port surfaces the most important totals and shortcut cards. As of
+/// Phase 10 the rendering order and visibility are user-configurable via
+/// [DashboardSettingsPage] — same `dashboardConfig` storage key as the React
+/// build so a future migration tool can preserve user choices.
 class DashboardPage extends ConsumerWidget {
   const DashboardPage({super.key});
 
@@ -31,6 +32,7 @@ class DashboardPage extends ConsumerWidget {
     final waterLogs = ref.watch(waterLogsProvider);
     final waterGoal = ref.watch(waterGoalProvider);
     final sleepLogs = ref.watch(sleepLogsProvider);
+    final config = ref.watch(dashboardConfigProvider);
 
     final today = DateTime.now();
     final todayStr =
@@ -55,10 +57,162 @@ class DashboardPage extends ConsumerWidget {
     final amountFormat =
         NumberFormat.currency(locale: 'ru_RU', symbol: '', decimalDigits: 2);
 
+    final visibleIds = config.widgetsOrder
+        .where(config.visibleWidgets.contains)
+        .toList();
+
+    Widget? buildWidget(String id) {
+      switch (id) {
+        case 'greeting':
+          return _GreetingCard(scheme: scheme);
+        case 'tasks_habits':
+          return _StatsRow(
+            cards: [
+              _StatData(
+                label: 'Задачи сегодня',
+                value: '$completedToday / ${todayTasks.length}',
+                icon: Icons.checklist,
+                color: scheme.primary,
+                onTap: () => context.go('/tasks'),
+              ),
+              _StatData(
+                label: 'Привычки',
+                value: habits.length.toString(),
+                icon: Icons.spa,
+                color: const Color(0xFF22C55E),
+                onTap: () => context.go('/habits'),
+              ),
+            ],
+          );
+        case 'finance_hub':
+          return _StatsRow(
+            cards: [
+              _StatData(
+                label: 'Доход за месяц',
+                value: '+ ${amountFormat.format(monthIncome)} $currency',
+                icon: Icons.trending_up,
+                color: const Color(0xFF22C55E),
+                onTap: () => context.go('/finance'),
+              ),
+              _StatData(
+                label: 'Расход за месяц',
+                value: '- ${amountFormat.format(monthExpense)} $currency',
+                icon: Icons.trending_down,
+                color: const Color(0xFFEF4444),
+                onTap: () => context.go('/finance'),
+              ),
+            ],
+          );
+        case 'spheres':
+          return _SectionCard(
+            title: 'Сферы жизни',
+            subtitle: spheres.isEmpty
+                ? 'Создай первую сферу'
+                : '${spheres.length} активных',
+            icon: Icons.workspaces_outline,
+            accent: scheme.primary,
+            onTap: () => context.go('/spheres'),
+          );
+        case 'goals':
+          return _SectionCard(
+            title: 'Цели',
+            subtitle:
+                goals.isEmpty ? 'Поставь первую цель' : '${goals.length} в работе',
+            icon: Icons.flag_outlined,
+            accent: const Color(0xFFF59E0B),
+            onTap: () => context.go('/goals'),
+          );
+        case 'shopping_list':
+          return _SectionCard(
+            title: 'Список покупок',
+            subtitle: shopping.isEmpty
+                ? 'Пусто'
+                : '${shopping.where((s) => !s.completed).length} активных позиций',
+            icon: Icons.shopping_cart_outlined,
+            accent: const Color(0xFF3B82F6),
+            onTap: () => context.go('/shopping-list'),
+          );
+        case 'pomodoro':
+          return _StatsRow(
+            cards: [
+              _StatData(
+                label: 'Pomodoro',
+                value: pomodoro.isRunning
+                    ? '${pomodoro.timeLeft ~/ 60}:${(pomodoro.timeLeft % 60).toString().padLeft(2, '0')}'
+                    : '${pomodoro.sessionsCompleted} сессий',
+                icon: Icons.timer,
+                color: scheme.primary,
+                onTap: () => context.go('/pomodoro'),
+              ),
+              _StatData(
+                label: 'Вода сегодня',
+                value: () {
+                  final todayW = waterLogs
+                      .where((l) => l.date == todayStr)
+                      .fold<num>(0, (s, l) => s + l.amount);
+                  return '${todayW.toInt()} / $waterGoal мл';
+                }(),
+                icon: Icons.water_drop,
+                color: const Color(0xFF3B82F6),
+                onTap: () => context.go('/water'),
+              ),
+            ],
+          );
+        case 'water':
+          // Already shown alongside pomodoro card; render a dedicated row only
+          // if 'pomodoro' is hidden, to avoid duplication.
+          if (config.visibleWidgets.contains('pomodoro')) return null;
+          return _SectionCard(
+            title: 'Вода сегодня',
+            subtitle: () {
+              final todayW = waterLogs
+                  .where((l) => l.date == todayStr)
+                  .fold<num>(0, (s, l) => s + l.amount);
+              return '${todayW.toInt()} / $waterGoal мл';
+            }(),
+            icon: Icons.water_drop_outlined,
+            accent: const Color(0xFF3B82F6),
+            onTap: () => context.go('/water'),
+          );
+        case 'sleep_recovery':
+          return _SectionCard(
+            title: 'Сон и Восстановление',
+            subtitle: () {
+              if (sleepLogs.isEmpty) return 'Нет записей';
+              final avg = sleepLogs.fold<num>(0, (s, l) => s + l.hours) /
+                  sleepLogs.length;
+              return 'Среднее ${avg.toStringAsFixed(1)}ч';
+            }(),
+            icon: Icons.bedtime_outlined,
+            accent: const Color(0xFF8B5CF6),
+            onTap: () => context.go('/sleep'),
+          );
+      }
+      return null;
+    }
+
+    final widgets = <Widget>[];
+    for (final id in visibleIds) {
+      final w = buildWidget(id);
+      if (w == null) continue;
+      if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 12));
+      widgets.add(w);
+    }
+    if (widgets.isEmpty) {
+      widgets.add(_EmptyDashboardHint(
+        onConfigure: () => context.go('/dashboard-settings'),
+      ));
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Главная'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.tune),
+            onPressed: () => context.go('/dashboard-settings'),
+            tooltip: 'Настроить дашборд',
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.go('/settings'),
@@ -69,119 +223,39 @@ class DashboardPage extends ConsumerWidget {
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          children: [
-            _GreetingCard(scheme: scheme),
-            const SizedBox(height: 16),
-            _StatsRow(
-              cards: [
-                _StatData(
-                  label: 'Задачи сегодня',
-                  value: '$completedToday / ${todayTasks.length}',
-                  icon: Icons.checklist,
-                  color: scheme.primary,
-                  onTap: () => context.go('/tasks'),
-                ),
-                _StatData(
-                  label: 'Привычки',
-                  value: habits.length.toString(),
-                  icon: Icons.spa,
-                  color: const Color(0xFF22C55E),
-                  onTap: () => context.go('/habits'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _StatsRow(
-              cards: [
-                _StatData(
-                  label: 'Доход за месяц',
-                  value:
-                      '+ ${amountFormat.format(monthIncome)} $currency',
-                  icon: Icons.trending_up,
-                  color: const Color(0xFF22C55E),
-                  onTap: () => context.go('/finance'),
-                ),
-                _StatData(
-                  label: 'Расход за месяц',
-                  value:
-                      '- ${amountFormat.format(monthExpense)} $currency',
-                  icon: Icons.trending_down,
-                  color: const Color(0xFFEF4444),
-                  onTap: () => context.go('/finance'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _SectionCard(
-              title: 'Сферы жизни',
-              subtitle:
-                  spheres.isEmpty ? 'Создай первую сферу' : '${spheres.length} активных',
-              icon: Icons.workspaces_outline,
-              accent: scheme.primary,
-              onTap: () => context.go('/spheres'),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Цели',
-              subtitle: goals.isEmpty
-                  ? 'Поставь первую цель'
-                  : '${goals.length} в работе',
-              icon: Icons.flag_outlined,
-              accent: const Color(0xFFF59E0B),
-              onTap: () => context.go('/goals'),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Список покупок',
-              subtitle: shopping.isEmpty
-                  ? 'Пусто'
-                  : '${shopping.where((s) => !s.completed).length} активных позиций',
-              icon: Icons.shopping_cart_outlined,
-              accent: const Color(0xFF3B82F6),
-              onTap: () => context.go('/shopping-list'),
-            ),
-            const SizedBox(height: 16),
-            // Phase 6 widgets
-            _StatsRow(
-              cards: [
-                _StatData(
-                  label: 'Pomodoro',
-                  value: pomodoro.isRunning
-                      ? '${pomodoro.timeLeft ~/ 60}:${(pomodoro.timeLeft % 60).toString().padLeft(2, '0')}'
-                      : '${pomodoro.sessionsCompleted} сессий',
-                  icon: Icons.timer,
-                  color: scheme.primary,
-                  onTap: () => context.go('/pomodoro'),
-                ),
-                _StatData(
-                  label: 'Вода сегодня',
-                  value: () {
-                    final todayW = waterLogs
-                        .where((l) => l.date == todayStr)
-                        .fold<num>(0, (s, l) => s + l.amount);
-                    return '${todayW.toInt()} / $waterGoal мл';
-                  }(),
-                  icon: Icons.water_drop,
-                  color: const Color(0xFF3B82F6),
-                  onTap: () => context.go('/water'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Сон и Восстановление',
-              subtitle: () {
-                if (sleepLogs.isEmpty) return 'Нет записей';
-                final avg = sleepLogs.fold<num>(0, (s, l) => s + l.hours) /
-                    sleepLogs.length;
-                return 'Среднее ${avg.toStringAsFixed(1)}ч';
-              }(),
-              icon: Icons.bedtime_outlined,
-              accent: const Color(0xFF8B5CF6),
-              onTap: () => context.go('/sleep'),
-            ),
-          ],
+          children: widgets,
         ),
+      ),
+    );
+  }
+}
+
+class _EmptyDashboardHint extends StatelessWidget {
+  const _EmptyDashboardHint({required this.onConfigure});
+  final VoidCallback onConfigure;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        children: [
+          const Icon(Icons.dashboard_customize_outlined, size: 48),
+          const SizedBox(height: 12),
+          const Text('Все виджеты скрыты',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+          const SizedBox(height: 4),
+          Text(
+            'Включи нужные виджеты в настройках дашборда',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          FilledButton.tonalIcon(
+            onPressed: onConfigure,
+            icon: const Icon(Icons.tune),
+            label: const Text('Настроить дашборд'),
+          ),
+        ],
       ),
     );
   }
@@ -363,8 +437,8 @@ class _SectionCard extends StatelessWidget {
           ),
           child: Icon(icon, color: accent),
         ),
-        title: Text(title,
-            style: const TextStyle(fontWeight: FontWeight.w600)),
+        title:
+            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(subtitle),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,

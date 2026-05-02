@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/analytics/analytics_page.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/dashboard/dashboard_settings_page.dart';
 import '../features/finance/finance_page.dart';
 import '../features/goals/goal_details_page.dart';
 import '../features/goals/goals_page.dart';
@@ -11,6 +12,7 @@ import '../features/habits/habits_page.dart';
 import '../features/inbox/inbox_page.dart';
 import '../features/household/household_page.dart';
 import '../features/passwords/passwords_page.dart';
+import '../features/security/pin_setup_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/shopping_list/shopping_list_page.dart';
 import '../features/spheres/sphere_details_page.dart';
@@ -164,6 +166,18 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'settings',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: SettingsPage()),
+          ),
+          GoRoute(
+            path: '/dashboard-settings',
+            name: 'dashboard-settings',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: DashboardSettingsPage()),
+          ),
+          GoRoute(
+            path: '/pin-setup',
+            name: 'pin-setup',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: PinSetupPage()),
           ),
         ],
       ),

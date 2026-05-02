@@ -1,0 +1,16 @@
+# Example release-signing config for the Vibesight Tracker Flutter app.
+# Copy this file to `android/key.properties` and fill in real values, then
+# `flutter build apk --release` will sign with the upload key instead of the
+# bundled debug keystore.
+#
+# Generate a fresh keystore with:
+#   keytool -genkey -v -keystore ~/upload-keystore.jks \
+#           -keyalg RSA -keysize 2048 -validity 10000 \
+#           -alias upload
+#
+# Never commit the real `key.properties` or `.jks` to git.
+
+storeFile=/absolute/path/to/upload-keystore.jks
+storePassword=CHANGE_ME
+keyAlias=upload
+keyPassword=CHANGE_ME

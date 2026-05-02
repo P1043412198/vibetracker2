@@ -11,10 +11,50 @@ flutter analyze
 flutter build apk --release
 ```
 
-The built APK lands at `build/app/outputs/flutter-apk/app-release.apk` and is
-signed with the bundled Flutter debug keystore (good enough for sideloading
-and CI dogfooding; production will swap to a managed release key in Phase 10
-of the plan).
+The built APK lands at `build/app/outputs/flutter-apk/app-release.apk`.
+By default it is signed with the bundled Flutter debug keystore — good
+enough for sideloading and dogfooding.
+
+### Release signing (Phase 10)
+
+To sign with a real upload key:
+
+1. Generate a keystore once:
+   ```bash
+   keytool -genkey -v -keystore ~/upload-keystore.jks \
+           -keyalg RSA -keysize 2048 -validity 10000 \
+           -alias upload
+   ```
+2. Copy `android/key.properties.example` to `android/key.properties` and fill
+   in `storeFile`, `storePassword`, `keyAlias`, `keyPassword`.
+3. Re-run `flutter build apk --release`. `android/app/build.gradle`
+   auto-detects `android/key.properties` and switches `signingConfigs.release`
+   to the upload key. Without that file, builds fall back to the debug key.
+
+`android/key.properties` and `*.jks` are git-ignored — never commit them.
+
+### Localisation
+
+Strings are stored in `lib/l10n/app_<locale>.arb`. The base locale is `ru`
+(`app_ru.arb`); `be` (Belarusian) and `en` (English) are translated mirrors.
+After editing any ARB file run `flutter gen-l10n` to regenerate
+`lib/l10n/app_localizations*.dart`. The user picks a language in
+**Настройки → Язык**; "Системный" follows the device locale.
+
+### Share-target
+
+The Android manifest registers an `ACTION_SEND` / `text/plain` intent filter
+so other apps can share text/URLs into Vibesight. The text is forwarded
+through `MethodChannel("ai.vibesight.tracker/share")` (see
+`android/.../MainActivity.kt` and `lib/services/share_intent_service.dart`)
+and stored as a note in the "Заметки" sphere.
+
+### PIN lock
+
+Optional 4-digit PIN protects the app from casual access (set via
+**Настройки → Безопасность**). The PIN is stored in Hive in plaintext —
+this is a privacy gate, **not** a cryptographic vault. The lock auto-engages
+whenever the app leaves the foreground (`AppLifecycleState.paused`).
 
 ## Structure
 

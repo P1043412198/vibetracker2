@@ -5,6 +5,23 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+// Phase 10: optional release-keystore signing.
+// Drop a `key.properties` next to this file (or place it at android/key.properties)
+// to sign release builds with a real upload key. Layout:
+//
+//   storeFile=/absolute/path/to/upload-keystore.jks
+//   storePassword=...
+//   keyAlias=upload
+//   keyPassword=...
+//
+// If `key.properties` is missing, release builds fall back to the bundled
+// debug key so `flutter build apk --release` keeps working for development.
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "ai.vibesight.tracker"
     // Bumped to 35 because path_provider_android & shared_preferences_android
@@ -15,6 +32,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications requires core library desugaring for
+        // java.time.* on minSdk 23.
+        coreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -23,21 +43,39 @@ android {
 
     defaultConfig {
         applicationId = "ai.vibesight.tracker"
-        minSdk = 23
+        minSdkVersion = flutter.minSdkVersion
         targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            release {
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
+                storeFile = keystoreProperties["storeFile"] ? file(keystoreProperties["storeFile"]) : null
+                storePassword = keystoreProperties["storePassword"]
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Signing with debug keys for now so `flutter build apk --release`
-            // works locally without setting up a release keystore.
-            signingConfig = signingConfigs.debug
+            // Use the upload keystore when configured; otherwise fall back to
+            // the bundled debug key so dogfooding builds still succeed.
+            signingConfig = keystorePropertiesFile.exists()
+                ? signingConfigs.release
+                : signingConfigs.debug
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Required by core library desugaring (see compileOptions above).
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
 }
