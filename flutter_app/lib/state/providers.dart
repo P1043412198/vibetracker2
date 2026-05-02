@@ -274,3 +274,54 @@ final workoutNodesProvider =
     StateNotifierProvider<WorkoutNodesController, List<WorkoutNode>>((ref) {
   return WorkoutNodesController();
 });
+
+class ExerciseLogsController extends JsonListController<ExerciseLog> {
+  ExerciseLogsController()
+      : super(
+          storageKey: 'exerciseLogs',
+          fromJson: ExerciseLog.fromJson,
+          toJson: (l) => l.toJson(),
+        );
+
+  @override
+  String idOf(ExerciseLog item) => item.id;
+}
+
+final exerciseLogsProvider =
+    StateNotifierProvider<ExerciseLogsController, List<ExerciseLog>>((ref) {
+  return ExerciseLogsController();
+});
+
+class BodyMeasurementsController extends JsonListController<BodyMeasurement> {
+  BodyMeasurementsController()
+      : super(
+          storageKey: 'bodyMeasurements',
+          fromJson: BodyMeasurement.fromJson,
+          toJson: (m) => m.toJson(),
+        );
+
+  @override
+  String idOf(BodyMeasurement item) => item.id;
+}
+
+final bodyMeasurementsProvider = StateNotifierProvider<
+    BodyMeasurementsController, List<BodyMeasurement>>((ref) {
+  return BodyMeasurementsController();
+});
+
+class PlannedWorkoutsController extends JsonListController<PlannedWorkout> {
+  PlannedWorkoutsController()
+      : super(
+          storageKey: 'plannedWorkouts',
+          fromJson: PlannedWorkout.fromJson,
+          toJson: (p) => p.toJson(),
+        );
+
+  @override
+  String idOf(PlannedWorkout item) => item.id;
+}
+
+final plannedWorkoutsProvider = StateNotifierProvider<
+    PlannedWorkoutsController, List<PlannedWorkout>>((ref) {
+  return PlannedWorkoutsController();
+});
