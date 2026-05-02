@@ -558,14 +558,14 @@ export function MonthlyBudgetPlanTab() {
         )}
       </div>
 
-      {/* Edit modal — bottom sheet on mobile, centered card on desktop */}
+      {/* Edit modal — full-screen on mobile, centered card on desktop */}
       <AnimatePresence>
         {isEditing && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-zinc-900/40 sm:p-6"
+            className="fixed inset-0 z-[100] flex items-stretch sm:items-center justify-center bg-zinc-900/40 sm:p-6"
             onClick={() => setEditing(false)}
           >
             <motion.div
@@ -573,9 +573,12 @@ export function MonthlyBudgetPlanTab() {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 40, opacity: 0 }}
               onClick={e => e.stopPropagation()}
-              className="bg-white w-full max-w-2xl shadow-2xl flex flex-col rounded-t-3xl sm:rounded-3xl h-[92dvh] sm:h-auto sm:max-h-[92dvh]"
+              className="bg-white w-full max-w-2xl shadow-2xl flex flex-col h-full sm:h-auto sm:max-h-[92vh] sm:rounded-3xl overflow-hidden"
             >
-              <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-emerald-100 bg-white rounded-t-3xl shrink-0">
+              <div
+                className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-4 border-b border-emerald-100 bg-white shrink-0"
+                style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+              >
                 <div className="min-w-0 flex-1">
                   <h3 className="text-base sm:text-lg font-bold text-emerald-900 capitalize truncate">
                     План на {format(month, 'LLLL yyyy', { locale: ru })}
@@ -587,7 +590,7 @@ export function MonthlyBudgetPlanTab() {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5 space-y-4">
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 sm:px-5 space-y-4">
                 {/* Quick actions: copy plan / seed from facts / subscriptions */}
                 <div className="flex flex-wrap gap-2">
                   <button
