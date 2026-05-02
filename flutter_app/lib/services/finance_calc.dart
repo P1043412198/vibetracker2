@@ -276,6 +276,13 @@ CashflowResult buildCashflow({
       undated += cp.planned;
     }
   }
+  // One-off planned expenses with explicit dates (e.g. internet on the 25th).
+  for (final se in plan.scheduledExpenses ?? const <ScheduledExpense>[]) {
+    if (se.amount <= 0) continue;
+    final d = se.day.clamp(1, daysInMonth);
+    scheduledByDay[d] += se.amount;
+    scheduled += se.amount;
+  }
   // Loan monthly payments — converted into the plan currency.
   for (final l in loans) {
     if (l.balance <= 0 || l.monthlyPayment <= 0) continue;

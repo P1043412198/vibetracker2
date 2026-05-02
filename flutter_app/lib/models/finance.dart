@@ -269,6 +269,54 @@ class IncomeEntry {
       );
 }
 
+/// Phase 17: a single one-off planned expense bound to a date.
+/// Sits alongside `CategoryPlan` (which is monthly limit per category) and
+/// represents concrete bills like "internet on the 25th", "rent on the 1st".
+class ScheduledExpense {
+  ScheduledExpense({
+    required this.id,
+    required this.name,
+    required this.amount,
+    required this.day,
+    this.category,
+  });
+
+  final String id;
+  final String name;
+  final num amount;
+
+  /// Day-of-month (1..31). Day > daysInMonth is clamped to the last day.
+  final int day;
+  final String? category;
+
+  ScheduledExpense copyWith(
+          {String? name, num? amount, int? day, String? category}) =>
+      ScheduledExpense(
+        id: id,
+        name: name ?? this.name,
+        amount: amount ?? this.amount,
+        day: day ?? this.day,
+        category: category ?? this.category,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'amount': amount,
+        'day': day,
+        if (category != null) 'category': category,
+      };
+
+  factory ScheduledExpense.fromJson(Map<String, dynamic> json) =>
+      ScheduledExpense(
+        id: (json['id'] ?? '') as String,
+        name: (json['name'] ?? '') as String,
+        amount: (json['amount'] ?? 0) as num,
+        day: (json['day'] as num?)?.toInt() ?? 1,
+        category: json['category'] as String?,
+      );
+}
+
 class MonthlyBudgetPlan {
   MonthlyBudgetPlan({
     required this.id,
@@ -283,6 +331,7 @@ class MonthlyBudgetPlan {
     this.notes,
     this.excludedAccountIds,
     this.incomes,
+    this.scheduledExpenses,
   });
 
   final String id;
@@ -305,6 +354,11 @@ class MonthlyBudgetPlan {
   /// the period-aware daily-allowance calculator uses individual entries.
   final List<IncomeEntry>? incomes;
 
+  /// Phase 17: one-off planned expenses bound to specific dates
+  /// (e.g. "интернет 25го", "квартплата 1го"). They feed cashflow
+  /// directly so "свободно/день" shifts on each due date.
+  final List<ScheduledExpense>? scheduledExpenses;
+
   MonthlyBudgetPlan copyWith({
     num? plannedIncome,
     Currency? currency,
@@ -314,6 +368,7 @@ class MonthlyBudgetPlan {
     String? notes,
     List<String>? excludedAccountIds,
     List<IncomeEntry>? incomes,
+    List<ScheduledExpense>? scheduledExpenses,
     String? updatedAt,
   }) =>
       MonthlyBudgetPlan(
@@ -327,6 +382,7 @@ class MonthlyBudgetPlan {
         notes: notes ?? this.notes,
         excludedAccountIds: excludedAccountIds ?? this.excludedAccountIds,
         incomes: incomes ?? this.incomes,
+        scheduledExpenses: scheduledExpenses ?? this.scheduledExpenses,
         createdAt: createdAt,
         updatedAt: updatedAt ?? DateTime.now().toIso8601String(),
       );
@@ -344,6 +400,9 @@ class MonthlyBudgetPlan {
           'excludedAccountIds': excludedAccountIds,
         if (incomes != null && incomes!.isNotEmpty)
           'incomes': incomes!.map((e) => e.toJson()).toList(),
+        if (scheduledExpenses != null && scheduledExpenses!.isNotEmpty)
+          'scheduledExpenses':
+              scheduledExpenses!.map((e) => e.toJson()).toList(),
         'createdAt': createdAt,
         'updatedAt': updatedAt,
       };
@@ -368,6 +427,11 @@ class MonthlyBudgetPlan {
         incomes: (json['incomes'] as List?)
             ?.whereType<Map>()
             .map((e) => IncomeEntry.fromJson(
+                e.map((k, v) => MapEntry(k.toString(), v))))
+            .toList(),
+        scheduledExpenses: (json['scheduledExpenses'] as List?)
+            ?.whereType<Map>()
+            .map((e) => ScheduledExpense.fromJson(
                 e.map((k, v) => MapEntry(k.toString(), v))))
             .toList(),
         createdAt: json['createdAt'] as String,

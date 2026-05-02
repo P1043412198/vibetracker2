@@ -65,7 +65,9 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     );
 
     final totalPlannedExpense = (plan?.categoryPlans ?? const [])
-        .fold<num>(0, (s, c) => s + c.planned);
+            .fold<num>(0, (s, c) => s + c.planned) +
+        (plan?.scheduledExpenses ?? const <ScheduledExpense>[])
+            .fold<num>(0, (s, e) => s + e.amount);
     final freeFunds = computeFreeFunds(
       plannedIncome: plan?.plannedIncome ?? 0,
       actualIncome: facts.income,
@@ -130,6 +132,15 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
           onAdd: () => _addIncomeEntry(plan, monthKey),
           onEdit: (e) => _editIncomeEntry(plan, monthKey, e),
           onDelete: (id) => _removeIncomeEntry(plan, monthKey, id),
+        ),
+        const SizedBox(height: 12),
+        _ScheduledExpenseCard(
+          items: plan?.scheduledExpenses ?? const [],
+          currency: planCurrency,
+          fmt: fmt,
+          onAdd: () => _addScheduledExpense(plan, monthKey),
+          onEdit: (e) => _editScheduledExpense(plan, monthKey, e),
+          onDelete: (id) => _removeScheduledExpense(plan, monthKey, id),
         ),
         if (cashflow != null && cashflow.periods.isNotEmpty) ...[
           const SizedBox(height: 12),
@@ -438,6 +449,45 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     await _upsertPlan(plan, monthKey, incomes: list);
   }
 
+  Future<void> _addScheduledExpense(
+      MonthlyBudgetPlan? plan, String monthKey) async {
+    final result = await showModalBottomSheet<ScheduledExpense?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => const _ScheduledExpenseFormSheet(),
+    );
+    if (result == null) return;
+    final list = [...(plan?.scheduledExpenses ?? const <ScheduledExpense>[])];
+    list.add(result);
+    await _upsertPlan(plan, monthKey, scheduledExpenses: list);
+  }
+
+  Future<void> _editScheduledExpense(
+      MonthlyBudgetPlan? plan,
+      String monthKey,
+      ScheduledExpense existing) async {
+    final result = await showModalBottomSheet<ScheduledExpense?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) =>
+          _ScheduledExpenseFormSheet(initial: existing),
+    );
+    if (result == null) return;
+    final list = [...(plan?.scheduledExpenses ?? const <ScheduledExpense>[])];
+    final i = list.indexWhere((e) => e.id == existing.id);
+    if (i != -1) list[i] = result;
+    await _upsertPlan(plan, monthKey, scheduledExpenses: list);
+  }
+
+  Future<void> _removeScheduledExpense(
+      MonthlyBudgetPlan? plan, String monthKey, String id) async {
+    final list = [...(plan?.scheduledExpenses ?? const <ScheduledExpense>[])]
+      ..removeWhere((e) => e.id == id);
+    await _upsertPlan(plan, monthKey, scheduledExpenses: list);
+  }
+
   Future<void> _removeCategory(
       MonthlyBudgetPlan? plan, String category) async {
     if (plan == null) return;
@@ -454,6 +504,7 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     bool toggleRollover = false,
     List<String>? excludedAccountIds,
     List<IncomeEntry>? incomes,
+    List<ScheduledExpense>? scheduledExpenses,
   }) async {
     final now = DateTime.now().toIso8601String();
     final next = MonthlyBudgetPlan(
@@ -469,6 +520,7 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
       excludedAccountIds:
           excludedAccountIds ?? plan?.excludedAccountIds,
       incomes: incomes ?? plan?.incomes,
+      scheduledExpenses: scheduledExpenses ?? plan?.scheduledExpenses,
       createdAt: plan?.createdAt ?? now,
       updatedAt: now,
     );
@@ -764,11 +816,34 @@ class _CategoryRow extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  if (plan.dueDay != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: CircleAvatar(
+                        radius: 14,
+                        backgroundColor: color.withValues(alpha: 0.18),
+                        child: Text('${plan.dueDay}',
+                            style: TextStyle(
+                                color: color,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12)),
+                      ),
+                    ),
                   Expanded(
-                    child: Text(
-                      plan.category,
-                      style:
-                          const TextStyle(fontWeight: FontWeight.w600),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          plan.category,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600),
+                        ),
+                        if (plan.dueDay != null)
+                          Text('списание ${plan.dueDay} числа',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall),
+                      ],
                     ),
                   ),
                   Text(
@@ -1080,6 +1155,236 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
             child: const Text('Сохранить'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Card listing one-off planned expenses bound to a specific date
+/// (e.g. internet on the 25th, rent on the 1st). Mirrors the income card.
+class _ScheduledExpenseCard extends StatelessWidget {
+  const _ScheduledExpenseCard({
+    required this.items,
+    required this.currency,
+    required this.fmt,
+    required this.onAdd,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final List<ScheduledExpense> items;
+  final String currency;
+  final NumberFormat fmt;
+  final VoidCallback onAdd;
+  final ValueChanged<ScheduledExpense> onEdit;
+  final ValueChanged<String> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = [...items]..sort((a, b) => a.day.compareTo(b.day));
+    final total = sorted.fold<num>(0, (s, e) => s + e.amount);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+              child: Row(children: [
+                const Icon(Icons.event_busy_outlined,
+                    size: 18, color: Color(0xFFEF4444)),
+                const SizedBox(width: 8),
+                Text('Расходы по датам',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                if (sorted.isNotEmpty)
+                  Text('${fmt.format(total)} $currency',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFEF4444))),
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Добавить расход',
+                  onPressed: onAdd,
+                ),
+              ]),
+            ),
+            if (sorted.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 4),
+                child: Text(
+                    'Перечисли разовые/периодические расходы с датой '
+                    '(квартплата, интернет, подписки) — они уйдут в нужный день и сдвинут «свободно/день».',
+                    style: Theme.of(context).textTheme.bodySmall),
+              )
+            else
+              Column(
+                children: [
+                  for (final e in sorted)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFEF4444),
+                        radius: 14,
+                        child: Text('${e.day}',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12)),
+                      ),
+                      title: Text(e.name),
+                      subtitle: Text(
+                          '−${fmt.format(e.amount)} $currency${e.category != null ? ' · ${e.category}' : ''}'),
+                      trailing: Wrap(
+                        spacing: 0,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined,
+                                size: 20),
+                            onPressed: () => onEdit(e),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline,
+                                size: 20),
+                            onPressed: () => onDelete(e.id),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScheduledExpenseFormSheet extends StatefulWidget {
+  const _ScheduledExpenseFormSheet({this.initial});
+  final ScheduledExpense? initial;
+
+  @override
+  State<_ScheduledExpenseFormSheet> createState() =>
+      _ScheduledExpenseFormSheetState();
+}
+
+class _ScheduledExpenseFormSheetState
+    extends State<_ScheduledExpenseFormSheet> {
+  late final TextEditingController _name =
+      TextEditingController(text: widget.initial?.name ?? '');
+  late final TextEditingController _amount = TextEditingController(
+      text:
+          widget.initial == null ? '' : widget.initial!.amount.toString());
+  late final TextEditingController _day = TextEditingController(
+      text: widget.initial == null ? '1' : widget.initial!.day.toString());
+  String? _category;
+
+  @override
+  void initState() {
+    super.initState();
+    _category = widget.initial?.category;
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _amount.dispose();
+    _day.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _name.text.trim();
+    final amount =
+        double.tryParse(_amount.text.trim().replaceAll(',', '.')) ?? 0;
+    final day = int.tryParse(_day.text.trim());
+    if (name.isEmpty || amount <= 0 || day == null || day < 1 || day > 31) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Заполни название, сумму и день (1–31)')));
+      return;
+    }
+    Navigator.of(context).pop(ScheduledExpense(
+      id: widget.initial?.id ?? const Uuid().v4(),
+      name: name,
+      amount: amount,
+      day: day,
+      category: _category,
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 8,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+                widget.initial == null
+                    ? 'Новый плановый расход'
+                    : 'Изменить расход',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(
+                  labelText:
+                      'Название (Интернет, Квартплата, Подписка, …)'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _amount,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Сумма'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _day,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'День месяца (1–31)',
+                helperText:
+                    'Если число превышает количество дней — будет последний день',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                ChoiceChip(
+                  label: const Text('Без категории'),
+                  selected: _category == null,
+                  onSelected: (_) => setState(() => _category = null),
+                ),
+                for (final c in kExpenseCategories.take(8))
+                  ChoiceChip(
+                    label: Text(c),
+                    selected: _category == c,
+                    onSelected: (v) =>
+                        setState(() => _category = v ? c : null),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _submit,
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
       ),
     );
   }
