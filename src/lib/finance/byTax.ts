@@ -27,6 +27,29 @@ export const INCOME_TAX_PCT = 13;
 /** ФСЗН с работника (1%). */
 export const FSZN_EMPLOYEE_PCT = 1;
 
+/**
+ * Дополнительное удержание из зарплаты — профсоюз, ДМС, благотворительность,
+ * пенсионная программа, кредитные удержания, алименты и т.д.
+ */
+export interface SalaryDeduction {
+  /** Стабильный идентификатор. */
+  id: string;
+  /** Название (например «Профсоюз»). */
+  label: string;
+  /** Тип значения: процент от грязной или фикс. сумма в BYN. */
+  kind: 'percent' | 'fixed';
+  /** Значение: либо процент (0..100), либо BYN. */
+  value: number;
+  /**
+   * Если `true` — удержание уменьшает налогооблагаемую базу (как соц. вычет).
+   * По умолчанию `false` — удерживается из «на руки» после налогов.
+   *
+   * Профсоюзные взносы по сложившейся практике не уменьшают подоходный
+   * налог, поэтому правильное значение для профсоюза — `false`.
+   */
+  taxable?: boolean;
+}
+
 export interface SalaryInput {
   /** Грязная зарплата (до налогов). */
   gross: number;
@@ -36,13 +59,30 @@ export interface SalaryInput {
   dependents?: number;
   /** Применять стандартный вычет «на себя», если доход ≤ порога? */
   applyStandardDeduction?: boolean;
+  /** Произвольные удержания: профсоюз, ДМС, благотворительность и т.д. */
+  extraDeductions?: SalaryDeduction[];
+}
+
+export interface SalaryDeductionLine {
+  id: string;
+  label: string;
+  amount: number;
+  /** Уменьшила ли налоговую базу. */
+  taxable: boolean;
 }
 
 export interface SalaryResult {
   gross: number;
   fszn: number;
   taxableBase: number;
+  /** Сумма стандартных + детских + иждивенских вычетов. */
   deductions: number;
+  /** Сумма pre-tax удержаний (уменьшили базу), напр. ДМС. */
+  pretaxDeductions: number;
+  /** Сумма post-tax удержаний (например, профсоюз). */
+  postTaxDeductions: number;
+  /** Разбивка по каждому extra-удержанию (для UI). */
+  extraDeductionsApplied: SalaryDeductionLine[];
   incomeTax: number;
   net: number;
 }
@@ -50,10 +90,13 @@ export interface SalaryResult {
 /**
  * Расчёт «зарплаты на руки» в Беларуси.
  *
- *   налогооблагаемая база = max(0, gross − стандартные вычеты − дет. вычеты)
+ *   налогооблагаемая база = max(0, gross − стандартные вычеты − дет. вычеты
+ *                                  − pre-tax extra-удержания)
  *   подоходный            = база × 13%
  *   ФСЗН (с работника)    = gross × 1%
  *   на руки               = gross − подоходный − ФСЗН
+ *                           − pre-tax extra (уже учтены в базе → списываем)
+ *                           − post-tax extra (профсоюз, ДМС, благотворительность)
  */
 export function calcNetSalary(input: SalaryInput): SalaryResult {
   const {
@@ -61,6 +104,7 @@ export function calcNetSalary(input: SalaryInput): SalaryResult {
     children = 0,
     dependents = 0,
     applyStandardDeduction = true,
+    extraDeductions = [],
   } = input;
 
   let deductions = 0;
@@ -73,16 +117,38 @@ export function calcNetSalary(input: SalaryInput): SalaryResult {
   }
   if (dependents > 0) deductions += dependents * CHILD_DEDUCTION;
 
-  const taxableBase = Math.max(0, gross - deductions);
+  const extraLines: SalaryDeductionLine[] = extraDeductions.map(d => {
+    const amount = d.kind === 'percent'
+      ? (gross * d.value) / 100
+      : d.value;
+    return {
+      id: d.id,
+      label: d.label,
+      amount: Math.max(0, amount),
+      taxable: Boolean(d.taxable),
+    };
+  });
+
+  const pretaxDeductions = extraLines
+    .filter(l => l.taxable)
+    .reduce((s, l) => s + l.amount, 0);
+  const postTaxDeductions = extraLines
+    .filter(l => !l.taxable)
+    .reduce((s, l) => s + l.amount, 0);
+
+  const taxableBase = Math.max(0, gross - deductions - pretaxDeductions);
   const incomeTax = (taxableBase * INCOME_TAX_PCT) / 100;
   const fszn = (gross * FSZN_EMPLOYEE_PCT) / 100;
-  const net = gross - incomeTax - fszn;
+  const net = gross - incomeTax - fszn - pretaxDeductions - postTaxDeductions;
 
   return {
     gross,
     fszn,
     taxableBase,
     deductions,
+    pretaxDeductions,
+    postTaxDeductions,
+    extraDeductionsApplied: extraLines,
     incomeTax,
     net,
   };

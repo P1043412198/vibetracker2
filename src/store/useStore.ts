@@ -3,7 +3,7 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
 import { format, isSameMonth, parseISO } from 'date-fns';
-import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan } from '../types';
+import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset } from '../types';
 import { createMonthlyBudgetActions } from './slices/monthlyBudgetSlice';
 
 // Custom storage using IndexedDB to handle large data (like base64 images)
@@ -94,6 +94,12 @@ interface AppState {
   // Notification Settings
   notificationSettings: NotificationSettings;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
+
+  // Salary deduction presets (Калькулятор зарплаты)
+  salaryDeductionPresets: SalaryDeductionPreset[];
+  upsertSalaryDeductionPreset: (preset: SalaryDeductionPreset) => void;
+  deleteSalaryDeductionPreset: (id: string) => void;
+  toggleSalaryDeductionPreset: (id: string) => void;
   
   // Actions
   setCustomGeminiKey: (key: string | null) => void;
@@ -381,6 +387,9 @@ export const useStore = create<AppState>()(
         habits: true,
         payments: true,
       },
+      salaryDeductionPresets: [
+        { id: 'union', label: 'Профсоюз', kind: 'percent', value: 1, taxable: false, enabled: true },
+      ],
       pinCode: null,
       isLocked: true,
       customPasswordWord: '',
@@ -457,6 +466,25 @@ export const useStore = create<AppState>()(
 
       updateNotificationSettings: (settings) => set((state) => ({
         notificationSettings: { ...state.notificationSettings, ...settings }
+      })),
+
+      upsertSalaryDeductionPreset: (preset) => set((state) => {
+        const list = state.salaryDeductionPresets ?? [];
+        const idx = list.findIndex(p => p.id === preset.id);
+        if (idx === -1) {
+          return { salaryDeductionPresets: [...list, preset] };
+        }
+        const next = [...list];
+        next[idx] = preset;
+        return { salaryDeductionPresets: next };
+      }),
+      deleteSalaryDeductionPreset: (id) => set((state) => ({
+        salaryDeductionPresets: (state.salaryDeductionPresets ?? []).filter(p => p.id !== id),
+      })),
+      toggleSalaryDeductionPreset: (id) => set((state) => ({
+        salaryDeductionPresets: (state.salaryDeductionPresets ?? []).map(p =>
+          p.id === id ? { ...p, enabled: !p.enabled } : p,
+        ),
       })),
 
       setCustomGeminiKey: (key) => set({ customGeminiKey: key }),

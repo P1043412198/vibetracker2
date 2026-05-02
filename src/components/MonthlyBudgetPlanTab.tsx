@@ -27,6 +27,32 @@ const DEFAULT_CATEGORIES = [
   'Здоровье', 'Рестораны', 'Связь', 'Подарки', 'Подписки', 'Другое',
 ];
 
+// Quick-add suggestions tailored for Belarus household
+const QUICK_CATEGORIES: { label: string; emoji: string }[] = [
+  { label: 'Продукты', emoji: '🛒' },
+  { label: 'ЖКХ', emoji: '🏠' },
+  { label: 'Связь', emoji: '📱' },
+  { label: 'Интернет', emoji: '🌐' },
+  { label: 'Транспорт', emoji: '🚌' },
+  { label: 'Топливо', emoji: '⛽' },
+  { label: 'Кафе и рестораны', emoji: '🍽️' },
+  { label: 'Здоровье', emoji: '💊' },
+  { label: 'Аптека', emoji: '🩹' },
+  { label: 'Одежда', emoji: '👕' },
+  { label: 'Дети', emoji: '🧒' },
+  { label: 'Образование', emoji: '🎓' },
+  { label: 'Подписки', emoji: '🔁' },
+  { label: 'Кредит', emoji: '💳' },
+  { label: 'Накопления', emoji: '🐖' },
+  { label: 'Подарки', emoji: '🎁' },
+  { label: 'Развлечения', emoji: '🎭' },
+  { label: 'Спорт', emoji: '🏋️' },
+  { label: 'Авто (обслуживание)', emoji: '🛠️' },
+  { label: 'Дача / огород', emoji: '🌿' },
+  { label: 'Питомцы', emoji: '🐈' },
+  { label: 'ИРИП / ЕРИП', emoji: '📑' },
+];
+
 function formatMoney(value: number, currency: string) {
   return `${value.toLocaleString('ru-RU', {
     minimumFractionDigits: 0,
@@ -649,9 +675,35 @@ export function MonthlyBudgetPlanTab() {
                       <Plus className="w-3.5 h-3.5" /> Добавить
                     </button>
                   </div>
+
+                  {/* Quick-add Belarus presets */}
+                  <div className="mb-2">
+                    <p className="text-[10px] uppercase tracking-wide font-bold text-emerald-700/60 mb-1">
+                      Быстрое добавление
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {QUICK_CATEGORIES.filter(q =>
+                        !editCategories.some(c => c.category.trim().toLowerCase() === q.label.toLowerCase())
+                      ).slice(0, 14).map(q => (
+                        <button
+                          key={q.label}
+                          type="button"
+                          onClick={() => setEditCategories(prev => [...prev, { category: q.label, planned: '' }])}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-[11px] text-emerald-800 font-medium"
+                        >
+                          <span>{q.emoji}</span>
+                          <span>{q.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     {editCategories.map((c, i) => (
-                      <div key={i} className="flex items-center gap-2">
+                      <div
+                        key={i}
+                        className="bg-emerald-50/30 border border-emerald-100 rounded-2xl p-2 sm:p-2.5 space-y-1.5 sm:space-y-0 sm:grid sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-2"
+                      >
                         <input
                           type="text"
                           value={c.category}
@@ -660,26 +712,33 @@ export function MonthlyBudgetPlanTab() {
                             const v = e.target.value;
                             setEditCategories(prev => prev.map((x, idx) => idx === i ? { ...x, category: v } : x));
                           }}
-                          className="flex-1 px-3 py-2 rounded-xl border border-emerald-200 bg-white text-sm focus:outline-none focus:border-emerald-500"
+                          className="w-full min-w-0 px-3 py-2 rounded-xl border border-emerald-200 bg-white text-sm focus:outline-none focus:border-emerald-500"
                         />
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          value={c.planned}
-                          placeholder="0"
-                          onChange={e => {
-                            const v = e.target.value;
-                            setEditCategories(prev => prev.map((x, idx) => idx === i ? { ...x, planned: v } : x));
-                          }}
-                          className="w-28 px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50/40 text-sm font-semibold text-right focus:outline-none focus:border-emerald-500"
-                        />
-                        <button
-                          onClick={() => setEditCategories(prev => prev.filter((_, idx) => idx !== i))}
-                          className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl"
-                          aria-label="Удалить категорию"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-2 sm:gap-2">
+                          <div className="relative flex-1 sm:flex-initial">
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              value={c.planned}
+                              placeholder="0"
+                              onChange={e => {
+                                const v = e.target.value;
+                                setEditCategories(prev => prev.map((x, idx) => idx === i ? { ...x, planned: v } : x));
+                              }}
+                              className="w-full sm:w-28 px-3 py-2 pr-12 rounded-xl border border-emerald-200 bg-white text-sm font-semibold text-right focus:outline-none focus:border-emerald-500"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-emerald-700/60 pointer-events-none">
+                              {editCurrency}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setEditCategories(prev => prev.filter((_, idx) => idx !== i))}
+                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl shrink-0"
+                            aria-label="Удалить категорию"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

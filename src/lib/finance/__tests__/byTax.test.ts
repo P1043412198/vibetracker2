@@ -43,6 +43,49 @@ describe('calcNetSalary', () => {
   it('income tax matches 13% statutory rate', () => {
     expect(INCOME_TAX_PCT).toBe(13);
   });
+
+  it('post-tax extra (профсоюз 1%) reduces net but not income tax', () => {
+    const base = calcNetSalary({ gross: 2000 });
+    const r = calcNetSalary({
+      gross: 2000,
+      extraDeductions: [
+        { id: 'union', label: 'Профсоюз', kind: 'percent', value: 1 },
+      ],
+    });
+    expect(r.incomeTax).toBeCloseTo(base.incomeTax, 2);
+    expect(r.postTaxDeductions).toBeCloseTo(20, 2);
+    expect(r.net).toBeCloseTo(base.net - 20, 2);
+    expect(r.extraDeductionsApplied).toHaveLength(1);
+    expect(r.extraDeductionsApplied[0].amount).toBeCloseTo(20, 2);
+  });
+
+  it('pre-tax extra reduces taxable base and net', () => {
+    const r = calcNetSalary({
+      gross: 3000,
+      extraDeductions: [
+        { id: 'dms', label: 'ДМС', kind: 'fixed', value: 100, taxable: true },
+      ],
+    });
+    expect(r.taxableBase).toBeCloseTo(2900, 2);
+    expect(r.incomeTax).toBeCloseTo(2900 * 0.13, 2);
+    expect(r.pretaxDeductions).toBe(100);
+  });
+
+  it('mixed pre-tax and post-tax extras both reduce net', () => {
+    const r = calcNetSalary({
+      gross: 3000,
+      extraDeductions: [
+        { id: 'union', label: 'Профсоюз', kind: 'percent', value: 1 },
+        { id: 'dms', label: 'ДМС', kind: 'fixed', value: 50, taxable: true },
+      ],
+    });
+    expect(r.postTaxDeductions).toBeCloseTo(30, 2);
+    expect(r.pretaxDeductions).toBe(50);
+    // Tax base = 3000 - 50 = 2950
+    expect(r.taxableBase).toBeCloseTo(2950, 2);
+    // Net = 3000 - 13%*2950 - 1%*3000 - 50 - 30
+    expect(r.net).toBeCloseTo(3000 - 2950 * 0.13 - 30 - 50 - 30, 2);
+  });
 });
 
 describe('calcDepositBY', () => {
