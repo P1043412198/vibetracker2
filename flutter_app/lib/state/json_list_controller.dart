@@ -55,6 +55,19 @@ abstract class JsonListController<T> extends StateNotifier<List<T>> {
     await _persist();
   }
 
+  /// Apply [transform] to the entry with [id] in place. No-op if missing.
+  Future<void> update(String id, T Function(T) transform) async {
+    bool changed = false;
+    final next = state.map((e) {
+      if (idOf(e) != id) return e;
+      changed = true;
+      return transform(e);
+    }).toList(growable: false);
+    if (!changed) return;
+    state = next;
+    await _persist();
+  }
+
   Future<void> replaceAll(List<T> items) async {
     state = List.unmodifiable(items);
     await _persist();

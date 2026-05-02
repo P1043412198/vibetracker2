@@ -63,6 +63,8 @@ class TaskItem {
     bool? isPinned,
     TaskPriority? priority,
     String? context,
+    bool clearPriority = false,
+    bool clearContext = false,
   }) {
     return TaskItem(
       id: id,
@@ -76,8 +78,8 @@ class TaskItem {
       subtasks: subtasks ?? this.subtasks,
       order: order ?? this.order,
       isPinned: isPinned ?? this.isPinned,
-      priority: priority ?? this.priority,
-      context: context ?? this.context,
+      priority: clearPriority ? null : (priority ?? this.priority),
+      context: clearContext ? null : (context ?? this.context),
     );
   }
 

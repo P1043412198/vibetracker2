@@ -5,7 +5,9 @@ import '../features/analytics/analytics_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/finance/finance_page.dart';
 import '../features/goals/goals_page.dart';
+import '../features/habits/habit_details_page.dart';
 import '../features/habits/habits_page.dart';
+import '../features/inbox/inbox_page.dart';
 import '../features/household/household_page.dart';
 import '../features/passwords/passwords_page.dart';
 import '../features/settings/settings_page.dart';
@@ -56,6 +58,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'habits',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: HabitsPage()),
+            routes: [
+              GoRoute(
+                path: ':id',
+                name: 'habit-details',
+                builder: (context, state) => HabitDetailsPage(
+                  habitId: state.pathParameters['id'] ?? '',
+                ),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/inbox',
+            name: 'inbox',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: InboxPage()),
           ),
           GoRoute(
             path: '/finance',

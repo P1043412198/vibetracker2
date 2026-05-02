@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../models/enums.dart';
 import '../../models/habit.dart';
+import '../../services/streak.dart';
 import '../../state/providers.dart';
 
 /// Counterpart of `src/pages/Habits.tsx`. Lists habits with today's status
@@ -53,12 +56,16 @@ class HabitsPage extends ConsumerWidget {
               itemBuilder: (context, i) {
                 final h = habits[i];
                 final log = logFor(h.id);
+                final stats = computeStreakStats(habit: h, logs: logs);
                 return _HabitCard(
                   habit: h,
                   todaysStatus: log?.status,
+                  streak: stats.current,
+                  best: stats.best,
                   onMark: (s) => markStatus(h, s),
                   onDelete: () =>
                       ref.read(habitsProvider.notifier).remove(h.id),
+                  onTap: () => context.push('/habits/${h.id}'),
                 );
               },
             ),
@@ -152,14 +159,20 @@ class _HabitCard extends StatelessWidget {
   const _HabitCard({
     required this.habit,
     required this.todaysStatus,
+    required this.streak,
+    required this.best,
     required this.onMark,
     required this.onDelete,
+    required this.onTap,
   });
 
   final Habit habit;
   final HabitLogStatus? todaysStatus;
+  final int streak;
+  final int best;
   final ValueChanged<HabitLogStatus> onMark;
   final VoidCallback onDelete;
+  final VoidCallback onTap;
 
   Color _statusColor(BuildContext context, HabitLogStatus? status) {
     if (status == null) return Theme.of(context).colorScheme.surfaceContainerHigh;
@@ -178,88 +191,128 @@ class _HabitCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final isGood = habit.type == HabitTypeKind.good;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: (isGood
-                            ? const Color(0xFF22C55E)
-                            : const Color(0xFFEF4444))
-                        .withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: (isGood
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFEF4444))
+                          .withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      habit.icon ?? (isGood ? '🌱' : '🚫'),
+                      style: const TextStyle(fontSize: 22),
+                    ),
                   ),
-                  child: Text(
-                    habit.icon ?? (isGood ? '🌱' : '🚫'),
-                    style: const TextStyle(fontSize: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          habit.title,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              isGood ? 'Полезная' : 'Вредная',
+                              style:
+                                  Theme.of(context).textTheme.bodySmall,
+                            ),
+                            if (streak > 0) ...[
+                              const SizedBox(width: 8),
+                              const Icon(Icons.local_fire_department,
+                                  size: 14, color: Color(0xFFF97316)),
+                              const SizedBox(width: 2),
+                              Text(
+                                '$streak',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFF97316),
+                                ),
+                              ),
+                            ],
+                            if (best > streak) ...[
+                              const SizedBox(width: 8),
+                              const Icon(Icons.emoji_events_outlined,
+                                  size: 13, color: Color(0xFFEAB308)),
+                              const SizedBox(width: 2),
+                              Text(
+                                '$best',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFEAB308),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        habit.title,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        isGood ? 'Полезная' : 'Вредная',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
+                  IconButton(
+                    icon: Icon(Icons.delete_outline,
+                        color: scheme.onSurfaceVariant),
+                    onPressed: onDelete,
                   ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.delete_outline,
-                      color: scheme.onSurfaceVariant),
-                  onPressed: onDelete,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SegmentedButton<HabitLogStatus>(
-              segments: [
-                ButtonSegment(
-                  value: HabitLogStatus.done,
-                  icon: const Icon(Icons.check),
-                  label: Text(isGood ? 'Сделал' : 'Удержался'),
-                ),
-                ButtonSegment(
-                  value: HabitLogStatus.skipped,
-                  icon: const Icon(Icons.remove),
-                  label: const Text('Пропустил'),
-                ),
-                ButtonSegment(
-                  value: HabitLogStatus.failed,
-                  icon: const Icon(Icons.close),
-                  label: Text(isGood ? 'Не сделал' : 'Сорвался'),
-                ),
-              ],
-              selected: todaysStatus == null ? <HabitLogStatus>{} : {todaysStatus!},
-              emptySelectionAllowed: true,
-              onSelectionChanged: (selected) {
-                if (selected.isNotEmpty) onMark(selected.first);
-              },
-              style: ButtonStyle(
-                backgroundColor: WidgetStateProperty.resolveWith((states) {
-                  if (states.contains(WidgetState.selected)) {
-                    return _statusColor(context, todaysStatus)
-                        .withValues(alpha: 0.18);
-                  }
-                  return null;
-                }),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              SegmentedButton<HabitLogStatus>(
+                segments: [
+                  ButtonSegment(
+                    value: HabitLogStatus.done,
+                    icon: const Icon(Icons.check),
+                    label: Text(isGood ? 'Сделал' : 'Удержался'),
+                  ),
+                  ButtonSegment(
+                    value: HabitLogStatus.skipped,
+                    icon: const Icon(Icons.remove),
+                    label: const Text('Пропустил'),
+                  ),
+                  ButtonSegment(
+                    value: HabitLogStatus.failed,
+                    icon: const Icon(Icons.close),
+                    label: Text(isGood ? 'Не сделал' : 'Сорвался'),
+                  ),
+                ],
+                selected: todaysStatus == null
+                    ? <HabitLogStatus>{}
+                    : {todaysStatus!},
+                emptySelectionAllowed: true,
+                onSelectionChanged: (selected) {
+                  if (selected.isNotEmpty) onMark(selected.first);
+                },
+                style: ButtonStyle(
+                  backgroundColor:
+                      WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return _statusColor(context, todaysStatus)
+                          .withValues(alpha: 0.18);
+                    }
+                    return null;
+                  }),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
