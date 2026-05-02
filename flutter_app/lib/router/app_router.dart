@@ -16,7 +16,10 @@ import '../features/shopping_list/shopping_list_page.dart';
 import '../features/spheres/sphere_details_page.dart';
 import '../features/spheres/spheres_page.dart';
 import '../features/tasks/tasks_page.dart';
+import '../features/pomodoro/pomodoro_page.dart';
+import '../features/sleep/sleep_page.dart';
 import '../features/tools/tools_page.dart';
+import '../features/water/water_page.dart';
 import '../features/work_schedule/work_schedule_page.dart';
 import '../features/workouts/workouts_page.dart';
 import '../widgets/app_shell.dart';
@@ -131,6 +134,24 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'passwords',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: PasswordsPage()),
+          ),
+          GoRoute(
+            path: '/pomodoro',
+            name: 'pomodoro',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: PomodoroPage()),
+          ),
+          GoRoute(
+            path: '/sleep',
+            name: 'sleep',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: SleepPage()),
+          ),
+          GoRoute(
+            path: '/water',
+            name: 'water',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: WaterPage()),
           ),
           GoRoute(
             path: '/tools',

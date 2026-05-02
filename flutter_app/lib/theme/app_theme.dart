@@ -45,7 +45,7 @@ class AppTheme {
           fontWeight: FontWeight.w700,
         ),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: scheme.brightness == Brightness.light
             ? Colors.white
             : const Color(0xFF161B22),
