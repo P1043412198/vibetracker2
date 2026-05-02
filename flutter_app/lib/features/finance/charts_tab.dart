@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/enums.dart';
 import '../../services/finance_calc.dart';
 import '../../state/currency_state.dart';
 import '../../state/providers.dart';
@@ -209,6 +212,42 @@ class ChartsTab extends ConsumerWidget {
             _LegendDot(color: Color(0xFFEF4444), label: 'Расход'),
           ],
         ),
+        const SizedBox(height: 16),
+        Text('Накопительный остаток за 30 дней',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _CashflowLineChart(
+          transactions: transactions,
+          baseCurrency: baseCurrency,
+          convert: convert,
+        ),
+        const SizedBox(height: 16),
+        Text('Расходы по дням недели',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _WeekdaySpendChart(
+          transactions: transactions,
+          baseCurrency: baseCurrency,
+          convert: convert,
+        ),
+        const SizedBox(height: 16),
+        Text('Топ категории за 30 дней',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _TopCategoriesChart(
+          transactions: transactions,
+          baseCurrency: baseCurrency,
+          convert: convert,
+          palette: _palette,
+        ),
+        const SizedBox(height: 16),
+        Text('План vs факт по категориям',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _PlanVsFactChart(
+          baseCurrency: baseCurrency,
+          convert: convert,
+        ),
       ],
     );
   }
@@ -287,6 +326,402 @@ class _ChartEmpty extends StatelessWidget {
             const SizedBox(height: 12),
             Text(text, textAlign: TextAlign.center),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CashflowLineChart extends ConsumerWidget {
+  const _CashflowLineChart({
+    required this.transactions,
+    required this.baseCurrency,
+    required this.convert,
+  });
+  final List transactions;
+  final String baseCurrency;
+  final num Function(num, String, String) convert;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accounts = ref.watch(accountsProvider);
+    final accountCurrency = <String, String>{
+      for (final a in accounts) a.id: a.currency,
+    };
+    final today = DateTime.now();
+    final start = today.subtract(const Duration(days: 29));
+    final byDay = List<num>.filled(30, 0);
+    for (final t in transactions) {
+      final dt = DateTime.tryParse(t.date as String);
+      if (dt == null) continue;
+      final idx = dt.difference(start).inDays;
+      if (idx < 0 || idx >= 30) continue;
+      final cur = accountCurrency[t.accountId] ?? baseCurrency;
+      final amt =
+          convert(t.amount as num, cur, baseCurrency).toDouble();
+      if (t.type == TransactionType.income) {
+        byDay[idx] += amt;
+      } else if (t.type == TransactionType.expense) {
+        byDay[idx] -= amt;
+      }
+    }
+    num running = 0;
+    final spots = <FlSpot>[];
+    for (var i = 0; i < 30; i++) {
+      running += byDay[i];
+      spots.add(FlSpot(i.toDouble(), running.toDouble()));
+    }
+    final minV = spots.fold<double>(0, (a, s) => math.min(a, s.y));
+    final maxV = spots.fold<double>(0, (a, s) => math.max(a, s.y));
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: SizedBox(
+          height: 180,
+          child: LineChart(
+            LineChartData(
+              minX: 0,
+              maxX: 29,
+              minY: minV - 50,
+              maxY: maxV + 50,
+              gridData: const FlGridData(show: true, drawVerticalLine: false),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 44,
+                    getTitlesWidget: (v, _) => Text(
+                        NumberFormat.compact().format(v),
+                        style: const TextStyle(fontSize: 10)),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    interval: 5,
+                    reservedSize: 22,
+                    getTitlesWidget: (v, _) {
+                      final d = start.add(Duration(days: v.toInt()));
+                      return Text(DateFormat('dd.MM').format(d),
+                          style: const TextStyle(fontSize: 9));
+                    },
+                  ),
+                ),
+                topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+              ),
+              borderData: FlBorderData(show: false),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  barWidth: 2.2,
+                  color: const Color(0xFF6D5CFF),
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: const Color(0xFF6D5CFF).withValues(alpha: 0.18),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WeekdaySpendChart extends StatelessWidget {
+  const _WeekdaySpendChart({
+    required this.transactions,
+    required this.baseCurrency,
+    required this.convert,
+  });
+  final List transactions;
+  final String baseCurrency;
+  final num Function(num, String, String) convert;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final start = today.subtract(const Duration(days: 30));
+    final byDow = List<num>.filled(7, 0);
+    for (final t in transactions) {
+      if (t.type != TransactionType.expense) continue;
+      final dt = DateTime.tryParse(t.date as String);
+      if (dt == null || dt.isBefore(start)) continue;
+      byDow[dt.weekday - 1] +=
+          convert(t.amount as num, baseCurrency, baseCurrency);
+    }
+    final maxV = byDow.fold<num>(0, (a, b) => b > a ? b : a);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: SizedBox(
+          height: 160,
+          child: BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              maxY: maxV.toDouble() * 1.2 + 1,
+              gridData: const FlGridData(show: false),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 36,
+                    getTitlesWidget: (v, _) => Text(
+                        NumberFormat.compact().format(v),
+                        style: const TextStyle(fontSize: 10)),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 22,
+                    getTitlesWidget: (v, _) {
+                      const names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+                      final i = v.toInt();
+                      if (i < 0 || i >= 7) return const SizedBox.shrink();
+                      return Text(names[i],
+                          style: const TextStyle(fontSize: 11));
+                    },
+                  ),
+                ),
+                topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false)),
+              ),
+              barGroups: [
+                for (var i = 0; i < 7; i++)
+                  BarChartGroupData(x: i, barRods: [
+                    BarChartRodData(
+                      toY: byDow[i].toDouble(),
+                      color: const Color(0xFFEF4444),
+                      width: 16,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ]),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopCategoriesChart extends StatelessWidget {
+  const _TopCategoriesChart({
+    required this.transactions,
+    required this.baseCurrency,
+    required this.convert,
+    required this.palette,
+  });
+  final List transactions;
+  final String baseCurrency;
+  final num Function(num, String, String) convert;
+  final List<Color> palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final start = today.subtract(const Duration(days: 30));
+    final by = <String, num>{};
+    for (final t in transactions) {
+      if (t.type != TransactionType.expense) continue;
+      final dt = DateTime.tryParse(t.date as String);
+      if (dt == null || dt.isBefore(start)) continue;
+      final cat = (t.category as String?) ?? '—';
+      by[cat] = (by[cat] ?? 0) +
+          convert(t.amount as num, baseCurrency, baseCurrency);
+    }
+    final entries = by.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = entries.take(6).toList();
+    final total = top.fold<num>(0, (a, e) => a + e.value);
+    final fmt = NumberFormat.currency(
+        locale: 'ru_RU', symbol: '', decimalDigits: 0);
+    if (top.isEmpty) {
+      return const Card(
+          child: Padding(
+              padding: EdgeInsets.all(16),
+              child: _ChartEmpty(
+                icon: '🏷️',
+                text: 'Расходы по категориям появятся здесь.',
+              )));
+    }
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          children: [
+            for (var i = 0; i < top.length; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                              color: palette[i % palette.length],
+                              borderRadius: BorderRadius.circular(3))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(top[i].key,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ),
+                      Text(
+                          '${fmt.format(top[i].value)} $baseCurrency',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700)),
+                    ]),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: total == 0 ? 0 : (top[i].value / total).toDouble(),
+                        minHeight: 6,
+                        color: palette[i % palette.length],
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanVsFactChart extends ConsumerWidget {
+  const _PlanVsFactChart({
+    required this.baseCurrency,
+    required this.convert,
+  });
+  final String baseCurrency;
+  final num Function(num, String, String) convert;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final plans = ref.watch(monthlyBudgetPlansProvider);
+    final transactions = ref.watch(transactionsProvider);
+    final accounts = ref.watch(accountsProvider);
+    final now = DateTime.now();
+    final monthKey =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}';
+    final plan = plans.cast().firstWhere(
+        (p) => (p as dynamic).monthKey == monthKey,
+        orElse: () => null);
+    if (plan == null) {
+      return const Card(
+          child: Padding(
+              padding: EdgeInsets.all(16),
+              child: _ChartEmpty(
+                icon: '🎯',
+                text: 'План на месяц ещё не создан.',
+              )));
+    }
+    final facts = computeMonthFacts(
+      month: now,
+      transactions: transactions,
+      accounts: accounts,
+      baseCurrency: baseCurrency,
+      convert: convert,
+    );
+    final cps = (plan as dynamic).categoryPlans as List;
+    if (cps.isEmpty) {
+      return const Card(
+          child: Padding(
+              padding: EdgeInsets.all(16),
+              child: _ChartEmpty(
+                icon: '🎯',
+                text: 'В плане ещё нет категорий.',
+              )));
+    }
+    final maxV = cps.fold<num>(0, (a, c) {
+      final cat = (c as dynamic).category as String;
+      final fact = facts.expenseByCategory[cat] ?? 0;
+      final p = (c as dynamic).planned as num;
+      return [a, p, fact].reduce((x, y) => x > y ? x : y);
+    });
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: SizedBox(
+          height: 12.0 + cps.length * 32.0,
+          child: ListView.builder(
+            itemCount: cps.length,
+            physics: const NeverScrollableScrollPhysics(),
+            itemBuilder: (context, i) {
+              final c = cps[i] as dynamic;
+              final cat = c.category as String;
+              final planned = c.planned as num;
+              final fact = facts.expenseByCategory[cat] ?? 0;
+              final overshoot = fact > planned && planned > 0;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                          child: Text(cat,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis)),
+                      Text(
+                          '${NumberFormat.compact().format(fact)} / '
+                          '${NumberFormat.compact().format(planned)}',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: overshoot
+                                  ? const Color(0xFFEF4444)
+                                  : const Color(0xFF22C55E))),
+                    ]),
+                    const SizedBox(height: 2),
+                    Stack(children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value:
+                              maxV == 0 ? 0 : (planned / maxV).toDouble(),
+                          minHeight: 6,
+                          color: const Color(0xFF3B82F6),
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                        ),
+                      ),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: maxV == 0 ? 0 : (fact / maxV).toDouble(),
+                          minHeight: 6,
+                          color: overshoot
+                              ? const Color(0xFFEF4444)
+                              : const Color(0xFF22C55E)
+                                  .withValues(alpha: 0.85),
+                          backgroundColor: Colors.transparent,
+                        ),
+                      ),
+                    ]),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
