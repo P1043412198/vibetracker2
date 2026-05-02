@@ -24,9 +24,9 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "ai.vibesight.tracker"
-    // Bumped to 35 because path_provider_android & shared_preferences_android
-    // require it (backward-compatible with the Capacitor app's targetSdk 34).
-    compileSdk = 35
+    // Phase 13: bumped to 36 because file_picker → androidx.core 1.17 chain
+    // requires it (backward-compatible with previous targetSdk).
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

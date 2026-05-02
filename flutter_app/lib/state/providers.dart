@@ -174,6 +174,40 @@ final monthlyBudgetPlansProvider = StateNotifierProvider<
   return MonthlyBudgetPlansController();
 });
 
+class LoansController extends JsonListController<Loan> {
+  LoansController()
+      : super(
+          storageKey: 'loans',
+          fromJson: Loan.fromJson,
+          toJson: (l) => l.toJson(),
+        );
+
+  @override
+  String idOf(Loan item) => item.id;
+}
+
+final loansProvider =
+    StateNotifierProvider<LoansController, List<Loan>>((ref) {
+  return LoansController();
+});
+
+class LoanPaymentsController extends JsonListController<LoanPayment> {
+  LoanPaymentsController()
+      : super(
+          storageKey: 'loanPayments',
+          fromJson: LoanPayment.fromJson,
+          toJson: (p) => p.toJson(),
+        );
+
+  @override
+  String idOf(LoanPayment item) => item.id;
+}
+
+final loanPaymentsProvider =
+    StateNotifierProvider<LoanPaymentsController, List<LoanPayment>>((ref) {
+  return LoanPaymentsController();
+});
+
 class WaterLogsController extends JsonListController<WaterLog> {
   WaterLogsController()
       : super(

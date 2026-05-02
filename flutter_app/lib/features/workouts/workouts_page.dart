@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
@@ -10,6 +11,22 @@ import '../../services/ai_service.dart';
 import '../../state/providers.dart';
 import 'workout_camera_page.dart';
 import 'workout_history_page.dart';
+
+Future<void> _openUrl(BuildContext context, String raw) async {
+  var s = raw.trim();
+  if (s.isEmpty) return;
+  if (!s.startsWith('http://') && !s.startsWith('https://')) {
+    s = 'https://$s';
+  }
+  final uri = Uri.tryParse(s);
+  if (uri == null) return;
+  final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (!ok && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Не удалось открыть ссылку: $s')),
+    );
+  }
+}
 
 /// Counterpart of `src/pages/Workouts.tsx`. Phase 4 ships four tabs:
 /// programs (tree of folders/exercises), calendar (planned workouts),
@@ -332,6 +349,33 @@ class _ExerciseSheetState extends ConsumerState<_ExerciseSheet> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(widget.exercise.notes!),
             ),
+          if (widget.exercise.videoUrl != null ||
+              (widget.exercise.articleUrls?.isNotEmpty ?? false))
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  if (widget.exercise.videoUrl != null)
+                    ActionChip(
+                      avatar: const Icon(Icons.play_circle, size: 18),
+                      label: const Text('Видео'),
+                      onPressed: () => _openUrl(
+                          context, widget.exercise.videoUrl!),
+                    ),
+                  for (var i = 0;
+                      i < (widget.exercise.articleUrls?.length ?? 0);
+                      i++)
+                    ActionChip(
+                      avatar: const Icon(Icons.article, size: 18),
+                      label: Text('Статья ${i + 1}'),
+                      onPressed: () => _openUrl(
+                          context, widget.exercise.articleUrls![i]),
+                    ),
+                ],
+              ),
+            ),
           const SizedBox(height: 16),
           Text('Новый подход',
               style: Theme.of(context).textTheme.titleMedium),
@@ -446,6 +490,9 @@ Future<void> _showNodeEditor(
 }) async {
   final nameCtrl = TextEditingController(text: existing?.name ?? '');
   final notesCtrl = TextEditingController(text: existing?.notes ?? '');
+  final videoCtrl = TextEditingController(text: existing?.videoUrl ?? '');
+  final articlesCtrl = TextEditingController(
+      text: (existing?.articleUrls ?? const <String>[]).join('\n'));
   WorkoutNodeType type =
       existing?.type ?? (isFolder ? WorkoutNodeType.folder : WorkoutNodeType.exercise);
   MuscleGroup? muscle = existing?.muscleGroup;
@@ -542,6 +589,25 @@ Future<void> _showNodeEditor(
                         ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: videoCtrl,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                      labelText: 'Видео (YouTube URL)',
+                      prefixIcon: Icon(Icons.play_circle_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: articlesCtrl,
+                    maxLines: 3,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                      labelText: 'Ссылки на статьи (по одной в строке)',
+                      prefixIcon: Icon(Icons.article_outlined),
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 16),
                 FilledButton(
@@ -549,6 +615,12 @@ Future<void> _showNodeEditor(
                     final name = nameCtrl.text.trim();
                     if (name.isEmpty) return;
                     final notesText = notesCtrl.text.trim();
+                    final videoText = videoCtrl.text.trim();
+                    final articleList = articlesCtrl.text
+                        .split('\n')
+                        .map((e) => e.trim())
+                        .where((e) => e.isNotEmpty)
+                        .toList();
                     if (existing != null) {
                       await ref.read(workoutNodesProvider.notifier).upsert(
                             WorkoutNode(
@@ -557,7 +629,11 @@ Future<void> _showNodeEditor(
                               name: name,
                               type: type,
                               notes: notesText.isEmpty ? null : notesText,
-                              videoUrl: existing.videoUrl,
+                              videoUrl:
+                                  videoText.isEmpty ? null : videoText,
+                              articleUrls: articleList.isEmpty
+                                  ? null
+                                  : articleList,
                               metrics: type == WorkoutNodeType.exercise
                                   ? metrics.toList()
                                   : null,
@@ -577,6 +653,11 @@ Future<void> _showNodeEditor(
                               name: name,
                               type: type,
                               notes: notesText.isEmpty ? null : notesText,
+                              videoUrl:
+                                  videoText.isEmpty ? null : videoText,
+                              articleUrls: articleList.isEmpty
+                                  ? null
+                                  : articleList,
                               metrics: type == WorkoutNodeType.exercise
                                   ? metrics.toList()
                                   : null,
@@ -759,6 +840,7 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
     final labelCtrl = TextEditingController(text: existing?.label ?? '');
     PlannedWorkoutStatus status =
         existing?.status ?? PlannedWorkoutStatus.planned;
+    String? programId = existing?.programId;
 
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -785,7 +867,42 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
                   TextField(
                       controller: labelCtrl,
                       decoration: const InputDecoration(
-                          labelText: 'Программа дня (например, "Ноги")')),
+                          labelText: 'Заголовок (например, "Ноги")')),
+                  const SizedBox(height: 12),
+                  Consumer(
+                    builder: (ctx2, ref2, _) {
+                      final folders = ref2
+                          .watch(workoutNodesProvider)
+                          .where((n) =>
+                              n.type == WorkoutNodeType.folder)
+                          .toList()
+                        ..sort((a, b) => a.name.compareTo(b.name));
+                      if (folders.isEmpty) {
+                        return Text(
+                          'Создай программу (папку) с упражнениями во вкладке «Программы», чтобы выбрать её здесь.',
+                          style: Theme.of(ctx2).textTheme.bodySmall,
+                        );
+                      }
+                      return DropdownButtonFormField<String?>(
+                        initialValue: programId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Программа (папка)',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('Без программы')),
+                          for (final f in folders)
+                            DropdownMenuItem<String?>(
+                                value: f.id, child: Text(f.name)),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => programId = v),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 12),
                   SegmentedButton<PlannedWorkoutStatus>(
                     segments: const [
@@ -817,6 +934,7 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
                                         status: status,
                                         label:
                                             label.isEmpty ? null : label,
+                                        programId: programId,
                                       ));
                             } else {
                               await ref
@@ -826,6 +944,7 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
                                     date: iso,
                                     status: status,
                                     label: label.isEmpty ? null : label,
+                                    programId: programId,
                                   ));
                             }
                             if (ctx.mounted) Navigator.of(ctx).pop();

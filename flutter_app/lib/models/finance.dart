@@ -268,3 +268,151 @@ class MonthlyBudgetPlan {
         updatedAt: json['updatedAt'] as String,
       );
 }
+
+/// Phase 13: kredit / loan tracker. Keeps the loan as a separate entity so
+/// monthly payments can be projected without polluting the transaction log.
+class Loan {
+  Loan({
+    required this.id,
+    required this.title,
+    required this.principal,
+    required this.balance,
+    required this.annualRate,
+    required this.monthlyPayment,
+    required this.startDate,
+    required this.currency,
+    this.endDate,
+    this.accountId,
+    this.notes,
+    this.kind,
+  });
+
+  final String id;
+  final String title;
+  /// Original amount borrowed (in [currency]).
+  final num principal;
+  /// Current outstanding balance.
+  final num balance;
+  /// Annual interest rate, e.g. 21.5 means 21.5%.
+  final num annualRate;
+  /// Scheduled monthly payment (annuity).
+  final num monthlyPayment;
+  /// ISO date — first month the loan was issued.
+  final String startDate;
+  /// ISO date — projected end (optional).
+  final String? endDate;
+  final Currency currency;
+  /// Optional account from which payments are drawn — used to compute net
+  /// available money in the monthly plan.
+  final String? accountId;
+  final String? notes;
+  /// 'consumer', 'mortgage', 'card', 'auto', 'personal', 'other'.
+  final String? kind;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'principal': principal,
+        'balance': balance,
+        'annualRate': annualRate,
+        'monthlyPayment': monthlyPayment,
+        'startDate': startDate,
+        if (endDate != null) 'endDate': endDate,
+        'currency': currency,
+        if (accountId != null) 'accountId': accountId,
+        if (notes != null) 'notes': notes,
+        if (kind != null) 'kind': kind,
+      };
+
+  factory Loan.fromJson(Map<String, dynamic> json) => Loan(
+        id: json['id'] as String,
+        title: (json['title'] ?? '') as String,
+        principal: (json['principal'] ?? 0) as num,
+        balance: (json['balance'] ?? 0) as num,
+        annualRate: (json['annualRate'] ?? 0) as num,
+        monthlyPayment: (json['monthlyPayment'] ?? 0) as num,
+        startDate: (json['startDate'] ?? '') as String,
+        endDate: json['endDate'] as String?,
+        currency: (json['currency'] ?? 'BYN') as String,
+        accountId: json['accountId'] as String?,
+        notes: json['notes'] as String?,
+        kind: json['kind'] as String?,
+      );
+
+  Loan copyWith({
+    String? title,
+    num? principal,
+    num? balance,
+    num? annualRate,
+    num? monthlyPayment,
+    String? startDate,
+    Object? endDate = _loanSentinel,
+    Currency? currency,
+    Object? accountId = _loanSentinel,
+    Object? notes = _loanSentinel,
+    Object? kind = _loanSentinel,
+  }) {
+    return Loan(
+      id: id,
+      title: title ?? this.title,
+      principal: principal ?? this.principal,
+      balance: balance ?? this.balance,
+      annualRate: annualRate ?? this.annualRate,
+      monthlyPayment: monthlyPayment ?? this.monthlyPayment,
+      startDate: startDate ?? this.startDate,
+      endDate: identical(endDate, _loanSentinel)
+          ? this.endDate
+          : endDate as String?,
+      currency: currency ?? this.currency,
+      accountId: identical(accountId, _loanSentinel)
+          ? this.accountId
+          : accountId as String?,
+      notes: identical(notes, _loanSentinel)
+          ? this.notes
+          : notes as String?,
+      kind: identical(kind, _loanSentinel) ? this.kind : kind as String?,
+    );
+  }
+}
+
+const Object _loanSentinel = Object();
+
+class LoanPayment {
+  LoanPayment({
+    required this.id,
+    required this.loanId,
+    required this.date,
+    required this.amount,
+    this.principalPart,
+    this.interestPart,
+    this.notes,
+  });
+
+  final String id;
+  final String loanId;
+  final String date;
+  final num amount;
+  final num? principalPart;
+  final num? interestPart;
+  final String? notes;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'loanId': loanId,
+        'date': date,
+        'amount': amount,
+        if (principalPart != null) 'principalPart': principalPart,
+        if (interestPart != null) 'interestPart': interestPart,
+        if (notes != null) 'notes': notes,
+      };
+
+  factory LoanPayment.fromJson(Map<String, dynamic> json) => LoanPayment(
+        id: json['id'] as String,
+        loanId: json['loanId'] as String,
+        date: json['date'] as String,
+        amount: (json['amount'] ?? 0) as num,
+        principalPart: json['principalPart'] as num?,
+        interestPart: json['interestPart'] as num?,
+        notes: json['notes'] as String?,
+      );
+}

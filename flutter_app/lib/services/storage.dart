@@ -60,4 +60,38 @@ class AppStorage {
       _box.put(key, value);
 
   static Future<void> remove(String key) => _box.delete(key);
+
+  /// Snapshot every entry of the box as a `{key: decodedJson}` map.
+  /// Decoded values may be `Map`, `List`, `String`, `num`, `bool` or null.
+  static Map<String, dynamic> dumpAll() {
+    final out = <String, dynamic>{};
+    for (final k in _box.keys) {
+      final raw = _box.get(k as String);
+      if (raw == null || raw.isEmpty) continue;
+      try {
+        out[k] = json.decode(raw);
+      } catch (_) {
+        out[k] = raw;
+      }
+    }
+    return out;
+  }
+
+  /// Replace every key in the box with the supplied snapshot. Keys not
+  /// present in [snapshot] are left untouched (use [clearAll] first to
+  /// fully reset).
+  static Future<void> restoreAll(Map<String, dynamic> snapshot,
+      {bool replace = true}) async {
+    if (replace) {
+      await _box.clear();
+    }
+    for (final entry in snapshot.entries) {
+      final v = entry.value;
+      if (v is String) {
+        await _box.put(entry.key, v);
+      } else {
+        await _box.put(entry.key, json.encode(v));
+      }
+    }
+  }
 }

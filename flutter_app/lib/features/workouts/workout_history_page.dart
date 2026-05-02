@@ -1,11 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
 import '../../models/misc.dart';
 import '../../state/providers.dart';
+
+Future<void> _openUrl(BuildContext context, String raw) async {
+  var s = raw.trim();
+  if (s.isEmpty) return;
+  if (!s.startsWith('http://') && !s.startsWith('https://')) {
+    s = 'https://$s';
+  }
+  final uri = Uri.tryParse(s);
+  if (uri == null) return;
+  final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  if (!ok && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Не удалось открыть ссылку: $s')),
+    );
+  }
+}
 
 /// History + planned overview of workouts.
 ///
@@ -97,16 +114,26 @@ class _CompletedTab extends ConsumerWidget {
     final logs = [...ref.watch(exerciseLogsProvider)]
       ..sort((a, b) => b.date.compareTo(a.date));
     final nodes = ref.watch(workoutNodesProvider);
-    final byDate = <String, List<ExerciseLog>>{};
+    final completedPlans = ref
+        .watch(plannedWorkoutsProvider)
+        .where((p) => p.status == PlannedWorkoutStatus.completed)
+        .toList();
+    final logsByDate = <String, List<ExerciseLog>>{};
     for (final l in logs) {
-      byDate.putIfAbsent(l.date, () => []).add(l);
+      logsByDate.putIfAbsent(l.date, () => []).add(l);
     }
-    final dates = byDate.keys.toList()..sort((a, b) => b.compareTo(a));
+    final plansByDate = <String, List<PlannedWorkout>>{};
+    for (final p in completedPlans) {
+      plansByDate.putIfAbsent(p.date, () => []).add(p);
+    }
+    final dates = <String>{...logsByDate.keys, ...plansByDate.keys}.toList()
+      ..sort((a, b) => b.compareTo(a));
     if (dates.isEmpty) {
       return const _Empty(
         emoji: '🏋️',
         title: 'Истории пока нет',
-        subtitle: 'Записанные сеты появятся здесь автоматически.',
+        subtitle:
+            'Отметь запланированную как «Готово» или запиши сет вручную — оно появится здесь.',
       );
     }
     return ListView.builder(
@@ -114,7 +141,8 @@ class _CompletedTab extends ConsumerWidget {
       itemCount: dates.length,
       itemBuilder: (_, i) {
         final d = dates[i];
-        final list = byDate[d]!;
+        final dayLogs = logsByDate[d] ?? const <ExerciseLog>[];
+        final dayPlans = plansByDate[d] ?? const <PlannedWorkout>[];
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: Padding(
@@ -125,7 +153,29 @@ class _CompletedTab extends ConsumerWidget {
                 Text(_humanDate(d),
                     style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
-                for (final l in list)
+                for (final p in dayPlans)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.check_circle,
+                            color: Color(0xFF22C55E), size: 18),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            p.label?.isNotEmpty == true
+                                ? p.label!
+                                : _programName(p.programId, nodes),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (dayPlans.isNotEmpty && dayLogs.isNotEmpty)
+                  const Divider(height: 12),
+                for (final l in dayLogs)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Row(
@@ -141,12 +191,27 @@ class _CompletedTab extends ConsumerWidget {
                       ],
                     ),
                   ),
+                if (dayPlans.isNotEmpty && dayLogs.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('Сеты не записаны',
+                        style:
+                            Theme.of(context).textTheme.bodySmall),
+                  ),
               ],
             ),
           ),
         );
       },
     );
+  }
+
+  String _programName(String? id, List<WorkoutNode> nodes) {
+    if (id == null) return 'Тренировка';
+    final n = nodes
+        .cast<WorkoutNode?>()
+        .firstWhere((x) => x?.id == id, orElse: () => null);
+    return n?.name ?? 'Тренировка';
   }
 
   String _humanDate(String iso) {
@@ -446,6 +511,25 @@ class _PlannedCard extends ConsumerWidget {
                   subtitle: ex.muscleGroup == null
                       ? null
                       : Text(ex.muscleGroup!.name),
+                  trailing: Wrap(
+                    spacing: 0,
+                    children: [
+                      if (ex.videoUrl != null)
+                        IconButton(
+                          tooltip: 'Видео',
+                          icon: const Icon(Icons.play_circle, size: 20),
+                          onPressed: () =>
+                              _openUrl(context, ex.videoUrl!),
+                        ),
+                      if (ex.articleUrls?.isNotEmpty ?? false)
+                        IconButton(
+                          tooltip: 'Статья',
+                          icon: const Icon(Icons.article, size: 20),
+                          onPressed: () => _openUrl(
+                              context, ex.articleUrls!.first),
+                        ),
+                    ],
+                  ),
                   onTap: () => _logSet(context, ref, ex),
                 ),
             ],
@@ -455,6 +539,7 @@ class _PlannedCard extends ConsumerWidget {
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: () => _markStatus(
+                      context,
                       ref,
                       plan,
                       PlannedWorkoutStatus.missed,
@@ -467,6 +552,7 @@ class _PlannedCard extends ConsumerWidget {
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: () => _markStatus(
+                      context,
                       ref,
                       plan,
                       PlannedWorkoutStatus.completed,
@@ -484,6 +570,7 @@ class _PlannedCard extends ConsumerWidget {
   }
 
   Future<void> _markStatus(
+    BuildContext context,
     WidgetRef ref,
     PlannedWorkout plan,
     PlannedWorkoutStatus status,
@@ -491,6 +578,47 @@ class _PlannedCard extends ConsumerWidget {
     await ref
         .read(plannedWorkoutsProvider.notifier)
         .upsert(plan.copyWith(status: status));
+    if (status != PlannedWorkoutStatus.completed) return;
+    final nodes = ref.read(workoutNodesProvider);
+    final exercises = nodes
+        .where((n) =>
+            n.parentId == plan.programId &&
+            n.type == WorkoutNodeType.exercise)
+        .toList();
+    if (exercises.isEmpty) return;
+    if (!context.mounted) return;
+    final logs = ref.read(exerciseLogsProvider);
+    final hasLogsToday = exercises.any((e) =>
+        logs.any((l) => l.exerciseId == e.id && l.date == plan.date));
+    if (hasLogsToday) return;
+    final fill = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Записать упражнения?'),
+        content: Text(
+          'Создать запись о выполнении ${exercises.length} упражнений из программы? Подходы добавятся с отметкой «выполнено», без веса/повторений — позже сможешь уточнить тапом.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Только статус')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Да, записать')),
+        ],
+      ),
+    );
+    if (fill != true) return;
+    final ctl = ref.read(exerciseLogsProvider.notifier);
+    for (final e in exercises) {
+      await ctl.add(ExerciseLog(
+        id: const Uuid().v4(),
+        exerciseId: e.id,
+        date: plan.date,
+        metrics: const {WorkoutMetric.reps: 0},
+        notes: 'Отмечено как выполнено',
+      ));
+    }
   }
 
   Future<void> _logSet(

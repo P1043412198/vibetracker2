@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../l10n/app_localizations.dart';
 import '../../services/ai_service.dart';
+import '../../services/backup_service.dart';
 import '../../services/storage.dart';
 import '../../state/settings_state.dart';
 
@@ -187,6 +188,78 @@ class SettingsPage extends ConsumerWidget {
           Card(
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.cloud_upload_outlined),
+                  title: const Text('Экспорт всех данных (JSON)'),
+                  subtitle: const Text(
+                      'Сохранить резервную копию: задачи, привычки, финансы, тренировки и заметки.'),
+                  onTap: () async {
+                    try {
+                      final path = await BackupService.exportToFile();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text('Файл сохранён: $path')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text('Не удалось экспортировать: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cloud_download_outlined),
+                  title: const Text('Импорт данных из JSON'),
+                  subtitle: const Text(
+                      'Восстановить из резервной копии. Текущие данные будут заменены.'),
+                  onTap: () async {
+                    final mode = await showDialog<bool>(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Импорт данных'),
+                        content: const Text(
+                            'Выбери, как обработать существующие данные. «Заменить» сначала удалит всё, «Слить» — наложит файл поверх (одинаковые ID будут перезаписаны).'),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text('Отмена')),
+                          TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Слить')),
+                          FilledButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text('Заменить')),
+                        ],
+                      ),
+                    );
+                    if (mode == null) return;
+                    try {
+                      final n = await BackupService.importFromFile(
+                          replace: mode);
+                      if (n == null) return;
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(
+                                  'Импортировано $n разделов. Перезапусти приложение.')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text('Не удалось импортировать: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
+                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.delete_forever_outlined,
                       color: Color(0xFFEF4444)),

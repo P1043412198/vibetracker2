@@ -251,6 +251,7 @@ class WorkoutNode {
     required this.type,
     this.notes,
     this.videoUrl,
+    this.articleUrls,
     this.metrics,
     this.restTime,
     this.muscleGroup,
@@ -263,6 +264,7 @@ class WorkoutNode {
   final WorkoutNodeType type;
   final String? notes;
   final String? videoUrl;
+  final List<String>? articleUrls;
   final List<WorkoutMetric>? metrics;
   final int? restTime;
   final MuscleGroup? muscleGroup;
@@ -275,6 +277,8 @@ class WorkoutNode {
         'type': type.name,
         if (notes != null) 'notes': notes,
         if (videoUrl != null) 'videoUrl': videoUrl,
+        if (articleUrls != null && articleUrls!.isNotEmpty)
+          'articleUrls': articleUrls,
         if (metrics != null) 'metrics': metrics!.map((e) => e.name).toList(),
         if (restTime != null) 'restTime': restTime,
         if (muscleGroup != null) 'muscleGroup': muscleGroup!.name,
@@ -289,6 +293,9 @@ class WorkoutNode {
             WorkoutNodeType.exercise),
         notes: json['notes'] as String?,
         videoUrl: json['videoUrl'] as String?,
+        articleUrls: (json['articleUrls'] as List?)
+            ?.whereType<String>()
+            .toList(),
         metrics: (json['metrics'] as List?)
             ?.whereType<String>()
             .map((e) => enumFromName(
@@ -308,6 +315,7 @@ class WorkoutNode {
     WorkoutNodeType? type,
     String? notes,
     String? videoUrl,
+    List<String>? articleUrls,
     List<WorkoutMetric>? metrics,
     int? restTime,
     MuscleGroup? muscleGroup,
@@ -320,6 +328,7 @@ class WorkoutNode {
       type: type ?? this.type,
       notes: notes ?? this.notes,
       videoUrl: videoUrl ?? this.videoUrl,
+      articleUrls: articleUrls ?? this.articleUrls,
       metrics: metrics ?? this.metrics,
       restTime: restTime ?? this.restTime,
       muscleGroup: muscleGroup ?? this.muscleGroup,
@@ -570,18 +579,22 @@ class PlannedWorkout {
   PlannedWorkout copyWith({
     String? date,
     PlannedWorkoutStatus? status,
-    String? programId,
-    String? label,
+    Object? programId = _sentinel,
+    Object? label = _sentinel,
   }) {
     return PlannedWorkout(
       id: id,
       date: date ?? this.date,
       status: status ?? this.status,
-      programId: programId ?? this.programId,
-      label: label ?? this.label,
+      programId: identical(programId, _sentinel)
+          ? this.programId
+          : programId as String?,
+      label: identical(label, _sentinel) ? this.label : label as String?,
     );
   }
 }
+
+const Object _sentinel = Object();
 
 // ---------------------------------------------------------------------------
 // Phase 9 models

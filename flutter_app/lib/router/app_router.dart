@@ -5,6 +5,7 @@ import '../features/analytics/analytics_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/dashboard/dashboard_settings_page.dart';
 import '../features/finance/finance_page.dart';
+import '../features/finance/loans_page.dart';
 import '../features/finance/receipt_gallery_page.dart';
 import '../features/goals/goal_details_page.dart';
 import '../features/goals/goals_page.dart';
@@ -94,6 +95,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'receipts',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: ReceiptGalleryPage()),
+          ),
+          GoRoute(
+            path: '/loans',
+            name: 'loans',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: LoansPage()),
           ),
           GoRoute(
             path: '/workouts',
