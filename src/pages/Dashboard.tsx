@@ -90,17 +90,17 @@ const SortableWidget = ({ id, children, isEditMode, onToggleVisibility, isVisibl
       )}
     >
       {isEditMode && (
-        <div className="absolute top-2 right-2 z-10 flex gap-2 bg-zinc-900/80 backdrop-blur-sm p-1 rounded-xl border border-zinc-700 shadow-lg">
+        <div className="absolute top-2 right-2 z-10 flex gap-2 bg-white/80 backdrop-blur-sm p-1 rounded-xl border border-stone-300 shadow-lg">
           <button
             onClick={onToggleSize}
-            className="p-1.5 bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 bg-stone-100 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
             title={size === 'large' ? "Уменьшить" : "Увеличить"}
           >
             {size === 'large' ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
           </button>
           <button
             onClick={onToggleVisibility}
-            className="p-1.5 bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 bg-stone-100 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
             title={isVisible ? "Скрыть" : "Показать"}
           >
             {isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
@@ -108,7 +108,7 @@ const SortableWidget = ({ id, children, isEditMode, onToggleVisibility, isVisibl
           <div
             {...attributes}
             {...listeners}
-            className="p-1.5 bg-zinc-800 rounded-lg text-zinc-400 hover:text-white cursor-grab active:cursor-grabbing transition-colors touch-none"
+            className="p-1.5 bg-stone-100 rounded-lg text-zinc-500 hover:text-zinc-900 cursor-grab active:cursor-grabbing transition-colors touch-none"
             title="Перетащить"
           >
             <GripVertical className="w-3.5 h-3.5" />
@@ -470,7 +470,7 @@ export function Dashboard() {
   const SHIFT_INFO = {
     day: { label: 'День', icon: Sun, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
     night: { label: 'Ночь', icon: Moon, color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
-    off: { label: 'Выходной', icon: HomeIcon, color: 'text-zinc-500 bg-zinc-800/50 border-zinc-700/50' },
+    off: { label: 'Выходной', icon: HomeIcon, color: 'text-zinc-500 bg-stone-100/60 border-stone-300/50' },
     post_night: { label: 'Отсыпной', icon: Coffee, color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
     vacation: { label: 'Отпуск', icon: Plane, color: 'text-rose-400 bg-rose-500/10 border-rose-500/20' },
   };
@@ -480,10 +480,10 @@ export function Dashboard() {
       <SmartGreeting currentDate={currentDate} todaysTasks={todaysTasks} />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white">
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900">
             С возвращением
           </h1>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-zinc-500 mt-1">
             Ваш обзор на {format(new Date(), 'EEEE, d MMMM', { locale: ru })}.
           </p>
         </div>
@@ -491,7 +491,7 @@ export function Dashboard() {
           onClick={() => setIsEditMode(!isEditMode)}
           className={cn(
             "px-4 py-2 rounded-2xl text-xs font-medium transition-all flex items-center gap-2",
-            isEditMode ? "bg-white text-black" : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-white"
+            isEditMode ? "bg-white text-black" : "bg-white text-zinc-500 border border-stone-200 hover:text-zinc-900"
           )}
         >
           {isEditMode ? <CheckCircle2 className="w-4 h-4" /> : <Activity className="w-4 h-4" />}
@@ -499,19 +499,19 @@ export function Dashboard() {
         </button>
       </div>
 
-      <div className="flex items-center justify-between bg-zinc-900 p-2.5 rounded-2xl border border-zinc-800">
+      <div className="flex items-center justify-between bg-white p-2.5 rounded-2xl border border-stone-200">
         <button 
           onClick={handlePrevDay}
-          className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+          className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-full transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
         <div className="flex items-center gap-4">
           <div className="text-center">
-            <h2 className="text-sm font-semibold text-white capitalize">
+            <h2 className="text-sm font-semibold text-zinc-900 capitalize">
               {format(currentDate, 'EEEE', { locale: ru })}
             </h2>
-            <p className="text-[10px] text-zinc-400">
+            <p className="text-[10px] text-zinc-500">
               {format(currentDate, 'd MMMM yyyy', { locale: ru })}
             </p>
           </div>
@@ -530,7 +530,7 @@ export function Dashboard() {
         </div>
         <button 
           onClick={handleNextDay}
-          className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+          className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-full transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>

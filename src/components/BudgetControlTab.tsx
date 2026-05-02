@@ -260,7 +260,7 @@ export function BudgetControlTab() {
           onClick={() => setActiveSubTab('budgets')}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-            activeSubTab === 'budgets' ? "bg-zinc-800 text-white shadow-sm" : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200"
+            activeSubTab === 'budgets' ? "bg-stone-100 text-zinc-900 shadow-sm" : "bg-white/60 text-zinc-500 hover:text-zinc-800"
           )}
         >
           <ShieldAlert className="w-4 h-4" />
@@ -270,7 +270,7 @@ export function BudgetControlTab() {
           onClick={() => setActiveSubTab('payments')}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-            activeSubTab === 'payments' ? "bg-zinc-800 text-white shadow-sm" : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200"
+            activeSubTab === 'payments' ? "bg-stone-100 text-zinc-900 shadow-sm" : "bg-white/60 text-zinc-500 hover:text-zinc-800"
           )}
         >
           <CalendarClock className="w-4 h-4" />
@@ -280,7 +280,7 @@ export function BudgetControlTab() {
           onClick={() => setActiveSubTab('envelopes')}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-            activeSubTab === 'envelopes' ? "bg-zinc-800 text-white shadow-sm" : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200"
+            activeSubTab === 'envelopes' ? "bg-stone-100 text-zinc-900 shadow-sm" : "bg-white/60 text-zinc-500 hover:text-zinc-800"
           )}
         >
           <Mail className="w-4 h-4" />
@@ -290,7 +290,7 @@ export function BudgetControlTab() {
           onClick={() => setActiveSubTab('zbb')}
           className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all",
-            activeSubTab === 'zbb' ? "bg-zinc-800 text-white shadow-sm" : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200"
+            activeSubTab === 'zbb' ? "bg-stone-100 text-zinc-900 shadow-sm" : "bg-white/60 text-zinc-500 hover:text-zinc-800"
           )}
         >
           <Scale className="w-4 h-4" />
@@ -303,26 +303,26 @@ export function BudgetControlTab() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white">Бюджеты на месяц</h2>
-              <p className="text-sm text-zinc-400">Контролируйте расходы по категориям</p>
+              <h2 className="text-lg font-bold text-zinc-900">Бюджеты на месяц</h2>
+              <p className="text-sm text-zinc-500">Контролируйте расходы по категориям</p>
             </div>
             <button 
               onClick={() => setIsAddingBudget(!isAddingBudget)}
-              className="p-2 bg-zinc-800 text-white rounded-xl hover:bg-zinc-700 transition-colors"
+              className="p-2 bg-stone-100 text-zinc-900 rounded-xl hover:bg-stone-200 transition-colors"
             >
               <Plus className="w-5 h-5" />
             </button>
           </div>
 
           {isAddingBudget && (
-            <form onSubmit={handleAddBudget} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 space-y-4">
+            <form onSubmit={handleAddBudget} className="bg-white p-4 rounded-xl border border-stone-200 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-zinc-500 mb-1">Категория</label>
                   <select
                     value={budgetCategory}
                     onChange={(e) => setBudgetCategory(e.target.value)}
-                    className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
                   >
                     {EXPENSE_CATEGORIES.map(c => (
                       <option key={c} value={c}>{c}</option>
@@ -337,13 +337,13 @@ export function BudgetControlTab() {
                       value={budgetAmount}
                       onChange={(e) => setBudgetAmount(e.target.value)}
                       placeholder="0.00"
-                      className="flex-1 bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 focus:outline-none focus:border-emerald-500"
+                      className="flex-1 bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
                       required
                     />
                     <select
                       value={budgetCurrency}
                       onChange={(e) => setBudgetCurrency(e.target.value)}
-                      className="w-24 bg-zinc-800 text-white rounded-lg px-2 py-2 border border-zinc-700 focus:outline-none focus:border-emerald-500"
+                      className="w-24 bg-stone-100 text-zinc-900 rounded-lg px-2 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
                     >
                       {['BYN', 'USD', 'EUR', 'RUB', 'PLN'].map(c => (
                         <option key={c} value={c}>{c}</option>
@@ -353,33 +353,33 @@ export function BudgetControlTab() {
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setIsAddingBudget(false)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white">Отмена</button>
-                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700">Сохранить</button>
+                <button type="button" onClick={() => setIsAddingBudget(false)} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900">Отмена</button>
+                <button type="submit" className="px-4 py-2 bg-emerald-600 text-zinc-900 text-sm font-medium rounded-lg hover:bg-emerald-700">Сохранить</button>
               </div>
             </form>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {budgetProgress.map(budget => (
-              <div key={budget.id} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800">
+              <div key={budget.id} className="bg-white p-4 rounded-xl border border-stone-200">
                 <div className="flex justify-between items-start mb-2">
                   <div>
-                    <h3 className="font-medium text-white">{budget.category}</h3>
-                    <p className="text-xs text-zinc-400">
+                    <h3 className="font-medium text-zinc-900">{budget.category}</h3>
+                    <p className="text-xs text-zinc-500">
                       Осталось: <span className={cn("font-bold", budget.remaining < 0 ? "text-red-400" : "text-emerald-400")}>
                         {budget.remaining.toFixed(2)} {budget.currency || baseCurrency}
                       </span>
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-white">{budget.spent.toFixed(0)} / {budget.amount} {budget.currency || baseCurrency}</span>
+                    <span className="text-sm font-bold text-zinc-900">{budget.spent.toFixed(0)} / {budget.amount} {budget.currency || baseCurrency}</span>
                     <button onClick={() => deleteBudgetLimit(budget.id)} className="text-zinc-600 hover:text-red-400">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
                 
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden mb-2">
+                <div className="h-2 bg-stone-100 rounded-full overflow-hidden mb-2">
                   <div 
                     className={cn(
                       "h-full rounded-full transition-all",
@@ -393,7 +393,7 @@ export function BudgetControlTab() {
                 {budget.remaining > 0 ? (
                   <p className="text-xs text-zinc-500 flex items-center gap-1">
                     <Target className="w-3 h-3" />
-                    Безопасно тратить: <span className="text-white">{budget.safePerDay.toFixed(1)} {budget.currency || baseCurrency} / день</span>
+                    Безопасно тратить: <span className="text-zinc-900">{budget.safePerDay.toFixed(1)} {budget.currency || baseCurrency} / день</span>
                   </p>
                 ) : (
                   <p className="text-xs text-red-400 flex items-center gap-1">
@@ -417,12 +417,12 @@ export function BudgetControlTab() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white">Регулярные платежи</h2>
-              <p className="text-sm text-zinc-400">Подписки, кредиты, коммуналка</p>
+              <h2 className="text-lg font-bold text-zinc-900">Регулярные платежи</h2>
+              <p className="text-sm text-zinc-500">Подписки, кредиты, коммуналка</p>
             </div>
             <button 
               onClick={() => setIsAddingPayment(!isAddingPayment)}
-              className="p-2 bg-zinc-800 text-white rounded-xl hover:bg-zinc-700 transition-colors"
+              className="p-2 bg-stone-100 text-zinc-900 rounded-xl hover:bg-stone-200 transition-colors"
             >
               <Plus className="w-5 h-5" />
             </button>
@@ -432,12 +432,12 @@ export function BudgetControlTab() {
             <AlertTriangle className="w-5 h-5 text-emerald-400" />
             <div>
               <p className="text-sm text-emerald-400">К оплате до конца месяца:</p>
-              <p className="text-xl font-bold text-white">{totalUpcoming.toFixed(2)} {baseCurrency}</p>
+              <p className="text-xl font-bold text-zinc-900">{totalUpcoming.toFixed(2)} {baseCurrency}</p>
             </div>
           </div>
 
           {isAddingPayment && (
-            <form onSubmit={handleAddPayment} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 space-y-4">
+            <form onSubmit={handleAddPayment} className="bg-white p-4 rounded-xl border border-stone-200 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs text-zinc-500 mb-1">Название</label>
@@ -446,7 +446,7 @@ export function BudgetControlTab() {
                     value={paymentName}
                     onChange={(e) => setPaymentName(e.target.value)}
                     placeholder="Netflix"
-                    className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
                     required
                   />
                 </div>
@@ -458,13 +458,13 @@ export function BudgetControlTab() {
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value)}
                       placeholder="0.00"
-                      className="flex-1 bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 focus:outline-none focus:border-emerald-500"
+                      className="flex-1 bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
                       required
                     />
                     <select
                       value={paymentCurrency}
                       onChange={(e) => setPaymentCurrency(e.target.value)}
-                      className="w-24 bg-zinc-800 text-white rounded-lg px-2 py-2 border border-zinc-700 focus:outline-none focus:border-emerald-500"
+                      className="w-24 bg-stone-100 text-zinc-900 rounded-lg px-2 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
                     >
                       {['BYN', 'USD', 'EUR', 'RUB', 'PLN'].map(c => (
                         <option key={c} value={c}>{c}</option>
@@ -479,14 +479,14 @@ export function BudgetControlTab() {
                     min="1" max="31"
                     value={paymentDay}
                     onChange={(e) => setPaymentDay(e.target.value)}
-                    className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
                     required
                   />
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setIsAddingPayment(false)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white">Отмена</button>
-                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700">Добавить</button>
+                <button type="button" onClick={() => setIsAddingPayment(false)} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900">Отмена</button>
+                <button type="submit" className="px-4 py-2 bg-emerald-600 text-zinc-900 text-sm font-medium rounded-lg hover:bg-emerald-700">Добавить</button>
               </div>
             </form>
           )}
@@ -494,14 +494,14 @@ export function BudgetControlTab() {
           <div className="space-y-2">
             {upcomingPayments.map(payment => (
               <div key={payment.id} className={cn(
-                "flex items-center justify-between bg-zinc-900 p-4 rounded-xl border transition-all",
-                payment.status === 'today' ? "border-amber-500/50 shadow-lg shadow-amber-500/5" : "border-zinc-800",
+                "flex items-center justify-between bg-white p-4 rounded-xl border transition-all",
+                payment.status === 'today' ? "border-amber-500/50 shadow-lg shadow-amber-500/5" : "border-stone-200",
                 payment.isPaid && "opacity-60"
               )}>
                 <div className="flex items-center gap-4">
                   <div className={cn(
                     "w-12 h-12 rounded-xl flex flex-col items-center justify-center",
-                    payment.status === 'past' ? "bg-zinc-800 text-zinc-500" :
+                    payment.status === 'past' ? "bg-stone-100 text-zinc-500" :
                     payment.status === 'today' ? "bg-amber-500/20 text-amber-400 border border-amber-500/50" :
                     "bg-emerald-500/10 text-emerald-400"
                   )}>
@@ -509,7 +509,7 @@ export function BudgetControlTab() {
                     <span className="text-lg font-bold leading-none">{payment.dueDate}</span>
                   </div>
                   <div>
-                    <h3 className={cn("font-medium", (payment.status === 'past' || payment.isPaid) ? "text-zinc-500 line-through" : "text-white")}>
+                    <h3 className={cn("font-medium", (payment.status === 'past' || payment.isPaid) ? "text-zinc-500 line-through" : "text-zinc-900")}>
                       {payment.name}
                     </h3>
                     <p className="text-xs text-zinc-500">
@@ -521,7 +521,7 @@ export function BudgetControlTab() {
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className={cn("font-bold", (payment.status === 'past' || payment.isPaid) ? "text-zinc-500" : "text-white")}>
+                  <span className={cn("font-bold", (payment.status === 'past' || payment.isPaid) ? "text-zinc-500" : "text-zinc-900")}>
                     {payment.amount.toFixed(2)} {payment.currency || baseCurrency}
                   </span>
                   
@@ -532,7 +532,7 @@ export function BudgetControlTab() {
                           <select 
                             value={selectedAccount}
                             onChange={(e) => setSelectedAccount(e.target.value)}
-                            className="bg-zinc-800 text-xs text-white rounded px-2 py-1 border border-zinc-700"
+                            className="bg-stone-100 text-xs text-zinc-900 rounded px-2 py-1 border border-stone-300"
                           >
                             {accounts.map(a => (
                               <option key={a.id} value={a.id}>{a.name}</option>
@@ -540,13 +540,13 @@ export function BudgetControlTab() {
                           </select>
                           <button 
                             onClick={() => handleProcessPayment(payment.id)}
-                            className="text-xs bg-emerald-600 text-white px-2 py-1 rounded hover:bg-emerald-700"
+                            className="text-xs bg-emerald-600 text-zinc-900 px-2 py-1 rounded hover:bg-emerald-700"
                           >
                             Ок
                           </button>
                           <button 
                             onClick={() => setProcessingPayment(null)}
-                            className="text-xs text-zinc-400"
+                            className="text-xs text-zinc-500"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -554,7 +554,7 @@ export function BudgetControlTab() {
                       ) : (
                         <button 
                           onClick={() => setProcessingPayment(payment.id)}
-                          className="text-xs bg-zinc-800 text-zinc-300 px-2 py-1 rounded hover:bg-zinc-700"
+                          className="text-xs bg-stone-100 text-zinc-700 px-2 py-1 rounded hover:bg-stone-200"
                         >
                           Оплатить
                         </button>
@@ -582,21 +582,21 @@ export function BudgetControlTab() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white">Метод конвертов</h2>
-              <p className="text-sm text-zinc-400">Виртуальное разделение денег</p>
+              <h2 className="text-lg font-bold text-zinc-900">Метод конвертов</h2>
+              <p className="text-sm text-zinc-500">Виртуальное разделение денег</p>
             </div>
             <button 
               onClick={() => setIsAddingEnvelope(!isAddingEnvelope)}
-              className="p-2 bg-zinc-800 text-white rounded-xl hover:bg-zinc-700 transition-colors"
+              className="p-2 bg-stone-100 text-zinc-900 rounded-xl hover:bg-stone-200 transition-colors"
             >
               <Plus className="w-5 h-5" />
             </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-              <p className="text-sm text-zinc-400 mb-1">Общий баланс</p>
-              <p className="text-xl font-bold text-white">{totalBalance.toFixed(2)} {baseCurrency}</p>
+            <div className="bg-white border border-stone-200 rounded-xl p-4">
+              <p className="text-sm text-zinc-500 mb-1">Общий баланс</p>
+              <p className="text-xl font-bold text-zinc-900">{totalBalance.toFixed(2)} {baseCurrency}</p>
             </div>
             <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4">
               <p className="text-sm text-emerald-400 mb-1">Свободно (вне конвертов)</p>
@@ -605,7 +605,7 @@ export function BudgetControlTab() {
           </div>
 
           {isAddingEnvelope && (
-            <form onSubmit={handleAddEnvelope} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 space-y-4">
+            <form onSubmit={handleAddEnvelope} className="bg-white p-4 rounded-xl border border-stone-200 space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs text-zinc-500 mb-1">Название конверта</label>
@@ -614,7 +614,7 @@ export function BudgetControlTab() {
                     value={envName}
                     onChange={(e) => setEnvName(e.target.value)}
                     placeholder="На отпуск"
-                    className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
                     required
                   />
                 </div>
@@ -625,7 +625,7 @@ export function BudgetControlTab() {
                     value={envTarget}
                     onChange={(e) => setEnvTarget(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-zinc-800 text-white rounded-lg px-3 py-2 border border-zinc-700 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
                   />
                 </div>
                 <div>
@@ -634,24 +634,24 @@ export function BudgetControlTab() {
                     type="color"
                     value={envColor}
                     onChange={(e) => setEnvColor(e.target.value)}
-                    className="w-full h-[42px] bg-zinc-800 rounded-lg border border-zinc-700 cursor-pointer"
+                    className="w-full h-[42px] bg-stone-100 rounded-lg border border-stone-300 cursor-pointer"
                   />
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setIsAddingEnvelope(false)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white">Отмена</button>
-                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700">Создать</button>
+                <button type="button" onClick={() => setIsAddingEnvelope(false)} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900">Отмена</button>
+                <button type="submit" className="px-4 py-2 bg-emerald-600 text-zinc-900 text-sm font-medium rounded-lg hover:bg-emerald-700">Создать</button>
               </div>
             </form>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {envelopes.map(env => (
-              <div key={env.id} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 relative overflow-hidden group">
+              <div key={env.id} className="bg-white p-4 rounded-xl border border-stone-200 relative overflow-hidden group">
                 <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: env.color }} />
                 
                 <div className="flex justify-between items-start mb-4 pl-2">
-                  <h3 className="font-bold text-white">{env.name}</h3>
+                  <h3 className="font-bold text-zinc-900">{env.name}</h3>
                   <button onClick={() => deleteEnvelope(env.id)} className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -659,7 +659,7 @@ export function BudgetControlTab() {
 
                 <div className="pl-2">
                   <div className="flex items-end gap-2 mb-2">
-                    <span className="text-2xl font-bold text-white">{env.currentAmount.toFixed(0)}</span>
+                    <span className="text-2xl font-bold text-zinc-900">{env.currentAmount.toFixed(0)}</span>
                     <span className="text-sm text-zinc-500 mb-1">{baseCurrency}</span>
                   </div>
 
@@ -669,7 +669,7 @@ export function BudgetControlTab() {
                         <span>Прогресс</span>
                         <span>{env.targetAmount} {baseCurrency}</span>
                       </div>
-                      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
                         <div 
                           className="h-full rounded-full"
                           style={{ 
@@ -689,18 +689,18 @@ export function BudgetControlTab() {
                           value={actionAmount}
                           onChange={(e) => setActionAmount(e.target.value)}
                           placeholder="Сумма"
-                          className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500/50"
+                          className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-3 py-1.5 text-sm text-zinc-900 focus:outline-none focus:border-emerald-500/50"
                           autoFocus
                         />
                         <button
                           onClick={submitEnvelopeAction}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-zinc-900 text-sm font-medium rounded-lg transition-colors"
                         >
                           ОК
                         </button>
                         <button
                           onClick={() => setActiveAction(null)}
-                          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-medium rounded-lg transition-colors"
+                          className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-zinc-900 text-sm font-medium rounded-lg transition-colors"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -711,13 +711,13 @@ export function BudgetControlTab() {
                     <div className="flex gap-2 mt-4">
                       <button 
                         onClick={() => handleEnvelopeAction(env.id, 'add')}
-                        className="flex-1 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs rounded-lg transition-colors"
+                        className="flex-1 py-1.5 bg-stone-100 hover:bg-stone-200 text-zinc-900 text-xs rounded-lg transition-colors"
                       >
                         Пополнить
                       </button>
                       <button 
                         onClick={() => handleEnvelopeAction(env.id, 'take')}
-                        className="flex-1 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs rounded-lg transition-colors"
+                        className="flex-1 py-1.5 bg-stone-100 hover:bg-stone-200 text-zinc-900 text-xs rounded-lg transition-colors"
                       >
                         Взять
                       </button>
@@ -735,12 +735,12 @@ export function BudgetControlTab() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-white">План vs Факт</h2>
-              <p className="text-sm text-zinc-400">Zero-Based Budgeting</p>
+              <h2 className="text-lg font-bold text-zinc-900">План vs Факт</h2>
+              <p className="text-sm text-zinc-500">Zero-Based Budgeting</p>
             </div>
           </div>
 
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+          <div className="bg-white border border-stone-200 rounded-2xl p-6">
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={zbbData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
@@ -771,7 +771,7 @@ export function BudgetControlTab() {
             <div className="mt-6 grid grid-cols-3 gap-4 text-center">
               <div>
                 <p className="text-xs text-zinc-500 mb-1">План расходов</p>
-                <p className="text-lg font-bold text-white">{zbbData[1].План.toFixed(0)} {baseCurrency}</p>
+                <p className="text-lg font-bold text-zinc-900">{zbbData[1].План.toFixed(0)} {baseCurrency}</p>
               </div>
               <div>
                 <p className="text-xs text-zinc-500 mb-1">Факт расходов</p>

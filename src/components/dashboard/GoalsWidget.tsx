@@ -22,13 +22,13 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({
   const [expandedGoalId, setExpandedGoalId] = useState<string | null>(null);
 
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
           <Target className="w-4 h-4" />
           Развитие
         </h2>
-        <Link to="/goals" className="text-xs text-zinc-500 hover:text-zinc-300 font-medium flex items-center gap-1">
+        <Link to="/goals" className="text-xs text-zinc-500 hover:text-zinc-700 font-medium flex items-center gap-1">
           Все цели <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
@@ -51,14 +51,14 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({
           const isExpanded = expandedGoalId === goal.id;
           
           return (
-            <div key={goal.id} className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800">
+            <div key={goal.id} className="bg-stone-50 p-4 rounded-2xl border border-stone-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-zinc-900 flex items-center justify-center text-lg">
+                  <div className="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-lg">
                     {goal.icon || (isBook ? '📚' : '🎯')}
                   </div>
                   <div>
-                    <h3 className="text-xs font-bold text-white">{goal.title}</h3>
+                    <h3 className="text-xs font-bold text-zinc-900">{goal.title}</h3>
                     {isReading ? (
                       <p className="text-[10px] text-zinc-500">{goal.readPages || 0} из {goal.totalPages} стр.</p>
                     ) : isNumeric && goal.targetValue ? (
@@ -75,7 +75,7 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({
                     </div>
                   )}
                   {(isBook || isNumeric) && (
-                    <div className="flex items-center gap-1 bg-zinc-900 rounded-lg p-0.5 border border-zinc-800">
+                    <div className="flex items-center gap-1 bg-white rounded-lg p-0.5 border border-stone-200">
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -85,13 +85,13 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({
                             updateGoal(goal.id, { currentValue: Math.max(0, (goal.currentValue || 0) - 1) });
                           }
                         }}
-                        className="w-5 h-5 flex items-center justify-center text-zinc-500 hover:text-white transition-colors"
+                        className="w-5 h-5 flex items-center justify-center text-zinc-500 hover:text-zinc-900 transition-colors"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
                       <input 
                         type="number"
-                        className="w-8 bg-transparent text-[10px] text-center text-white focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-8 bg-transparent text-[10px] text-center text-zinc-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         value={isBook ? (goal.readPages || 0) : (goal.currentValue || 0)}
                         onChange={(e) => {
                           const val = parseInt(e.target.value) || 0;
@@ -112,7 +112,7 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({
                             updateGoal(goal.id, { currentValue: Math.min(goal.targetValue || Infinity, (goal.currentValue || 0) + 1) });
                           }
                         }}
-                        className="w-5 h-5 flex items-center justify-center text-zinc-500 hover:text-white transition-colors"
+                        className="w-5 h-5 flex items-center justify-center text-zinc-500 hover:text-zinc-900 transition-colors"
                       >
                         <Plus className="w-3 h-3" />
                       </button>
@@ -120,13 +120,13 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({
                   )}
                   <button 
                     onClick={() => setExpandedGoalId(isExpanded ? null : goal.id)}
-                    className="p-1 text-zinc-500 hover:text-white transition-colors"
+                    className="p-1 text-zinc-500 hover:text-zinc-900 transition-colors"
                   >
                     {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
-              <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden mb-3">
+              <div className="w-full bg-white h-1.5 rounded-full overflow-hidden mb-3">
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
@@ -147,11 +147,11 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({
                         <div key={step.id} className="flex items-center gap-2">
                           <button 
                             onClick={() => updateGoalStep(goal.id, step.id, { completed: !step.completed })}
-                            className={cn("transition-colors", step.completed ? "text-white" : "text-zinc-700 hover:text-white")}
+                            className={cn("transition-colors", step.completed ? "text-zinc-900" : "text-zinc-700 hover:text-zinc-900")}
                           >
                             {step.completed ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
                           </button>
-                          <span className={cn("text-[10px] font-medium", step.completed ? "text-zinc-600 line-through" : "text-zinc-400")}>
+                          <span className={cn("text-[10px] font-medium", step.completed ? "text-zinc-600 line-through" : "text-zinc-500")}>
                             {step.title}
                           </span>
                         </div>
@@ -179,7 +179,7 @@ export const GoalsWidget: React.FC<GoalsWidgetProps> = ({
                               e.currentTarget.value = '';
                             }
                           }}
-                          className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-[10px] text-white focus:outline-none focus:border-zinc-600"
+                          className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-[10px] text-zinc-900 focus:outline-none focus:border-zinc-600"
                         />
                       </div>
                     </div>

@@ -261,21 +261,21 @@ export function ProAnalyticsTab() {
       <section className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <h2 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
               <Landmark className="w-5 h-5 text-blue-400" />
               Чистый капитал
             </h2>
-            <p className="text-sm text-zinc-400">Динамика ваших активов и обязательств</p>
+            <p className="text-sm text-zinc-500">Динамика ваших активов и обязательств</p>
           </div>
           <div className="text-right">
             <p className="text-xs text-zinc-500 uppercase tracking-wider">Текущий Net Worth</p>
-            <p className="text-2xl font-black text-white">
+            <p className="text-2xl font-black text-zinc-900">
               {netWorthData[netWorthData.length - 1].netWorth.toLocaleString()} <span className="text-sm font-normal text-zinc-500">{baseCurrency}</span>
             </p>
           </div>
         </div>
 
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 backdrop-blur-sm">
+        <div className="bg-white/60 border border-stone-200 rounded-3xl p-6 backdrop-blur-sm">
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={netWorthData}>
@@ -299,13 +299,13 @@ export function ProAnalyticsTab() {
             </ResponsiveContainer>
           </div>
           <div className="flex justify-center gap-6 mt-4">
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
               <div className="w-3 h-3 rounded-full bg-blue-500" /> Чистый капитал
             </div>
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
               <div className="w-3 h-3 rounded-full border border-dashed border-emerald-500" /> Активы
             </div>
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
               <div className="w-3 h-3 rounded-full border border-dashed border-red-500" /> Обязательства
             </div>
           </div>
@@ -317,13 +317,13 @@ export function ProAnalyticsTab() {
         {/* 2. Financial Health Radar */}
         <section className="space-y-4">
           <div className="px-1">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
               <Activity className="w-5 h-5 text-emerald-400" />
               Финансовое здоровье
             </h2>
-            <p className="text-sm text-zinc-400">Оценка по 5 ключевым метрикам</p>
+            <p className="text-sm text-zinc-500">Оценка по 5 ключевым метрикам</p>
           </div>
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 h-[400px]">
+          <div className="bg-white/60 border border-stone-200 rounded-3xl p-6 h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={healthMetrics}>
                 <PolarGrid stroke="#27272a" />
@@ -345,13 +345,13 @@ export function ProAnalyticsTab() {
         {/* 3. 50/30/20 Rule Analysis */}
         <section className="space-y-4">
           <div className="px-1">
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-amber-400" />
               Правило 50/30/20
             </h2>
-            <p className="text-sm text-zinc-400">Распределение бюджета за текущий месяц</p>
+            <p className="text-sm text-zinc-500">Распределение бюджета за текущий месяц</p>
           </div>
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 h-[400px] flex flex-col">
+          <div className="bg-white/60 border border-stone-200 rounded-3xl p-6 h-[400px] flex flex-col">
             <div className="flex-1">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={budgetRuleData} layout="vertical" margin={{ left: 40, right: 40 }}>
@@ -363,10 +363,10 @@ export function ProAnalyticsTab() {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
-                          <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl shadow-xl">
-                            <p className="text-sm font-bold text-white mb-1">{data.name}</p>
-                            <p className="text-xs text-zinc-400">Факт: <span className="text-white">{data.percent.toFixed(1)}%</span></p>
-                            <p className="text-xs text-zinc-400">Цель: <span className="text-white">{data.target}%</span></p>
+                          <div className="bg-white border border-stone-200 p-3 rounded-xl shadow-xl">
+                            <p className="text-sm font-bold text-zinc-900 mb-1">{data.name}</p>
+                            <p className="text-xs text-zinc-500">Факт: <span className="text-zinc-900">{data.percent.toFixed(1)}%</span></p>
+                            <p className="text-xs text-zinc-500">Цель: <span className="text-zinc-900">{data.target}%</span></p>
                           </div>
                         );
                       }
@@ -387,7 +387,7 @@ export function ProAnalyticsTab() {
             <div className="mt-4 space-y-3">
               {budgetRuleData.map((item, i) => (
                 <div key={i} className="flex items-center justify-between text-sm">
-                  <span className="text-zinc-400">{item.name}</span>
+                  <span className="text-zinc-500">{item.name}</span>
                   <div className="flex items-center gap-3">
                     <span className="text-zinc-500">{item.value.toLocaleString()} {baseCurrency}</span>
                     <span className={cn(
@@ -407,13 +407,13 @@ export function ProAnalyticsTab() {
       {/* 4. Lifestyle Creep Analysis */}
       <section className="space-y-4">
         <div className="px-1">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-purple-400" />
             Анализ "Инфляции образа жизни"
           </h2>
-          <p className="text-sm text-zinc-400">Соотношение роста доходов к росту расходов</p>
+          <p className="text-sm text-zinc-500">Соотношение роста доходов к росту расходов</p>
         </div>
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6">
+        <div className="bg-white/60 border border-stone-200 rounded-3xl p-6">
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={creepData}>
@@ -430,13 +430,13 @@ export function ProAnalyticsTab() {
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-6 p-4 bg-zinc-950/50 rounded-2xl border border-zinc-800/50 flex items-center gap-4">
+          <div className="mt-6 p-4 bg-stone-50/50 rounded-2xl border border-stone-200/70 flex items-center gap-4">
             <div className="p-3 bg-purple-500/10 rounded-xl">
               <Zap className="w-6 h-6 text-purple-400" />
             </div>
             <div>
-              <p className="text-sm text-white font-medium">Инсайт</p>
-              <p className="text-xs text-zinc-400">
+              <p className="text-sm text-zinc-900 font-medium">Инсайт</p>
+              <p className="text-xs text-zinc-500">
                 {creepData[creepData.length-1].ratio > creepData[0].ratio 
                   ? "Ваши расходы растут быстрее доходов. Попробуйте зафиксировать уровень трат."
                   : "Отличная работа! Вы сохраняете контроль над расходами при росте доходов."}
@@ -450,16 +450,16 @@ export function ProAnalyticsTab() {
       <section className="space-y-4">
         <div className="px-1 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-zinc-400" />
+            <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-zinc-500" />
               Интенсивность трат
             </h2>
-            <p className="text-sm text-zinc-400">Активность за последние 90 дней</p>
+            <p className="text-sm text-zinc-500">Активность за последние 90 дней</p>
           </div>
           <div className="flex items-center gap-1 text-[10px] text-zinc-500 uppercase tracking-tighter">
             <span>Меньше</span>
             <div className="flex gap-1 mx-1">
-              <div className="w-3 h-3 rounded-sm bg-zinc-800" />
+              <div className="w-3 h-3 rounded-sm bg-stone-100" />
               <div className="w-3 h-3 rounded-sm bg-emerald-900/40" />
               <div className="w-3 h-3 rounded-sm bg-emerald-700/60" />
               <div className="w-3 h-3 rounded-sm bg-emerald-500/80" />
@@ -468,7 +468,7 @@ export function ProAnalyticsTab() {
             <span>Больше</span>
           </div>
         </div>
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 overflow-x-auto">
+        <div className="bg-white/60 border border-stone-200 rounded-3xl p-6 overflow-x-auto">
           <div className="flex flex-wrap gap-1.5 min-w-[600px]">
             {heatmapData.map((day, i) => {
               const intensity = day.amount === 0 ? 0 : 
@@ -483,7 +483,7 @@ export function ProAnalyticsTab() {
                   transition={{ delay: i * 0.005 }}
                   className={cn(
                     "w-4 h-4 rounded-sm transition-all cursor-pointer hover:ring-2 hover:ring-white/20",
-                    intensity === 0 ? "bg-zinc-800" :
+                    intensity === 0 ? "bg-stone-100" :
                     intensity === 1 ? "bg-emerald-900/40" :
                     intensity === 2 ? "bg-emerald-700/60" :
                     intensity === 3 ? "bg-emerald-500/80" : "bg-emerald-400"
@@ -499,13 +499,13 @@ export function ProAnalyticsTab() {
       {/* 6. "What If?" Scenario Modeling */}
       <section className="space-y-4">
         <div className="px-1">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+          <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
             <RefreshCw className="w-5 h-5 text-blue-400" />
             Моделирование "Что если?"
           </h2>
-          <p className="text-sm text-zinc-400">Прогноз роста капитала при разных условиях</p>
+          <p className="text-sm text-zinc-500">Прогноз роста капитала при разных условиях</p>
         </div>
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 space-y-8">
+        <div className="bg-white/60 border border-stone-200 rounded-3xl p-6 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="space-y-2">
               <label className="text-xs text-zinc-500 uppercase">Ежемесячно ({baseCurrency})</label>
@@ -515,7 +515,7 @@ export function ProAnalyticsTab() {
                 onChange={(e) => setScenario({...scenario, monthly: Number(e.target.value)})}
                 className="w-full accent-blue-500"
               />
-              <p className="text-lg font-bold text-white">{scenario.monthly.toLocaleString()}</p>
+              <p className="text-lg font-bold text-zinc-900">{scenario.monthly.toLocaleString()}</p>
             </div>
             <div className="space-y-2">
               <label className="text-xs text-zinc-500 uppercase">Доходность (% год)</label>
@@ -525,7 +525,7 @@ export function ProAnalyticsTab() {
                 onChange={(e) => setScenario({...scenario, rate: Number(e.target.value)})}
                 className="w-full accent-blue-500"
               />
-              <p className="text-lg font-bold text-white">{scenario.rate}%</p>
+              <p className="text-lg font-bold text-zinc-900">{scenario.rate}%</p>
             </div>
             <div className="space-y-2">
               <label className="text-xs text-zinc-500 uppercase">Срок (лет)</label>
@@ -535,7 +535,7 @@ export function ProAnalyticsTab() {
                 onChange={(e) => setScenario({...scenario, years: Number(e.target.value)})}
                 className="w-full accent-blue-500"
               />
-              <p className="text-lg font-bold text-white">{scenario.years}</p>
+              <p className="text-lg font-bold text-zinc-900">{scenario.years}</p>
             </div>
             <div className="space-y-2">
               <label className="text-xs text-zinc-500 uppercase">Инфляция (% год)</label>
@@ -545,7 +545,7 @@ export function ProAnalyticsTab() {
                 onChange={(e) => setScenario({...scenario, inflation: Number(e.target.value)})}
                 className="w-full accent-blue-500"
               />
-              <p className="text-lg font-bold text-white">{scenario.inflation}%</p>
+              <p className="text-lg font-bold text-zinc-900">{scenario.inflation}%</p>
             </div>
           </div>
 
@@ -574,11 +574,11 @@ export function ProAnalyticsTab() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
               <p className="text-xs text-blue-400 uppercase mb-1">Итого через {scenario.years} лет</p>
-              <p className="text-2xl font-black text-white">{scenarioData[scenarioData.length-1].capital.toLocaleString()} {baseCurrency}</p>
+              <p className="text-2xl font-black text-zinc-900">{scenarioData[scenarioData.length-1].capital.toLocaleString()} {baseCurrency}</p>
             </div>
             <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
               <p className="text-xs text-emerald-400 uppercase mb-1">С учетом инфляции</p>
-              <p className="text-2xl font-black text-white">{scenarioData[scenarioData.length-1].realCapital.toLocaleString()} {baseCurrency}</p>
+              <p className="text-2xl font-black text-zinc-900">{scenarioData[scenarioData.length-1].realCapital.toLocaleString()} {baseCurrency}</p>
             </div>
           </div>
         </div>
@@ -588,15 +588,15 @@ export function ProAnalyticsTab() {
       <section className="space-y-4">
         <div className="px-1 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
               <PiggyBank className="w-5 h-5 text-pink-400" />
               Прогресс накоплений
             </h2>
-            <p className="text-sm text-zinc-400">Все ваши финансовые цели в одном месте</p>
+            <p className="text-sm text-zinc-500">Все ваши финансовые цели в одном месте</p>
           </div>
           <button 
             onClick={() => setShowDetails(showDetails === 'savings' ? null : 'savings')}
-            className="text-xs text-zinc-500 hover:text-white flex items-center gap-1 transition-colors"
+            className="text-xs text-zinc-500 hover:text-zinc-900 flex items-center gap-1 transition-colors"
           >
             {showDetails === 'savings' ? 'Скрыть' : 'Подробнее'}
             {showDetails === 'savings' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -605,20 +605,20 @@ export function ProAnalyticsTab() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {savingsGoals.map(goal => (
-            <div key={goal.id} className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-5 relative overflow-hidden group">
+            <div key={goal.id} className="bg-white/60 border border-stone-200 rounded-3xl p-5 relative overflow-hidden group">
               <div className="absolute top-0 left-0 w-1 h-full" style={{ backgroundColor: goal.color }} />
               <div className="flex justify-between items-start mb-4">
-                <h3 className="font-bold text-white">{goal.title}</h3>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
+                <h3 className="font-bold text-zinc-900">{goal.title}</h3>
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-stone-100 text-zinc-500">
                   {Math.round((goal.currentAmount / goal.targetAmount) * 100)}%
                 </span>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-zinc-500">Накоплено</span>
-                  <span className="text-white font-medium">{goal.currentAmount.toLocaleString()} / {goal.targetAmount.toLocaleString()} {goal.currency || baseCurrency}</span>
+                  <span className="text-zinc-900 font-medium">{goal.currentAmount.toLocaleString()} / {goal.targetAmount.toLocaleString()} {goal.currency || baseCurrency}</span>
                 </div>
-                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${Math.min((goal.currentAmount / goal.targetAmount) * 100, 100)}%` }}
@@ -630,7 +630,7 @@ export function ProAnalyticsTab() {
             </div>
           ))}
           {savingsGoals.length === 0 && (
-            <div className="col-span-full py-12 text-center bg-zinc-900/30 border border-dashed border-zinc-800 rounded-3xl">
+            <div className="col-span-full py-12 text-center bg-white/30 border border-dashed border-stone-200 rounded-3xl">
               <PiggyBank className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
               <p className="text-zinc-500">У вас пока нет активных целей накопления</p>
             </div>
@@ -642,15 +642,15 @@ export function ProAnalyticsTab() {
       <section className="space-y-4">
         <div className="px-1 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
               <Target className="w-5 h-5 text-emerald-400" />
               Соблюдение лимитов
             </h2>
-            <p className="text-sm text-zinc-400">Анализ дисциплины по категориям</p>
+            <p className="text-sm text-zinc-500">Анализ дисциплины по категориям</p>
           </div>
         </div>
 
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6">
+        <div className="bg-white/60 border border-stone-200 rounded-3xl p-6">
           <div className="space-y-6">
             {budgetLimits.map(limit => {
               const spent = transactions
@@ -666,7 +666,7 @@ export function ProAnalyticsTab() {
                 <div key={limit.id} className="space-y-2">
                   <div className="flex justify-between items-end">
                     <div>
-                      <span className="text-sm font-medium text-white">{limit.category}</span>
+                      <span className="text-sm font-medium text-zinc-900">{limit.category}</span>
                       <p className="text-xs text-zinc-500">Лимит: {limit.amount} {limit.currency || baseCurrency}</p>
                     </div>
                     <div className="text-right">
@@ -676,7 +676,7 @@ export function ProAnalyticsTab() {
                       <p className="text-[10px] text-zinc-500 uppercase tracking-wider">{percent.toFixed(0)}% использовано</p>
                     </div>
                   </div>
-                  <div className="h-3 bg-zinc-800 rounded-full overflow-hidden relative">
+                  <div className="h-3 bg-stone-100 rounded-full overflow-hidden relative">
                     <motion.div 
                       initial={{ width: 0 }}
                       animate={{ width: `${Math.min(percent, 100)}%` }}

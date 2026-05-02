@@ -31,7 +31,7 @@ export function BookVisualization({ read, total }: BookVisualizationProps) {
 
       {/* Progress Text */}
       <div className="absolute inset-0 flex items-center justify-center z-20">
-        <span className="text-[10px] font-bold text-white drop-shadow-md">
+        <span className="text-[10px] font-bold text-zinc-900 drop-shadow-md">
           {Math.round(progress * 100)}%
         </span>
       </div>

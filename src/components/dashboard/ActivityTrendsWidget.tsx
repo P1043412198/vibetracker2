@@ -8,9 +8,9 @@ interface ActivityTrendsWidgetProps {
 export const ActivityTrendsWidget: React.FC<ActivityTrendsWidgetProps> = ({ last30Days }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
         <div className="mb-3">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
             Задачи (30 дней)
           </h2>
@@ -37,9 +37,9 @@ export const ActivityTrendsWidget: React.FC<ActivityTrendsWidgetProps> = ({ last
         </div>
       </div>
 
-      <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
         <div className="mb-3">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
             Привычки (30 дней)
           </h2>
@@ -66,9 +66,9 @@ export const ActivityTrendsWidget: React.FC<ActivityTrendsWidgetProps> = ({ last
         </div>
       </div>
 
-      <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
         <div className="mb-3">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-blue-500"></div>
             Тренировки (30 дней)
           </h2>

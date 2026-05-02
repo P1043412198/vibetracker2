@@ -47,7 +47,7 @@ export function ShareTarget() {
   }, [searchParams, navigate]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[50vh] text-zinc-400">
+    <div className="flex flex-col items-center justify-center h-full min-h-[50vh] text-zinc-500">
       <Loader2 className="w-8 h-8 animate-spin mb-4 text-emerald-400" />
       <p>Сохраняем в заметки...</p>
     </div>

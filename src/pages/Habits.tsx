@@ -79,8 +79,8 @@ function SortableHabit({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "bg-zinc-900 rounded-3xl border border-zinc-800 overflow-hidden relative group transition-shadow",
-        isDragging && "shadow-2xl shadow-black/50 border-zinc-700"
+        "bg-white rounded-3xl border border-stone-200 overflow-hidden relative group transition-shadow",
+        isDragging && "shadow-2xl shadow-black/50 border-stone-300"
       )}
     >
       <div className="p-5">
@@ -89,13 +89,13 @@ function SortableHabit({
             <div 
               {...attributes} 
               {...listeners}
-              className="cursor-grab active:cursor-grabbing p-1 text-zinc-600 hover:text-zinc-400 transition-colors mt-1"
+              className="cursor-grab active:cursor-grabbing p-1 text-zinc-600 hover:text-zinc-500 transition-colors mt-1"
             >
               <GripVertical className="w-4 h-4" />
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <h3 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
                   {hideHabitNames ? '***' : habit.title}
                   {habit.isPinned && <Pin className="w-3 h-3 text-emerald-500 fill-emerald-500" />}
                 </h3>
@@ -105,7 +105,7 @@ function SortableHabit({
                 </div>
               </div>
               {habit.description && (
-                <p className="text-sm text-zinc-400">
+                <p className="text-sm text-zinc-500">
                   {hideHabitNames ? '***' : habit.description}
                 </p>
               )}
@@ -116,7 +116,7 @@ function SortableHabit({
               onClick={() => onTogglePin(habit.id, !!habit.isPinned)}
               className={cn(
                 "transition-colors p-2 rounded-xl",
-                habit.isPinned ? "text-emerald-500 bg-emerald-500/10" : "text-zinc-500 hover:text-zinc-300"
+                habit.isPinned ? "text-emerald-500 bg-emerald-500/10" : "text-zinc-500 hover:text-zinc-700"
               )}
             >
               {habit.isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
@@ -135,7 +135,7 @@ function SortableHabit({
             onClick={() => onLog({ habitId: habit.id, date: selectedDate, status: 'done', notes: log?.notes || '', feelings: log?.feelings || '' })}
             className={cn(
               "flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-2xl border transition-colors",
-              log?.status === 'done' ? "bg-emerald-500 border-emerald-400 text-white" : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+              log?.status === 'done' ? "bg-emerald-500 border-emerald-400 text-zinc-900" : "bg-stone-50 border-stone-200 text-zinc-500 hover:bg-stone-100"
             )}
           >
             <CheckCircle2 className="w-5 h-5" />
@@ -147,7 +147,7 @@ function SortableHabit({
             onClick={() => onLog({ habitId: habit.id, date: selectedDate, status: 'failed', notes: log?.notes || '', feelings: log?.feelings || '' })}
             className={cn(
               "flex-1 flex flex-col items-center justify-center gap-1 py-2 rounded-2xl border transition-colors",
-              log?.status === 'failed' ? "bg-rose-500 border-rose-400 text-white" : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+              log?.status === 'failed' ? "bg-rose-500 border-rose-400 text-zinc-900" : "bg-stone-50 border-stone-200 text-zinc-500 hover:bg-stone-100"
             )}
           >
             <XCircle className="w-5 h-5" />
@@ -163,17 +163,17 @@ function SortableHabit({
             placeholder="Чувства / Ощущения..."
             value={log?.feelings || ''}
             onChange={(e) => onLog({ habitId: habit.id, date: selectedDate, status: log?.status || 'skipped', feelings: e.target.value, notes: log?.notes || '' })}
-            className="w-full px-3 py-2 text-xs border border-zinc-800 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 bg-zinc-950 text-white"
+            className="w-full px-3 py-2 text-xs border border-stone-200 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 bg-stone-50 text-zinc-900"
           />
           <textarea
             placeholder="Заметки..."
             value={log?.notes || ''}
             onChange={(e) => onLog({ habitId: habit.id, date: selectedDate, status: log?.status || 'skipped', notes: e.target.value, feelings: log?.feelings || '' })}
-            className="w-full px-3 py-2 text-xs border border-zinc-800 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 bg-zinc-950 text-white h-16 resize-none"
+            className="w-full px-3 py-2 text-xs border border-stone-200 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 bg-stone-50 text-zinc-900 h-16 resize-none"
           />
         </div>
         
-        <div className="mt-4 pt-4 border-t border-zinc-800">
+        <div className="mt-4 pt-4 border-t border-stone-200">
           <h4 className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-2">Активность за 30 дней</h4>
           <div className="h-24 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -217,10 +217,10 @@ function SortableHabit({
           </div>
         </div>
         
-        <div className="pt-4 mt-2 border-t border-zinc-800">
+        <div className="pt-4 mt-2 border-t border-stone-200">
           <button
             onClick={() => onToggleHistory(habit.id)}
-            className="flex items-center gap-2 text-xs text-zinc-400 hover:text-white transition-colors w-full"
+            className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-900 transition-colors w-full"
           >
             <History className="w-3.5 h-3.5" />
             {isHistoryExpanded ? 'Скрыть историю' : 'История записей'}
@@ -238,16 +238,16 @@ function SortableHabit({
                   .filter(l => l.habitId === habit.id && (l.notes || l.feelings))
                   .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                   .map(historyLog => (
-                    <div key={historyLog.id} className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
+                    <div key={historyLog.id} className="bg-stone-50 p-3 rounded-xl border border-stone-200">
                       <div className="flex justify-between items-start mb-2">
-                        <span className="text-xs font-medium text-zinc-300">
+                        <span className="text-xs font-medium text-zinc-700">
                           {format(new Date(historyLog.date), 'd MMM yyyy', { locale: ru })}
                         </span>
                         <span className={cn(
                           "text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider",
                           historyLog.status === 'done' ? "bg-emerald-500/10 text-emerald-400" :
                           historyLog.status === 'failed' ? "bg-red-500/10 text-red-400" :
-                          "bg-zinc-800 text-zinc-400"
+                          "bg-stone-100 text-zinc-500"
                         )}>
                           {historyLog.status === 'done' ? (habit.type === 'good' ? 'Готово' : 'Сдержался') :
                            historyLog.status === 'failed' ? (habit.type === 'good' ? 'Провал' : 'Сорвался') :
@@ -257,13 +257,13 @@ function SortableHabit({
                       {historyLog.feelings && (
                         <div className="mb-1.5">
                           <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-0.5">Чувства:</span>
-                          <p className="text-xs text-zinc-300">{historyLog.feelings}</p>
+                          <p className="text-xs text-zinc-700">{historyLog.feelings}</p>
                         </div>
                       )}
                       {historyLog.notes && (
                         <div>
                           <span className="text-[10px] text-zinc-500 uppercase tracking-wider block mb-0.5">Заметки:</span>
-                          <p className="text-xs text-zinc-300 whitespace-pre-wrap">{historyLog.notes}</p>
+                          <p className="text-xs text-zinc-700 whitespace-pre-wrap">{historyLog.notes}</p>
                         </div>
                       )}
                     </div>
@@ -312,11 +312,11 @@ function HabitHistoryView() {
   return (
     <div className="space-y-4">
       {stats.map(habit => (
-        <div key={habit.id} className="bg-zinc-900 p-5 rounded-3xl border border-zinc-800">
+        <div key={habit.id} className="bg-white p-5 rounded-3xl border border-stone-200">
           <div className="flex justify-between items-start mb-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-lg font-bold text-white">{hideHabitNames ? '***' : habit.title}</h3>
+                <h3 className="text-lg font-bold text-zinc-900">{hideHabitNames ? '***' : habit.title}</h3>
                 <span className={cn(
                   "text-[10px] px-2 py-0.5 rounded-full font-medium uppercase tracking-wider",
                   habit.type === 'good' ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
@@ -324,15 +324,15 @@ function HabitHistoryView() {
                   {habit.type === 'good' ? 'Хорошая' : 'Вредная'}
                 </span>
               </div>
-              <p className="text-sm text-zinc-400">{hideHabitNames ? '***' : (habit.description || 'Нет описания')}</p>
+              <p className="text-sm text-zinc-500">{hideHabitNames ? '***' : (habit.description || 'Нет описания')}</p>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-bold text-white">{habit.completionRate}%</div>
+              <div className="text-2xl font-bold text-zinc-900">{habit.completionRate}%</div>
               <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Успешность (30 дн.)</div>
             </div>
           </div>
           
-          <div className="grid grid-cols-3 gap-4 pt-4 border-t border-zinc-800">
+          <div className="grid grid-cols-3 gap-4 pt-4 border-t border-stone-200">
             <div className="text-center">
               <div className="text-emerald-500 font-bold">{habit.doneCount}</div>
               <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
@@ -346,17 +346,17 @@ function HabitHistoryView() {
               </div>
             </div>
             <div className="text-center">
-              <div className="text-zinc-400 font-bold">{habit.totalLogs}</div>
+              <div className="text-zinc-500 font-bold">{habit.totalLogs}</div>
               <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Дней с записями</div>
             </div>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-zinc-800">
-            <h4 className="text-xs font-medium text-zinc-400 mb-3">Активность за 30 дней (прогресс)</h4>
+          <div className="mt-6 pt-4 border-t border-stone-200">
+            <h4 className="text-xs font-medium text-zinc-500 mb-3">Активность за 30 дней (прогресс)</h4>
             <div className="flex flex-wrap gap-1.5 mt-3">
               {last30Days.map(day => {
                 const log = habitLogs.find(l => l.habitId === habit.id && l.date === day);
-                let colorClass = "bg-zinc-800/50 border border-zinc-800"; // default/skipped
+                let colorClass = "bg-stone-100/60 border border-stone-200"; // default/skipped
                 if (log?.status === 'done') {
                   colorClass = "bg-emerald-500 border-emerald-600"; // done is good/resisted
                 } else if (log?.status === 'failed') {
@@ -376,7 +376,7 @@ function HabitHistoryView() {
         </div>
       ))}
       {stats.length === 0 && (
-        <div className="text-center py-12 bg-zinc-900/50 rounded-3xl border border-zinc-800 border-dashed">
+        <div className="text-center py-12 bg-white/60 rounded-3xl border border-stone-200 border-dashed">
           <p className="text-zinc-500">Нет привычек для отображения статистики</p>
         </div>
       )}
@@ -544,20 +544,20 @@ export function Habits() {
     <div className="space-y-6 pb-24">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white mb-2">Привычки</h1>
-          <p className="text-zinc-400">Формируй полезные и избавляйся от вредных</p>
+          <h1 className="text-xl font-bold text-zinc-900 mb-2">Привычки</h1>
+          <p className="text-zinc-500">Формируй полезные и избавляйся от вредных</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={toggleHideHabitNames}
-            className="p-3 bg-zinc-900 text-zinc-400 rounded-2xl hover:bg-zinc-800 hover:text-zinc-300 transition-colors border border-zinc-800"
+            className="p-3 bg-white text-zinc-500 rounded-2xl hover:bg-stone-100 hover:text-zinc-700 transition-colors border border-stone-200"
             title={hideHabitNames ? "Показать названия" : "Скрыть названия"}
           >
             {hideHabitNames ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
           </button>
           <button
             onClick={() => setIsAdding(true)}
-            className="p-3 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
+            className="p-3 bg-emerald-500 text-zinc-900 rounded-2xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
           >
             <Plus className="w-6 h-6" />
           </button>
@@ -565,12 +565,12 @@ export function Habits() {
       </header>
 
       {/* Main Tabs */}
-      <div className="flex bg-zinc-900 p-1 rounded-xl">
+      <div className="flex bg-white p-1 rounded-xl">
         <button
           onClick={() => setActiveTab('daily')}
           className={cn(
             "flex-1 py-2 text-sm font-medium rounded-lg transition-all",
-            activeTab === 'daily' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
+            activeTab === 'daily' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700"
           )}
         >
           Сегодня
@@ -579,7 +579,7 @@ export function Habits() {
           onClick={() => setActiveTab('history')}
           className={cn(
             "flex-1 py-2 text-sm font-medium rounded-lg transition-all",
-            activeTab === 'history' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
+            activeTab === 'history' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700"
           )}
         >
           История
@@ -588,15 +588,15 @@ export function Habits() {
 
       {activeTab === 'daily' ? (
         <>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-zinc-900 p-3 rounded-2xl shadow-sm border border-zinc-800 gap-3">
-            <div className="flex space-x-1 bg-zinc-950 p-1 rounded-xl w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-3 rounded-2xl shadow-sm border border-stone-200 gap-3">
+            <div className="flex space-x-1 bg-stone-50 p-1 rounded-xl w-full sm:w-auto">
               <button
                 onClick={() => setActiveType('good')}
                 className={cn(
                   'flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                   activeType === 'good'
-                    ? 'bg-emerald-500 text-white shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-emerald-500 text-zinc-900 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-800'
                 )}
               >
                 Хорошие
@@ -606,8 +606,8 @@ export function Habits() {
                 className={cn(
                   'flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
                   activeType === 'bad'
-                    ? 'bg-rose-500 text-white shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200'
+                    ? 'bg-rose-500 text-zinc-900 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-800'
                 )}
               >
                 Вредные
@@ -615,57 +615,57 @@ export function Habits() {
             </div>
             
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <label className="text-xs font-medium text-zinc-400">Дата:</label>
+              <label className="text-xs font-medium text-zinc-500">Дата:</label>
               <input
                 type="date"
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
-                className="flex-1 sm:flex-none px-2 py-1.5 bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 text-xs"
+                className="flex-1 sm:flex-none px-2 py-1.5 bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 text-xs"
               />
             </div>
           </div>
 
           {isAdding && (
-            <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
+            <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-base font-semibold text-white">Новая {activeType === 'good' ? 'хорошая' : 'вредная'} привычка</h2>
-                <button onClick={() => setIsAdding(false)} className="text-zinc-500 hover:text-zinc-300">
+                <h2 className="text-base font-semibold text-zinc-900">Новая {activeType === 'good' ? 'хорошая' : 'вредная'} привычка</h2>
+                <button onClick={() => setIsAdding(false)} className="text-zinc-500 hover:text-zinc-700">
                   <X className="w-4 h-4" />
                 </button>
               </div>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">Название</label>
+                  <label className="block text-xs font-medium text-zinc-700 mb-1">Название</label>
                   <input
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                    className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
                     placeholder={activeType === 'good' ? "напр., Читать 10 страниц" : "напр., Курение"}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">Описание (необязательно)</label>
+                  <label className="block text-xs font-medium text-zinc-700 mb-1">Описание (необязательно)</label>
                   <input
                     type="text"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                    className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
                   />
                 </div>
 
                 {activeType === 'good' && (
                   <>
-                    <div className="space-y-3 pt-2 border-t border-zinc-800">
-                      <label className="block text-xs font-medium text-zinc-300">Расписание</label>
+                    <div className="space-y-3 pt-2 border-t border-stone-200">
+                      <label className="block text-xs font-medium text-zinc-700">Расписание</label>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
                           onClick={() => setFrequencyType('daily')}
                           className={cn(
                             "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                            frequencyType === 'daily' ? "bg-zinc-100 text-zinc-900" : "bg-zinc-950 text-zinc-400 border border-zinc-800"
+                            frequencyType === 'daily' ? "bg-zinc-100 text-zinc-900" : "bg-stone-50 text-zinc-500 border border-stone-200"
                           )}
                         >
                           Ежедневно
@@ -675,7 +675,7 @@ export function Habits() {
                           onClick={() => setFrequencyType('specific_days')}
                           className={cn(
                             "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                            frequencyType === 'specific_days' ? "bg-zinc-100 text-zinc-900" : "bg-zinc-950 text-zinc-400 border border-zinc-800"
+                            frequencyType === 'specific_days' ? "bg-zinc-100 text-zinc-900" : "bg-stone-50 text-zinc-500 border border-stone-200"
                           )}
                         >
                           По дням
@@ -697,7 +697,7 @@ export function Habits() {
                               }}
                               className={cn(
                                 "w-8 h-8 rounded-lg text-[10px] font-bold transition-all",
-                                specificDays.includes(day.id) ? "bg-emerald-500 text-white" : "bg-zinc-950 text-zinc-500 border border-zinc-800"
+                                specificDays.includes(day.id) ? "bg-emerald-500 text-zinc-900" : "bg-stone-50 text-zinc-500 border border-stone-200"
                               )}
                             >
                               {day.label}
@@ -730,7 +730,7 @@ export function Habits() {
             >
               <div className="space-y-4">
                 {sortedHabits.length === 0 ? (
-                  <div className="text-center py-12 bg-zinc-900/50 rounded-3xl border border-zinc-800 border-dashed">
+                  <div className="text-center py-12 bg-white/60 rounded-3xl border border-stone-200 border-dashed">
                     <p className="text-zinc-500">Нет привычек на этот день</p>
                   </div>
                 ) : (

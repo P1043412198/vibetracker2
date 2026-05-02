@@ -61,16 +61,16 @@ export function SmartScheduleWidget() {
   };
 
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800 flex flex-col h-full min-h-[300px]">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200 flex flex-col h-full min-h-[300px]">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
           <Bot className="w-4 h-4 text-purple-500" />
           Умное расписание
         </h2>
         <button 
           onClick={generateSchedule}
           disabled={isLoading}
-          className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-zinc-400 hover:text-white transition-colors disabled:opacity-50"
+          className="p-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors disabled:opacity-50"
           title="Сгенерировать расписание"
         >
           {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}

@@ -27,9 +27,9 @@ export function InboxWidget() {
   };
 
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
           <Inbox className="w-4 h-4 text-indigo-500" />
           Входящие (Inbox)
         </h2>
@@ -44,7 +44,7 @@ export function InboxWidget() {
           value={newContent}
           onChange={(e) => setNewContent(e.target.value)}
           placeholder="Быстрая запись..."
-          className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-zinc-600 transition-colors pr-10"
+          className="w-full bg-stone-50 border border-stone-200 rounded-2xl px-4 py-2.5 text-xs text-zinc-900 focus:outline-none focus:border-zinc-600 transition-colors pr-10"
         />
         <button
           type="submit"
@@ -64,10 +64,10 @@ export function InboxWidget() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="group bg-zinc-950 p-3 rounded-2xl border border-zinc-800 flex items-center justify-between gap-3"
+              className="group bg-stone-50 p-3 rounded-2xl border border-stone-200 flex items-center justify-between gap-3"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-zinc-200 truncate">{item.content}</p>
+                <p className="text-xs text-zinc-800 truncate">{item.content}</p>
                 <p className="text-[9px] text-zinc-600 mt-0.5">
                   {format(new Date(item.createdAt), 'HH:mm', { locale: ru })}
                 </p>

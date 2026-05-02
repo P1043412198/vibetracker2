@@ -147,11 +147,11 @@ export function Finance() {
     <div className="space-y-6 pb-24">
       <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-white mb-2">Финансы</h1>
-          <p className="text-zinc-400">Учет доходов, расходов, покупки и кредиты</p>
+          <h1 className="text-xl font-bold text-zinc-900 mb-2">Финансы</h1>
+          <p className="text-zinc-500">Учет доходов, расходов, покупки и кредиты</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="bg-zinc-900/80 border border-zinc-800 p-3 rounded-2xl flex items-center gap-4">
+          <div className="bg-white/80 border border-stone-200 p-3 rounded-2xl flex items-center gap-4">
             <div className="p-2 bg-emerald-500/10 rounded-xl">
               <Target className="w-5 h-5 text-emerald-500" />
             </div>
@@ -167,7 +167,7 @@ export function Finance() {
           </div>
           <button 
             onClick={() => setShowCurrencySettings(!showCurrencySettings)}
-            className="p-3 bg-zinc-900/80 border border-zinc-800 rounded-2xl text-zinc-400 hover:text-white transition-colors"
+            className="p-3 bg-white/80 border border-stone-200 rounded-2xl text-zinc-500 hover:text-zinc-900 transition-colors"
           >
             <Globe className="w-5 h-5" />
           </button>
@@ -182,9 +182,9 @@ export function Finance() {
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-2xl space-y-4">
+            <div className="bg-white/80 border border-stone-200 p-4 rounded-2xl space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <h3 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
                   <Globe className="w-4 h-4 text-blue-400" />
                   Настройки валюты
                 </h3>
@@ -196,7 +196,7 @@ export function Finance() {
                   <select
                     value={baseCurrency}
                     onChange={(e) => setBaseCurrency(e.target.value as Currency)}
-                    className="w-full bg-zinc-800 text-white text-sm rounded-xl px-3 py-2 border border-zinc-700 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-stone-100 text-zinc-900 text-sm rounded-xl px-3 py-2 border border-stone-300 focus:outline-none focus:border-blue-500"
                   >
                     <option value="BYN">BYN (Рубль)</option>
                     <option value="USD">USD (Доллар)</option>
@@ -208,13 +208,13 @@ export function Finance() {
                 {Object.entries(rates).filter(([c]) => c !== 'BYN').map(([curr, rate]) => (
                   <div key={curr}>
                     <p className="text-[10px] text-zinc-500 uppercase font-bold mb-1">{curr}</p>
-                    <p className="text-sm font-medium text-white">{rate.toFixed(4)} BYN</p>
+                    <p className="text-sm font-medium text-zinc-900">{rate.toFixed(4)} BYN</p>
                   </div>
                 ))}
                 <div className="flex items-end">
                   <button
                     onClick={() => fetchRates()}
-                    className="w-full py-2 bg-zinc-800 text-zinc-300 rounded-xl text-xs font-bold hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-2 bg-stone-100 text-zinc-700 rounded-xl text-xs font-bold hover:bg-stone-200 transition-colors flex items-center justify-center gap-2"
                   >
                     <Loader2 className="w-3 h-3" />
                     Обновить курсы
@@ -231,14 +231,14 @@ export function Finance() {
       {/* Tabs */}
       <div className="space-y-2">
         {/* Categories */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 bg-zinc-900/50 p-1 rounded-xl">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 bg-white/60 p-1 rounded-xl">
           {Object.keys(FINANCE_TABS).map((category) => (
             <button
               key={category}
               onClick={() => setActiveTab(FINANCE_TABS[category as keyof typeof FINANCE_TABS][0].id as typeof activeTab)}
               className={cn(
                 "py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-                activeCategory === category ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+                activeCategory === category ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
               )}
             >
               {category}
@@ -247,7 +247,7 @@ export function Finance() {
         </div>
 
         {/* Sub-tabs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-1 bg-zinc-900/30 p-1 rounded-xl">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-1 bg-white/30 p-1 rounded-xl">
           {FINANCE_TABS[activeCategory as keyof typeof FINANCE_TABS].map((tab) => {
             const Icon = tab.icon;
             return (
@@ -256,7 +256,7 @@ export function Finance() {
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
                   "flex items-center justify-center gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-                  activeTab === tab.id ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+                  activeTab === tab.id ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
                 )}
               >
                 <Icon className={cn("w-4 h-4", tab.color)} />
@@ -357,10 +357,10 @@ function SavingsTab() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-white">Копилки</h2>
+        <h2 className="text-lg font-semibold text-zinc-900">Копилки</h2>
         <button
           onClick={() => setIsAdding(!isAdding)}
-          className="p-2 bg-pink-500 text-white rounded-xl hover:bg-pink-600 transition-colors"
+          className="p-2 bg-pink-500 text-zinc-900 rounded-xl hover:bg-pink-600 transition-colors"
         >
           <Plus className="w-5 h-5" />
         </button>
@@ -373,7 +373,7 @@ function SavingsTab() {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             onSubmit={handleAdd}
-            className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4 overflow-hidden"
+            className="bg-white border border-stone-200 rounded-2xl p-4 space-y-4 overflow-hidden"
           >
             <div className="space-y-2">
               <label className="text-xs text-zinc-500 uppercase">Название цели</label>
@@ -382,7 +382,7 @@ function SavingsTab() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Напр: Новый iPhone"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-pink-500/50"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-pink-500/50"
               />
             </div>
             <div className="space-y-2">
@@ -392,7 +392,7 @@ function SavingsTab() {
                 value={targetAmount}
                 onChange={(e) => setTargetAmount(e.target.value)}
                 placeholder="0"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-pink-500/50"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-pink-500/50"
               />
             </div>
             <div className="space-y-2">
@@ -416,13 +416,13 @@ function SavingsTab() {
               <button
                 type="button"
                 onClick={() => setIsAdding(false)}
-                className="flex-1 py-2 bg-zinc-800 text-zinc-400 rounded-xl text-xs font-medium"
+                className="flex-1 py-2 bg-stone-100 text-zinc-500 rounded-xl text-xs font-medium"
               >
                 Отмена
               </button>
               <button
                 type="submit"
-                className="flex-1 py-2 bg-pink-500 text-white rounded-xl text-xs font-bold"
+                className="flex-1 py-2 bg-pink-500 text-zinc-900 rounded-xl text-xs font-bold"
               >
                 Создать
               </button>
@@ -441,8 +441,8 @@ function SavingsTab() {
             <div 
               key={goal.id} 
               className={cn(
-                "bg-zinc-900 border rounded-3xl p-6 transition-all duration-500",
-                isFull ? "border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.1)]" : "border-zinc-800"
+                "bg-white border rounded-3xl p-6 transition-all duration-500",
+                isFull ? "border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.1)]" : "border-stone-200"
               )}
             >
               <div className="flex justify-between items-start mb-6">
@@ -451,7 +451,7 @@ function SavingsTab() {
                     <PiggyBank className={cn("w-6 h-6", isFull ? "text-amber-500" : "text-pink-500")} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">{goal.title}</h3>
+                    <h3 className="text-sm font-bold text-zinc-900">{goal.title}</h3>
                     <p className="text-[10px] text-zinc-500 uppercase tracking-wider">
                       {goal.currentAmount.toLocaleString()} / {goal.targetAmount.toLocaleString()} ₽
                     </p>
@@ -470,7 +470,7 @@ function SavingsTab() {
                   <span className="text-zinc-500">Прогресс</span>
                   <span className={isFull ? "text-amber-500" : "text-pink-500"}>{progress.toFixed(1)}%</span>
                 </div>
-                <div className="h-2 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/50">
+                <div className="h-2 bg-stone-50 rounded-full overflow-hidden border border-stone-200/70">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}
@@ -499,7 +499,7 @@ function SavingsTab() {
                         value={actionAmount}
                         onChange={(e) => setActionAmount(e.target.value)}
                         placeholder={activeAction.type === 'deposit' ? "Сумма пополнения" : "Сумма снятия"}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-pink-500/50"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-pink-500/50"
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 font-bold">₽</div>
                     </div>
@@ -507,7 +507,7 @@ function SavingsTab() {
                       <select
                         value={actionAccountId}
                         onChange={(e) => setActionAccountId(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-pink-500/50"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-pink-500/50"
                         required
                       >
                         <option value="" disabled>Выберите счет</option>
@@ -520,15 +520,15 @@ function SavingsTab() {
                       <button
                         type="button"
                         onClick={() => setActiveAction(null)}
-                        className="flex-1 py-2 bg-zinc-800 text-zinc-400 rounded-xl text-xs font-bold"
+                        className="flex-1 py-2 bg-stone-100 text-zinc-500 rounded-xl text-xs font-bold"
                       >
                         Отмена
                       </button>
                       <button
                         type="submit"
                         className={cn(
-                          "flex-1 py-2 rounded-xl text-xs font-bold text-white",
-                          activeAction.type === 'deposit' ? "bg-pink-500" : "bg-zinc-700"
+                          "flex-1 py-2 rounded-xl text-xs font-bold text-zinc-900",
+                          activeAction.type === 'deposit' ? "bg-pink-500" : "bg-stone-200"
                         )}
                       >
                         {activeAction.type === 'deposit' ? "Пополнить" : "Снять"}
@@ -548,7 +548,7 @@ function SavingsTab() {
                         setActiveAction({ id: goal.id, type: 'deposit' });
                         setActionAmount('');
                       }}
-                      className="flex-1 py-2 bg-pink-500 text-white rounded-xl text-xs font-bold hover:bg-pink-600 transition-colors"
+                      className="flex-1 py-2 bg-pink-500 text-zinc-900 rounded-xl text-xs font-bold hover:bg-pink-600 transition-colors"
                     >
                       Пополнить
                     </button>
@@ -557,7 +557,7 @@ function SavingsTab() {
                         setActiveAction({ id: goal.id, type: 'withdraw' });
                         setActionAmount('');
                       }}
-                      className="flex-1 py-2 bg-zinc-800 text-zinc-400 rounded-xl text-xs font-bold hover:bg-zinc-700 transition-colors"
+                      className="flex-1 py-2 bg-stone-100 text-zinc-500 rounded-xl text-xs font-bold hover:bg-stone-200 transition-colors"
                     >
                       Снять
                     </button>
@@ -570,8 +570,8 @@ function SavingsTab() {
       </div>
 
       {savingsGoals.length === 0 && (
-        <div className="text-center py-12 bg-zinc-900/30 rounded-3xl border border-dashed border-zinc-800">
-          <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
+        <div className="text-center py-12 bg-white/30 rounded-3xl border border-dashed border-stone-200">
+          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
             <PiggyBank className="w-8 h-8 text-zinc-700" />
           </div>
           <p className="text-zinc-500">У вас пока нет копилок</p>
@@ -931,18 +931,18 @@ function TransactionsTab() {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50 relative">
-          <div className="text-xs text-zinc-400 mb-1 flex justify-between items-center">
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70 relative">
+          <div className="text-xs text-zinc-500 mb-1 flex justify-between items-center">
             <span>Общий баланс</span>
-            <button onClick={() => setIsBalanceVisible(!isBalanceVisible)} className="text-zinc-500 hover:text-zinc-300">
+            <button onClick={() => setIsBalanceVisible(!isBalanceVisible)} className="text-zinc-500 hover:text-zinc-700">
               {isBalanceVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
-          <div className={cn("text-xl font-bold", balance >= 0 ? "text-white" : "text-red-400")}>
+          <div className={cn("text-xl font-bold", balance >= 0 ? "text-zinc-900" : "text-red-400")}>
             {isBalanceVisible ? `${balance.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${baseCurrency}` : '••••••'}
           </div>
           {upcomingTotal > 0 && (
-            <div className="mt-2 pt-2 border-t border-zinc-800/50">
+            <div className="mt-2 pt-2 border-t border-stone-200/70">
               <div className="text-[10px] text-zinc-500 flex justify-between">
                 <span>Доступно:</span>
                 <span className="text-emerald-400 font-bold">
@@ -952,8 +952,8 @@ function TransactionsTab() {
             </div>
           )}
         </div>
-        <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-          <div className="text-xs text-zinc-400 mb-1 flex items-center gap-1">
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+          <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
             <CreditCard className="w-3 h-3 text-blue-400" />
             На карте
           </div>
@@ -961,8 +961,8 @@ function TransactionsTab() {
             {isBalanceVisible ? `${cardBalance.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${baseCurrency}` : '••••••'}
           </div>
         </div>
-        <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-          <div className="text-xs text-zinc-400 mb-1 flex items-center gap-1">
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+          <div className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
             <Banknote className="w-3 h-3 text-emerald-500" />
             Наличные
           </div>
@@ -974,17 +974,17 @@ function TransactionsTab() {
 
       {/* Upcoming Expenses Section */}
       {upcomingExpenses.length > 0 && (
-        <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-2xl overflow-hidden">
+        <div className="bg-white/30 border border-stone-200/70 rounded-2xl overflow-hidden">
           <button 
             onClick={() => setShowUpcoming(!showUpcoming)}
-            className="w-full flex items-center justify-between p-4 hover:bg-zinc-800/30 transition-colors"
+            className="w-full flex items-center justify-between p-4 hover:bg-stone-100/40 transition-colors"
           >
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-500/10 rounded-lg">
                 <Clock className="w-4 h-4 text-amber-500" />
               </div>
               <div className="text-left">
-                <h3 className="text-sm font-bold text-white">Предстоящие расходы</h3>
+                <h3 className="text-sm font-bold text-zinc-900">Предстоящие расходы</h3>
                 <p className="text-[10px] text-zinc-500">До конца месяца: {upcomingTotal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {baseCurrency}</p>
               </div>
             </div>
@@ -1000,17 +1000,17 @@ function TransactionsTab() {
                 className="px-4 pb-4 space-y-2"
               >
                 {upcomingExpenses.sort((a, b) => a.dueDate - b.dueDate).map(p => (
-                  <div key={p.id} className="flex items-center justify-between p-3 bg-zinc-950/50 rounded-xl border border-zinc-800/50">
+                  <div key={p.id} className="flex items-center justify-between p-3 bg-stone-50/50 rounded-xl border border-stone-200/70">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-xs font-bold text-zinc-400">
+                      <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-xs font-bold text-zinc-500">
                         {p.dueDate}
                       </div>
                       <div>
-                        <div className="text-xs font-medium text-white">{p.name}</div>
+                        <div className="text-xs font-medium text-zinc-900">{p.name}</div>
                         <div className="text-[10px] text-zinc-500">{p.category}</div>
                       </div>
                     </div>
-                    <div className="text-xs font-bold text-zinc-300">
+                    <div className="text-xs font-bold text-zinc-700">
                       {p.amount.toLocaleString('ru-RU')} {p.currency || baseCurrency}
                     </div>
                   </div>
@@ -1022,18 +1022,18 @@ function TransactionsTab() {
       )}
 
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-white">История операций</h2>
+        <h2 className="text-lg font-semibold text-zinc-900">История операций</h2>
         <div className="flex gap-2">
           <button
             onClick={exportToCSV}
-            className="p-2 bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition-colors"
+            className="p-2 bg-stone-100 text-zinc-700 rounded-lg hover:bg-stone-200 transition-colors"
             title="Экспорт в CSV"
           >
             <Download className="w-5 h-5" />
           </button>
           <button
             onClick={() => setIsAdding(!isAdding)}
-            className="p-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors"
+            className="p-2 bg-stone-100 text-zinc-900 rounded-lg hover:bg-stone-200 transition-colors"
           >
             {isAdding ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
           </button>
@@ -1047,15 +1047,15 @@ function TransactionsTab() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             onSubmit={handleAdd}
-            className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-4 overflow-hidden"
+            className="bg-white p-4 rounded-2xl border border-stone-200 space-y-4 overflow-hidden"
           >
-            <div className="flex gap-2 p-1 bg-zinc-950 rounded-lg">
+            <div className="flex gap-2 p-1 bg-stone-50 rounded-lg">
               <button
                 type="button"
                 onClick={() => setType('expense')}
                 className={cn(
                   "flex-1 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  type === 'expense' ? "bg-red-500/20 text-red-400" : "text-zinc-400 hover:text-zinc-200"
+                  type === 'expense' ? "bg-red-500/20 text-red-400" : "text-zinc-500 hover:text-zinc-800"
                 )}
               >
                 Расход
@@ -1065,7 +1065,7 @@ function TransactionsTab() {
                 onClick={() => setType('income')}
                 className={cn(
                   "flex-1 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  type === 'income' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-400 hover:text-zinc-200"
+                  type === 'income' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-800"
                 )}
               >
                 Доход
@@ -1078,7 +1078,7 @@ function TransactionsTab() {
                 }}
                 className={cn(
                   "flex-1 py-1.5 rounded-md text-sm font-medium transition-colors",
-                  type === 'transfer' ? "bg-blue-500/20 text-blue-400" : "text-zinc-400 hover:text-zinc-200"
+                  type === 'transfer' ? "bg-blue-500/20 text-blue-400" : "text-zinc-500 hover:text-zinc-800"
                 )}
               >
                 Перевод
@@ -1088,11 +1088,11 @@ function TransactionsTab() {
             {accounts.length > 0 ? (
               <div className={cn("grid gap-4", type === 'transfer' ? "grid-cols-2" : "grid-cols-1")}>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-zinc-400">{type === 'transfer' ? 'Счет списания' : 'Счет'}</label>
+                  <label className="text-[10px] text-zinc-500">{type === 'transfer' ? 'Счет списания' : 'Счет'}</label>
                   <select
                     value={accountId}
                     onChange={(e) => setAccountId(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600 appearance-none"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600 appearance-none"
                     required
                   >
                     <option value="" disabled>Выберите счет</option>
@@ -1103,11 +1103,11 @@ function TransactionsTab() {
                 </div>
                 {type === 'transfer' && (
                   <div className="space-y-1">
-                    <label className="text-[10px] text-zinc-400">Счет зачисления</label>
+                    <label className="text-[10px] text-zinc-500">Счет зачисления</label>
                     <select
                       value={toAccountId}
                       onChange={(e) => setToAccountId(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600 appearance-none"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600 appearance-none"
                       required
                     >
                       <option value="" disabled>Выберите счет</option>
@@ -1119,13 +1119,13 @@ function TransactionsTab() {
                 )}
               </div>
             ) : (
-              <div className="flex gap-2 p-1 bg-zinc-950 rounded-lg">
+              <div className="flex gap-2 p-1 bg-stone-50 rounded-lg">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('card')}
                   className={cn(
                     "flex-1 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2",
-                    paymentMethod === 'card' ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-zinc-200"
+                    paymentMethod === 'card' ? "bg-stone-100 text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
                   )}
                 >
                   <CreditCard className="w-4 h-4" />
@@ -1136,7 +1136,7 @@ function TransactionsTab() {
                   onClick={() => setPaymentMethod('cash')}
                   className={cn(
                     "flex-1 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2",
-                    paymentMethod === 'cash' ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-zinc-200"
+                    paymentMethod === 'cash' ? "bg-stone-100 text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
                   )}
                 >
                   <Banknote className="w-4 h-4" />
@@ -1147,7 +1147,7 @@ function TransactionsTab() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-[10px] text-zinc-400">Сумма ({transactionCurrency})</label>
+                <label className="text-[10px] text-zinc-500">Сумма ({transactionCurrency})</label>
                 <input
                   type="number"
                   required
@@ -1155,39 +1155,39 @@ function TransactionsTab() {
                   step="0.01"
                   value={amount}
                   onChange={e => setAmount(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                   placeholder="0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] text-zinc-400">Дата</label>
+                <label className="text-[10px] text-zinc-500">Дата</label>
                 <input
                   type="date"
                   required
                   value={date}
                   onChange={e => setDate(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                 />
               </div>
             </div>
 
             {type === 'expense' && (accounts.length > 0 ? selectedAccount?.type === 'cash' : paymentMethod === 'cash') && (
-              <div className="grid grid-cols-2 gap-4 bg-zinc-950/50 p-3 rounded-xl border border-zinc-800/50">
+              <div className="grid grid-cols-2 gap-4 bg-stone-50/50 p-3 rounded-xl border border-stone-200/70">
                 <div className="space-y-1">
-                  <label className="text-[10px] text-zinc-400">Ваша купюра ({transactionCurrency})</label>
+                  <label className="text-[10px] text-zinc-500">Ваша купюра ({transactionCurrency})</label>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={cashGiven}
                     onChange={e => setCashGiven(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                     placeholder="Например, 100"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] text-zinc-400">Сдача</label>
-                  <div className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-emerald-400 font-medium flex items-center h-[38px]">
+                  <label className="text-[10px] text-zinc-500">Сдача</label>
+                  <div className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm text-emerald-400 font-medium flex items-center h-[38px]">
                     {change > 0 ? `${change.toFixed(2)} ${transactionCurrency}` : `0 ${transactionCurrency}`}
                   </div>
                 </div>
@@ -1198,9 +1198,9 @@ function TransactionsTab() {
                       id="confirmChange"
                       checked={isChangeConfirmed}
                       onChange={e => setIsChangeConfirmed(e.target.checked)}
-                      className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-zinc-950"
+                      className="w-4 h-4 rounded border-stone-300 bg-white text-emerald-500 focus:ring-emerald-500 focus:ring-offset-zinc-950"
                     />
-                    <label htmlFor="confirmChange" className="text-xs text-zinc-300 cursor-pointer">
+                    <label htmlFor="confirmChange" className="text-xs text-zinc-700 cursor-pointer">
                       Сдача получена
                     </label>
                   </div>
@@ -1209,13 +1209,13 @@ function TransactionsTab() {
             )}
 
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-400">Категория</label>
+              <label className="text-[10px] text-zinc-500">Категория</label>
               <input
                 type="text"
                 required
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                 placeholder={type === 'expense' ? "Продукты, Кафе, Транспорт..." : type === 'income' ? "Зарплата, Подарок..." : "Перевод"}
                 disabled={type === 'transfer'}
               />
@@ -1226,7 +1226,7 @@ function TransactionsTab() {
                       key={c}
                       type="button"
                       onClick={() => setCategory(c)}
-                      className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded-md text-[10px] text-zinc-300 transition-colors"
+                      className="px-2 py-1 bg-stone-100 hover:bg-stone-200 rounded-md text-[10px] text-zinc-700 transition-colors"
                     >
                       {c}
                     </button>
@@ -1237,42 +1237,42 @@ function TransactionsTab() {
 
             {type === 'income' && (
               <div className="space-y-1">
-                <label className="text-[10px] text-zinc-400">Источник дохода</label>
+                <label className="text-[10px] text-zinc-500">Источник дохода</label>
                 <input
                   type="text"
                   value={source}
                   onChange={e => setSource(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                   placeholder="Например: Работодатель, Клиент, Проект..."
                 />
               </div>
             )}
 
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-400">Заметки / Комментарий</label>
+              <label className="text-[10px] text-zinc-500">Заметки / Комментарий</label>
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600 min-h-[60px]"
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600 min-h-[60px]"
                 placeholder="Дополнительная информация..."
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-400">Теги (через запятую)</label>
+              <label className="text-[10px] text-zinc-500">Теги (через запятую)</label>
               <input
                 type="text"
                 value={tags}
                 onChange={e => setTags(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                 placeholder="#продукты, #ресторан"
               />
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] text-zinc-400">Чек / Фото</label>
+              <label className="text-[10px] text-zinc-500">Чек / Фото</label>
               {photoUrl ? (
-                <div className="relative rounded-lg overflow-hidden border border-zinc-800 inline-block">
+                <div className="relative rounded-lg overflow-hidden border border-stone-200 inline-block">
                   <img 
                     src={photoUrl} 
                     alt="Receipt" 
@@ -1282,12 +1282,12 @@ function TransactionsTab() {
                   <button
                     type="button"
                     onClick={() => setPhotoUrl(undefined)}
-                    className="absolute top-1 right-1 p-1 bg-black/50 rounded-full text-white hover:bg-red-500/80 transition-colors"
+                    className="absolute top-1 right-1 p-1 bg-zinc-900/30 rounded-full text-zinc-900 hover:bg-red-500/80 transition-colors"
                   >
                     <X className="w-4 h-4" />
                   </button>
                   {isParsingReceipt && (
-                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center text-white pointer-events-none">
+                    <div className="absolute inset-0 bg-zinc-900/40 flex flex-col items-center justify-center text-zinc-900 pointer-events-none">
                       <Loader2 className="w-6 h-6 animate-spin mb-2" />
                       <span className="text-xs font-medium">Считывание...</span>
                     </div>
@@ -1314,7 +1314,7 @@ function TransactionsTab() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex-1 flex flex-col items-center justify-center gap-1 h-20 border-2 border-dashed border-zinc-800 rounded-lg hover:border-zinc-600 transition-colors text-zinc-500 hover:text-zinc-400"
+                      className="flex-1 flex flex-col items-center justify-center gap-1 h-20 border-2 border-dashed border-stone-200 rounded-lg hover:border-zinc-600 transition-colors text-zinc-500 hover:text-zinc-500"
                     >
                       <ImagePlus className="w-5 h-5" />
                       <span className="text-xs">Галерея</span>
@@ -1322,18 +1322,18 @@ function TransactionsTab() {
                     <button
                       type="button"
                       onClick={() => cameraInputRef.current?.click()}
-                      className="flex-1 flex flex-col items-center justify-center gap-1 h-20 border-2 border-dashed border-zinc-800 rounded-lg hover:border-zinc-600 transition-colors text-zinc-500 hover:text-zinc-400"
+                      className="flex-1 flex flex-col items-center justify-center gap-1 h-20 border-2 border-dashed border-stone-200 rounded-lg hover:border-zinc-600 transition-colors text-zinc-500 hover:text-zinc-500"
                     >
                       <Camera className="w-5 h-5" />
                       <span className="text-xs">Сделать фото</span>
                     </button>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] text-zinc-400">Режим считывания данных с чека:</label>
+                    <label className="text-[10px] text-zinc-500">Режим считывания данных с чека:</label>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <label className={cn(
                         "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors",
-                        parseMode === 'ai' ? "bg-blue-500/10 border-blue-500/50 text-blue-400" : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                        parseMode === 'ai' ? "bg-blue-500/10 border-blue-500/50 text-blue-400" : "bg-white border-stone-200 text-zinc-500 hover:bg-stone-100"
                       )}>
                         <input type="radio" name="parseMode" value="ai" checked={parseMode === 'ai'} onChange={() => setParseMode('ai')} className="hidden" />
                         <Bot className="w-4 h-4" />
@@ -1341,7 +1341,7 @@ function TransactionsTab() {
                       </label>
                       <label className={cn(
                         "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors",
-                        parseMode === 'ocr' ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400" : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                        parseMode === 'ocr' ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400" : "bg-white border-stone-200 text-zinc-500 hover:bg-stone-100"
                       )}>
                         <input type="radio" name="parseMode" value="ocr" checked={parseMode === 'ocr'} onChange={() => setParseMode('ocr')} className="hidden" />
                         <Calculator className="w-4 h-4" />
@@ -1349,7 +1349,7 @@ function TransactionsTab() {
                       </label>
                       <label className={cn(
                         "flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors",
-                        parseMode === 'none' ? "bg-zinc-800 border-zinc-700 text-white" : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800"
+                        parseMode === 'none' ? "bg-stone-100 border-stone-300 text-zinc-900" : "bg-white border-stone-200 text-zinc-500 hover:bg-stone-100"
                       )}>
                         <input type="radio" name="parseMode" value="none" checked={parseMode === 'none'} onChange={() => setParseMode('none')} className="hidden" />
                         <EyeOff className="w-4 h-4" />
@@ -1380,7 +1380,7 @@ function TransactionsTab() {
                   "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
                   periodFilter === period 
                     ? "bg-white text-black" 
-                    : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                    : "bg-white text-zinc-500 hover:text-zinc-900 border border-stone-200"
                 )}
               >
                 {period === 'all' && 'За все время'}
@@ -1393,9 +1393,9 @@ function TransactionsTab() {
           </div>
           
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/50 flex flex-col">
+            <div className="bg-white/60 p-3 rounded-xl border border-stone-200/70 flex flex-col">
               <span className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">Расходы за период</span>
-              <span className="text-lg font-bold text-white">
+              <span className="text-lg font-bold text-zinc-900">
                 {filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => {
                   const account = accounts.find(a => a.id === t.accountId);
                   const currency = account?.currency || baseCurrency;
@@ -1403,7 +1403,7 @@ function TransactionsTab() {
                 }, 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-xs text-zinc-500 font-normal">{baseCurrency}</span>
               </span>
             </div>
-            <div className="bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/50 flex flex-col">
+            <div className="bg-white/60 p-3 rounded-xl border border-stone-200/70 flex flex-col">
               <span className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">Доходы за период</span>
               <span className="text-lg font-bold text-emerald-400">
                 +{filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => {
@@ -1420,12 +1420,12 @@ function TransactionsTab() {
       {!isAdding && (
         <div className="space-y-3">
           {filteredTransactions.length === 0 ? (
-            <div className="text-center py-10 bg-zinc-900/30 rounded-2xl border border-dashed border-zinc-800">
+            <div className="text-center py-10 bg-white/30 rounded-2xl border border-dashed border-stone-200">
               <p className="text-zinc-500 text-sm">Нет операций за выбранный период.</p>
             </div>
           ) : (
             filteredTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => (
-              <div key={t.id} className="bg-zinc-900 p-4 rounded-xl border border-zinc-800 flex flex-col gap-3">
+              <div key={t.id} className="bg-white p-4 rounded-xl border border-stone-200 flex flex-col gap-3">
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-3">
                     <div className={cn(
@@ -1435,35 +1435,35 @@ function TransactionsTab() {
                       {t.type === 'income' ? <ArrowUpRight className="w-5 h-5" /> : t.type === 'transfer' ? <ArrowUpRight className="w-5 h-5 rotate-45" /> : <ArrowDownRight className="w-5 h-5" />}
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-white flex items-center gap-2">
+                      <div className="text-sm font-medium text-zinc-900 flex items-center gap-2">
                         {t.category}
                         {t.source && <span className="text-[10px] text-zinc-500 font-normal">от {t.source}</span>}
                         {accounts.length > 0 ? (
                           t.type === 'transfer' ? (
-                            <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] flex items-center gap-1">
+                            <span className="px-1.5 py-0.5 rounded bg-stone-100 text-zinc-500 text-[10px] flex items-center gap-1">
                               {accounts.find(a => a.id === t.accountId)?.name || 'Счет'} → {accounts.find(a => a.id === t.toAccountId)?.name || 'Счет'}
                             </span>
                           ) : (
                             t.accountId && (
-                              <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] flex items-center gap-1">
+                              <span className="px-1.5 py-0.5 rounded bg-stone-100 text-zinc-500 text-[10px] flex items-center gap-1">
                                 <Landmark className="w-3 h-3" /> {accounts.find(a => a.id === t.accountId)?.name || 'Счет'}
                               </span>
                             )
                           )
                         ) : (
                           t.type === 'transfer' ? (
-                            <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] flex items-center gap-1">
+                            <span className="px-1.5 py-0.5 rounded bg-stone-100 text-zinc-500 text-[10px] flex items-center gap-1">
                               {t.paymentMethod === 'card' ? 'С карты на наличные' : 'С наличных на карту'}
                             </span>
                           ) : (
                             <>
                               {t.paymentMethod === 'cash' && (
-                                <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] flex items-center gap-1">
+                                <span className="px-1.5 py-0.5 rounded bg-stone-100 text-zinc-500 text-[10px] flex items-center gap-1">
                                   <Banknote className="w-3 h-3" /> Наличные
                                 </span>
                               )}
                               {t.paymentMethod === 'card' && (
-                                <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] flex items-center gap-1">
+                                <span className="px-1.5 py-0.5 rounded bg-stone-100 text-zinc-500 text-[10px] flex items-center gap-1">
                                   <CreditCard className="w-3 h-3" /> Карта
                                 </span>
                               )}
@@ -1477,14 +1477,14 @@ function TransactionsTab() {
                   <div className="flex flex-col items-end gap-1">
                     <div className={cn(
                       "text-sm font-bold",
-                      t.type === 'income' ? "text-emerald-400" : t.type === 'transfer' ? "text-blue-400" : "text-white"
+                      t.type === 'income' ? "text-emerald-400" : t.type === 'transfer' ? "text-blue-400" : "text-zinc-900"
                     )}>
                       {t.type === 'income' ? '+' : t.type === 'transfer' ? '' : '-'}{t.amount.toLocaleString('ru-RU')} {t.type === 'transfer' ? (accounts.find(a => a.id === t.accountId)?.currency || baseCurrency) : (t.accountId ? accounts.find(a => a.id === t.accountId)?.currency || baseCurrency : baseCurrency)}
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       <button
                         onClick={() => handleEdit(t)}
-                        className="text-zinc-600 hover:text-white transition-colors text-[10px] font-medium"
+                        className="text-zinc-600 hover:text-zinc-900 transition-colors text-[10px] font-medium"
                       >
                         Изменить
                       </button>
@@ -1499,18 +1499,18 @@ function TransactionsTab() {
                 </div>
                 
                 {(t.notes || t.photoUrl || t.cashGiven || (t.tags && t.tags.length > 0)) && (
-                  <div className="pt-3 border-t border-zinc-800/50 flex flex-col gap-2">
+                  <div className="pt-3 border-t border-stone-200/70 flex flex-col gap-2">
                     {t.cashGiven && t.cashGiven > t.amount && (
-                      <div className="text-[10px] text-zinc-400 bg-zinc-950 p-2 rounded-lg border border-zinc-800/50">
-                        Купюра: <span className="text-white">{t.cashGiven} {t.type === 'transfer' ? (accounts.find(a => a.id === t.accountId)?.currency || baseCurrency) : (t.accountId ? accounts.find(a => a.id === t.accountId)?.currency || baseCurrency : baseCurrency)}</span> • 
+                      <div className="text-[10px] text-zinc-500 bg-stone-50 p-2 rounded-lg border border-stone-200/70">
+                        Купюра: <span className="text-zinc-900">{t.cashGiven} {t.type === 'transfer' ? (accounts.find(a => a.id === t.accountId)?.currency || baseCurrency) : (t.accountId ? accounts.find(a => a.id === t.accountId)?.currency || baseCurrency : baseCurrency)}</span> • 
                         Сдача: <span className="text-emerald-400 ml-1">{(t.cashGiven - t.amount).toFixed(2)} {t.type === 'transfer' ? (accounts.find(a => a.id === t.accountId)?.currency || baseCurrency) : (t.accountId ? accounts.find(a => a.id === t.accountId)?.currency || baseCurrency : baseCurrency)}</span>
                       </div>
                     )}
-                    {t.notes && <p className="text-xs text-zinc-400">{t.notes}</p>}
+                    {t.notes && <p className="text-xs text-zinc-500">{t.notes}</p>}
                     {t.tags && t.tags.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {t.tags.map((tag, idx) => (
-                          <span key={idx} className="text-[10px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded-md">
+                          <span key={idx} className="text-[10px] bg-stone-100 text-zinc-700 px-1.5 py-0.5 rounded-md">
                             {tag}
                           </span>
                         ))}
@@ -1521,7 +1521,7 @@ function TransactionsTab() {
                         src={t.photoUrl} 
                         alt="Receipt" 
                         onClick={() => setFullscreenImage(t.photoUrl!)}
-                        className="rounded-lg border border-zinc-800 max-h-48 object-contain self-start bg-zinc-950 cursor-pointer hover:opacity-80 transition-opacity" 
+                        className="rounded-lg border border-stone-200 max-h-48 object-contain self-start bg-stone-50 cursor-pointer hover:opacity-80 transition-opacity" 
                       />
                     )}
                   </div>
@@ -1539,11 +1539,11 @@ function TransactionsTab() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 p-4"
             onClick={() => setFullscreenImage(null)}
           >
             <button
-              className="absolute top-4 right-4 p-2 bg-zinc-800/50 text-white rounded-full hover:bg-zinc-700 transition-colors"
+              className="absolute top-4 right-4 p-2 bg-stone-100/60 text-zinc-900 rounded-full hover:bg-stone-200 transition-colors"
               onClick={() => setFullscreenImage(null)}
             >
               <X className="w-6 h-6" />
@@ -1713,38 +1713,38 @@ function LoansTab() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setSelectedLoanId(null)}
-            className="p-2 bg-zinc-900 rounded-lg text-zinc-400 hover:text-white transition-colors"
+            className="p-2 bg-white rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
-          <h2 className="text-xl font-semibold text-white">{selectedLoan.name}</h2>
+          <h2 className="text-xl font-semibold text-zinc-900">{selectedLoan.name}</h2>
           <div className="flex-1" />
-          <button onClick={() => setIsBalanceVisible(!isBalanceVisible)} className="p-2 bg-zinc-900 rounded-lg text-zinc-400 hover:text-white transition-colors">
+          <button onClick={() => setIsBalanceVisible(!isBalanceVisible)} className="p-2 bg-white rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors">
             {isBalanceVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-            <div className="text-sm text-zinc-400 mb-1">Остаток долга</div>
-            <div className="text-2xl font-bold text-white">
+          <div className="bg-white p-4 rounded-2xl border border-stone-200">
+            <div className="text-sm text-zinc-500 mb-1">Остаток долга</div>
+            <div className="text-2xl font-bold text-zinc-900">
               {isBalanceVisible ? `${remaining.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedLoan.currency || baseCurrency}` : '••••••'}
             </div>
           </div>
-          <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-            <div className="text-sm text-zinc-400 mb-1">Всего выплачено</div>
+          <div className="bg-white p-4 rounded-2xl border border-stone-200">
+            <div className="text-sm text-zinc-500 mb-1">Всего выплачено</div>
             <div className="text-2xl font-bold text-emerald-400">
               {isBalanceVisible ? `${netPaid.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${selectedLoan.currency || baseCurrency}` : '••••••'}
             </div>
           </div>
         </div>
 
-        <div className="flex gap-2 p-1 bg-zinc-900 rounded-lg">
+        <div className="flex gap-2 p-1 bg-white rounded-lg">
           <button
             onClick={() => setViewMode('operations')}
             className={cn(
               "flex-1 py-2 rounded-md text-sm font-medium transition-colors",
-              viewMode === 'operations' ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-zinc-200"
+              viewMode === 'operations' ? "bg-stone-100 text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
             )}
           >
             Операции
@@ -1753,7 +1753,7 @@ function LoansTab() {
             onClick={() => setViewMode('schedule')}
             className={cn(
               "flex-1 py-2 rounded-md text-sm font-medium transition-colors",
-              viewMode === 'schedule' ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-zinc-200"
+              viewMode === 'schedule' ? "bg-stone-100 text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
             )}
           >
             График платежей
@@ -1762,16 +1762,16 @@ function LoansTab() {
 
         {viewMode === 'operations' ? (
           <>
-            <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-4">
-              <h3 className="font-medium text-white">Добавить операцию</h3>
+            <div className="bg-white p-4 rounded-2xl border border-stone-200 space-y-4">
+              <h3 className="font-medium text-zinc-900">Добавить операцию</h3>
               <form onSubmit={handleAddPayment} className="space-y-4">
-                <div className="flex gap-2 p-1 bg-zinc-950 rounded-lg">
+                <div className="flex gap-2 p-1 bg-stone-50 rounded-lg">
                   <button
                     type="button"
                     onClick={() => setPaymentType('payment')}
                     className={cn(
                       "flex-1 py-1.5 rounded-md text-sm font-medium transition-colors",
-                      paymentType === 'payment' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-400 hover:text-zinc-200"
+                      paymentType === 'payment' ? "bg-emerald-500/20 text-emerald-400" : "text-zinc-500 hover:text-zinc-800"
                     )}
                   >
                     Внесение
@@ -1781,7 +1781,7 @@ function LoansTab() {
                     onClick={() => setPaymentType('withdrawal')}
                     className={cn(
                       "flex-1 py-1.5 rounded-md text-sm font-medium transition-colors",
-                      paymentType === 'withdrawal' ? "bg-red-500/20 text-red-400" : "text-zinc-400 hover:text-zinc-200"
+                      paymentType === 'withdrawal' ? "bg-red-500/20 text-red-400" : "text-zinc-500 hover:text-zinc-800"
                     )}
                   >
                     Снятие
@@ -1789,7 +1789,7 @@ function LoansTab() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-400">Сумма ({selectedLoan.currency || baseCurrency})</label>
+                    <label className="text-xs text-zinc-500">Сумма ({selectedLoan.currency || baseCurrency})</label>
                     <input
                       type="number"
                       required
@@ -1797,29 +1797,29 @@ function LoansTab() {
                       step="0.01"
                       value={paymentAmount}
                       onChange={e => setPaymentAmount(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-600"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
                       placeholder="0"
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-400">Дата</label>
+                    <label className="text-xs text-zinc-500">Дата</label>
                     <input
                       type="date"
                       required
                       value={paymentDate}
                       onChange={e => setPaymentDate(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-600"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
                     />
                   </div>
                 </div>
                 {useStore.getState().accounts.length > 0 && (
                   <div className="space-y-1">
-                    <label className="text-xs text-zinc-400">Счет списания/зачисления</label>
+                    <label className="text-xs text-zinc-500">Счет списания/зачисления</label>
                     <select
                       value={paymentAccountId}
                       onChange={e => setPaymentAccountId(e.target.value)}
                       required
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-600"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
                     >
                       <option value="" disabled>Выберите счет</option>
                       {useStore.getState().accounts.map(acc => (
@@ -1836,7 +1836,7 @@ function LoansTab() {
                     <button 
                       type="button" 
                       onClick={resetPaymentForm}
-                      className="px-4 py-2 bg-zinc-800 text-white rounded-lg font-medium hover:bg-zinc-700 transition-colors"
+                      className="px-4 py-2 bg-stone-100 text-zinc-900 rounded-lg font-medium hover:bg-stone-200 transition-colors"
                     >
                       Отмена
                     </button>
@@ -1846,12 +1846,12 @@ function LoansTab() {
             </div>
 
             <div className="space-y-3">
-              <h3 className="font-medium text-white">История операций</h3>
+              <h3 className="font-medium text-zinc-900">История операций</h3>
               {(!selectedLoan.payments || selectedLoan.payments.length === 0) ? (
                 <p className="text-zinc-500 text-sm">Пока нет операций</p>
               ) : (
                 selectedLoan.payments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(p => (
-                  <div key={p.id} className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 flex justify-between items-center">
+                  <div key={p.id} className="bg-white p-3 rounded-xl border border-stone-200 flex justify-between items-center">
                     <div className="flex items-center gap-3">
                       <div className={cn(
                         "w-8 h-8 rounded-full flex items-center justify-center",
@@ -1860,7 +1860,7 @@ function LoansTab() {
                         {p.type === 'payment' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-white">
+                        <div className="text-sm font-medium text-zinc-900">
                           {p.type === 'payment' ? 'Внесение' : 'Снятие'}
                         </div>
                         <div className="text-xs text-zinc-500">{new Date(p.date).toLocaleDateString('ru-RU')}</div>
@@ -1876,7 +1876,7 @@ function LoansTab() {
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => handleEditPayment(p)}
-                          className="text-zinc-600 hover:text-white transition-colors p-1"
+                          className="text-zinc-600 hover:text-zinc-900 transition-colors p-1"
                         >
                           <span className="text-xs font-medium">Изменить</span>
                         </button>
@@ -1894,10 +1894,10 @@ function LoansTab() {
             </div>
           </>
         ) : (
-          <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">
-                <thead className="text-xs text-zinc-400 bg-zinc-950/50 border-b border-zinc-800">
+                <thead className="text-xs text-zinc-500 bg-stone-50/50 border-b border-stone-200">
                   <tr>
                     <th className="px-4 py-3 font-medium">Месяц</th>
                     <th className="px-4 py-3 font-medium">Платеж</th>
@@ -1906,14 +1906,14 @@ function LoansTab() {
                     <th className="px-4 py-3 font-medium">Остаток</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/50">
+                <tbody className="divide-y divide-stone-200/50">
                   {generateSchedule().map((row) => (
-                    <tr key={row.month} className="hover:bg-zinc-800/30 transition-colors">
-                      <td className="px-4 py-3 text-zinc-300">{row.month}</td>
-                      <td className="px-4 py-3 font-medium text-white">{row.payment.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <tr key={row.month} className="hover:bg-stone-100/40 transition-colors">
+                      <td className="px-4 py-3 text-zinc-700">{row.month}</td>
+                      <td className="px-4 py-3 font-medium text-zinc-900">{row.payment.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-4 py-3 text-emerald-400/80">{row.principal.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-4 py-3 text-red-400/80">{row.interest.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="px-4 py-3 font-medium text-white">{row.remaining.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3 font-medium text-zinc-900">{row.remaining.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1928,14 +1928,14 @@ function LoansTab() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-white">Кредиты и рассрочки</h2>
+        <h2 className="text-xl font-semibold text-zinc-900">Кредиты и рассрочки</h2>
         <div className="flex gap-2">
-          <button onClick={() => setIsBalanceVisible(!isBalanceVisible)} className="p-2 bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition-colors">
+          <button onClick={() => setIsBalanceVisible(!isBalanceVisible)} className="p-2 bg-stone-100 text-zinc-700 rounded-lg hover:bg-stone-200 transition-colors">
             {isBalanceVisible ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
           </button>
           <button
             onClick={() => setIsAdding(!isAdding)}
-            className="p-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors"
+            className="p-2 bg-stone-100 text-zinc-900 rounded-lg hover:bg-stone-200 transition-colors"
           >
             {isAdding ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
           </button>
@@ -1949,23 +1949,23 @@ function LoansTab() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             onSubmit={handleAdd}
-            className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-4 overflow-hidden"
+            className="bg-white p-4 rounded-2xl border border-stone-200 space-y-4 overflow-hidden"
           >
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">Название (цель)</label>
+              <label className="text-xs text-zinc-500">Название (цель)</label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-600"
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
                 placeholder="Например, Автокредит"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div className="space-y-1 sm:col-span-2">
-                <label className="text-xs text-zinc-400">Сумма</label>
+                <label className="text-xs text-zinc-500">Сумма</label>
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -1974,13 +1974,13 @@ function LoansTab() {
                     step="0.01"
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
-                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-600"
+                    className="flex-1 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
                     placeholder="10000"
                   />
                   <select
                     value={currency}
                     onChange={e => setCurrency(e.target.value as Currency)}
-                    className="w-24 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-600"
+                    className="w-24 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
                   >
                     <option value={baseCurrency}>{baseCurrency}</option>
                     <option value="USD">USD</option>
@@ -1992,7 +1992,7 @@ function LoansTab() {
                 </div>
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Ставка (% годовых)</label>
+                <label className="text-xs text-zinc-500">Ставка (% годовых)</label>
                 <input
                   type="number"
                   required
@@ -2000,12 +2000,12 @@ function LoansTab() {
                   step="0.01"
                   value={rate}
                   onChange={e => setRate(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
                   placeholder="14.5"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Срок (месяцев)</label>
+                <label className="text-xs text-zinc-500">Срок (месяцев)</label>
                 <input
                   type="number"
                   required
@@ -2013,7 +2013,7 @@ function LoansTab() {
                   step="1"
                   value={termMonths}
                   onChange={e => setTermMonths(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
                   placeholder="36"
                 />
               </div>
@@ -2021,11 +2021,11 @@ function LoansTab() {
 
             {/* Live Preview */}
             {amount && rate && termMonths && (
-              <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-2">
-                <div className="text-sm font-medium text-white mb-2">Предварительный расчет (аннуитет):</div>
+              <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-2">
+                <div className="text-sm font-medium text-zinc-900 mb-2">Предварительный расчет (аннуитет):</div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-400">Ежемесячный платеж:</span>
-                  <span className="text-white font-bold">
+                  <span className="text-zinc-500">Ежемесячный платеж:</span>
+                  <span className="text-zinc-900 font-bold">
                     {(() => {
                       const S = parseFloat(amount);
                       const r = parseFloat(rate) / 12 / 100;
@@ -2049,7 +2049,7 @@ function LoansTab() {
 
       <div className="space-y-4">
         {loans.length === 0 ? (
-          <div className="text-center py-10 bg-zinc-900/30 rounded-2xl border border-dashed border-zinc-800">
+          <div className="text-center py-10 bg-white/30 rounded-2xl border border-dashed border-stone-200">
             <p className="text-zinc-500 text-sm">Нет сохраненных кредитов</p>
           </div>
         ) : (
@@ -2067,13 +2067,13 @@ function LoansTab() {
             return (
               <div 
                 key={loan.id} 
-                className="bg-zinc-900 p-5 rounded-2xl border border-zinc-800 space-y-4 cursor-pointer hover:border-zinc-700 transition-colors"
+                className="bg-white p-5 rounded-2xl border border-stone-200 space-y-4 cursor-pointer hover:border-stone-300 transition-colors"
                 onClick={() => setSelectedLoanId(loan.id)}
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="text-lg font-bold text-white">{loan.name}</h3>
-                    <p className="text-sm text-zinc-400">
+                    <h3 className="text-lg font-bold text-zinc-900">{loan.name}</h3>
+                    <p className="text-sm text-zinc-500">
                       {loan.amount.toLocaleString('ru-RU')} {loan.currency || baseCurrency} • {loan.rate}% годовых • {loan.termMonths} мес.
                     </p>
                   </div>
@@ -2089,21 +2089,21 @@ function LoansTab() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+                  <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70">
                     <div className="text-xs text-zinc-500 mb-1">Остаток долга</div>
-                    <div className="text-lg font-bold text-white">
+                    <div className="text-lg font-bold text-zinc-900">
                       {isBalanceVisible ? `${remaining.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${loan.currency || baseCurrency}` : '••••••'}
                     </div>
                   </div>
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+                  <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70">
                     <div className="text-xs text-zinc-500 mb-1">Выплачено</div>
                     <div className="text-lg font-bold text-emerald-400">
                       {isBalanceVisible ? `${netPaid.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${loan.currency || baseCurrency}` : '••••••'}
                     </div>
                   </div>
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50 sm:col-span-1 col-span-2">
+                  <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70 sm:col-span-1 col-span-2">
                     <div className="text-xs text-zinc-500 mb-1">Общая сумма к возврату</div>
-                    <div className="text-lg font-bold text-white">
+                    <div className="text-lg font-bold text-zinc-900">
                       {isBalanceVisible ? `${loan.totalPayment.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${loan.currency || baseCurrency}` : '••••••'}
                     </div>
                   </div>
@@ -2112,9 +2112,9 @@ function LoansTab() {
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
                     <span className="text-zinc-500">Прогресс выплаты</span>
-                    <span className="text-zinc-400">{progress.toFixed(1)}%</span>
+                    <span className="text-zinc-500">{progress.toFixed(1)}%</span>
                   </div>
-                  <div className="h-1.5 bg-zinc-950 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-stone-50 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                       style={{ width: `${progress}%` }}
@@ -2376,17 +2376,17 @@ function FinanceAnalyticsTab() {
   return (
     <div className="space-y-6">
       {/* Financial Health Score Card */}
-      <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 rounded-3xl p-6 relative overflow-hidden">
+      <div className="bg-gradient-to-br from-white to-zinc-950 border border-stone-200 rounded-3xl p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16" />
         <div className="relative flex items-center justify-between">
           <div className="space-y-1">
-            <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Финансовое здоровье</h3>
+            <h3 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Финансовое здоровье</h3>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl font-black text-white">{healthScore}</span>
+              <span className="text-4xl font-black text-zinc-900">{healthScore}</span>
               <span className="text-zinc-500 font-medium">/ 100</span>
             </div>
           </div>
-          <div className="w-16 h-16 rounded-full border-4 border-zinc-800 flex items-center justify-center relative">
+          <div className="w-16 h-16 rounded-full border-4 border-stone-200 flex items-center justify-center relative">
             <svg className="w-full h-full -rotate-90">
               <circle
                 cx="32"
@@ -2419,27 +2419,27 @@ function FinanceAnalyticsTab() {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2 pb-2">
-          <div className="px-3 py-1.5 bg-zinc-800/50 rounded-full text-[10px] text-zinc-400 whitespace-nowrap">
+          <div className="px-3 py-1.5 bg-stone-100/60 rounded-full text-[10px] text-zinc-500 whitespace-nowrap">
             {healthScore > 70 ? "Отличное состояние" : healthScore > 40 ? "Требует внимания" : "Критическое состояние"}
           </div>
-          <div className="px-3 py-1.5 bg-zinc-800/50 rounded-full text-[10px] text-zinc-400 whitespace-nowrap">
+          <div className="px-3 py-1.5 bg-stone-100/60 rounded-full text-[10px] text-zinc-500 whitespace-nowrap">
             Долги: {Math.round(dtiRatio)}%
           </div>
-          <div className="px-3 py-1.5 bg-zinc-800/50 rounded-full text-[10px] text-zinc-400 whitespace-nowrap">
+          <div className="px-3 py-1.5 bg-stone-100/60 rounded-full text-[10px] text-zinc-500 whitespace-nowrap">
             Сбережения: {currentIncome > 0 ? Math.round(((currentIncome - currentExpense) / currentIncome) * 100) : 0}%
           </div>
         </div>
       </div>
 
       {/* Period Selector */}
-      <div className="flex flex-wrap gap-2 p-1 bg-zinc-900 rounded-lg">
+      <div className="flex flex-wrap gap-2 p-1 bg-white rounded-lg">
         {['week', 'month', 'year', 'all'].map((p) => (
           <button
             key={p}
             onClick={() => setPeriod(p as any)}
             className={cn(
               "flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition-colors",
-              period === p ? "bg-zinc-800 text-white" : "text-zinc-400 hover:text-zinc-200"
+              period === p ? "bg-stone-100 text-zinc-900" : "text-zinc-500 hover:text-zinc-800"
             )}
           >
             {p === 'week' ? 'Неделя' : p === 'month' ? 'Месяц' : p === 'year' ? 'Год' : 'Всё время'}
@@ -2449,24 +2449,24 @@ function FinanceAnalyticsTab() {
 
       {/* Summary */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-          <div className="text-xs text-zinc-400 mb-1">Расходы за период</div>
-          <div className="text-xl font-bold text-white">{currentExpense.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {baseCurrency}</div>
+        <div className="bg-white p-4 rounded-2xl border border-stone-200">
+          <div className="text-xs text-zinc-500 mb-1">Расходы за период</div>
+          <div className="text-xl font-bold text-zinc-900">{currentExpense.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {baseCurrency}</div>
           {period !== 'all' && (
             <div className={cn("text-xs mt-1", expenseDiff > 0 ? "text-red-400" : "text-emerald-400")}>
               {expenseDiff > 0 ? '+' : ''}{expenseDiffPercent.toFixed(1)}% к прошлому периоду
             </div>
           )}
         </div>
-        <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-          <div className="text-xs text-zinc-400 mb-1">Доходы за период</div>
+        <div className="bg-white p-4 rounded-2xl border border-stone-200">
+          <div className="text-xs text-zinc-500 mb-1">Доходы за период</div>
           <div className="text-xl font-bold text-emerald-400">{currentIncome.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {baseCurrency}</div>
         </div>
       </div>
 
       {/* Line Chart */}
-      <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-        <h3 className="text-sm font-medium text-white mb-4">Динамика</h3>
+      <div className="bg-white p-4 rounded-2xl border border-stone-200">
+        <h3 className="text-sm font-medium text-zinc-900 mb-4">Динамика</h3>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={finalBarData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -2487,9 +2487,9 @@ function FinanceAnalyticsTab() {
       </div>
 
       {/* Lifestyle Creep Analysis */}
-      <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
+      <div className="bg-white p-4 rounded-2xl border border-stone-200">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-white">Инфляция образа жизни</h3>
+          <h3 className="text-sm font-medium text-zinc-900">Инфляция образа жизни</h3>
           <div className="p-1.5 bg-purple-500/10 rounded-lg">
             <TrendingUp className="w-4 h-4 text-purple-400" />
           </div>
@@ -2526,8 +2526,8 @@ function FinanceAnalyticsTab() {
       </div>
 
       {/* Financial Literacy Insights */}
-      <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-4">
-        <h3 className="text-sm font-medium text-white flex items-center gap-2">
+      <div className="bg-white p-4 rounded-2xl border border-stone-200 space-y-4">
+        <h3 className="text-sm font-medium text-zinc-900 flex items-center gap-2">
           <Calculator className="w-4 h-4 text-blue-400" />
           Финансовый анализ
         </h3>
@@ -2535,9 +2535,9 @@ function FinanceAnalyticsTab() {
         <div className="space-y-3">
           {/* Forecast (Only show on 'month' view) */}
           {period === 'month' && (
-            <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+            <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-xs text-zinc-400">Прогноз на конец месяца</span>
+                <span className="text-xs text-zinc-500">Прогноз на конец месяца</span>
                 <span className={cn(
                   "text-sm font-bold",
                   projectedBalance > 0 ? "text-emerald-400" : "text-red-400"
@@ -2554,9 +2554,9 @@ function FinanceAnalyticsTab() {
           )}
 
           {/* Debt-to-Income Ratio */}
-          <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+          <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-zinc-400">Коэффициент долговой нагрузки (DTI)</span>
+              <span className="text-xs text-zinc-500">Коэффициент долговой нагрузки (DTI)</span>
               <span className={cn(
                 "text-sm font-bold",
                 dtiRatio <= 30 ? "text-emerald-400" : 
@@ -2575,9 +2575,9 @@ function FinanceAnalyticsTab() {
           </div>
 
           {/* Savings Rate */}
-          <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+          <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-zinc-400">Уровень сбережений</span>
+              <span className="text-xs text-zinc-500">Уровень сбережений</span>
               <span className={cn(
                 "text-sm font-bold",
                 currentIncome > 0 && ((currentIncome - currentExpense) / currentIncome) >= 0.2 ? "text-emerald-400" : 
@@ -2596,10 +2596,10 @@ function FinanceAnalyticsTab() {
 
           {/* Top Expense Category */}
           {pieData.length > 0 && (
-            <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+            <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-xs text-zinc-400">Главная статья расходов</span>
-                <span className="text-sm font-bold text-white">{pieData[0].name}</span>
+                <span className="text-xs text-zinc-500">Главная статья расходов</span>
+                <span className="text-sm font-bold text-zinc-900">{pieData[0].name}</span>
               </div>
               <p className="text-[10px] text-zinc-500 leading-relaxed">
                 На эту категорию уходит <strong>{Math.round((pieData[0].value / currentExpense) * 100)}%</strong> всех ваших трат ({pieData[0].value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {baseCurrency}). 
@@ -2611,8 +2611,8 @@ function FinanceAnalyticsTab() {
       </div>
 
       {/* Pie Chart */}
-      <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-        <h3 className="text-sm font-medium text-white mb-4">Структура расходов</h3>
+      <div className="bg-white p-4 rounded-2xl border border-stone-200">
+        <h3 className="text-sm font-medium text-zinc-900 mb-4">Структура расходов</h3>
         {pieData.length === 0 ? (
           <p className="text-zinc-500 text-xs text-center py-10">Нет данных для отображения</p>
         ) : (
@@ -2645,8 +2645,8 @@ function FinanceAnalyticsTab() {
       </div>
 
       {period === 'month' && budgetChartData.length > 0 && (
-        <div className="bg-zinc-900/80 border border-zinc-800 p-6 rounded-3xl">
-          <h3 className="text-sm font-bold text-white mb-6">Бюджет по категориям</h3>
+        <div className="bg-white/80 border border-stone-200 p-6 rounded-3xl">
+          <h3 className="text-sm font-bold text-zinc-900 mb-6">Бюджет по категориям</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={budgetChartData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#27272a" />
@@ -2674,17 +2674,17 @@ function FinanceAnalyticsTab() {
 
       {/* Tags Breakdown */}
       {tagData.length > 0 && (
-        <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
-          <h3 className="text-sm font-medium text-white mb-4">Расходы по тегам</h3>
+        <div className="bg-white p-4 rounded-2xl border border-stone-200">
+          <h3 className="text-sm font-medium text-zinc-900 mb-4">Расходы по тегам</h3>
           <div className="space-y-3">
             {tagData.map((tag, index) => (
-              <div key={index} className="flex items-center justify-between bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+              <div key={index} className="flex items-center justify-between bg-stone-50 p-3 rounded-xl border border-stone-200/70">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium bg-zinc-800 text-zinc-300 px-2 py-1 rounded-md">
+                  <span className="text-xs font-medium bg-stone-100 text-zinc-700 px-2 py-1 rounded-md">
                     {tag.name}
                   </span>
                 </div>
-                <div className="text-sm font-bold text-white">
+                <div className="text-sm font-bold text-zinc-900">
                   {tag.value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {baseCurrency}
                 </div>
               </div>

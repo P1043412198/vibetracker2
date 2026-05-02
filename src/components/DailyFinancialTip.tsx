@@ -51,7 +51,7 @@ export function DailyFinancialTip() {
         <h3 className="text-sm font-bold text-indigo-300 mb-1 flex items-center gap-2 uppercase tracking-wider">
           Финансовая мудрость дня
         </h3>
-        <p className="text-sm text-zinc-300 leading-relaxed font-medium">
+        <p className="text-sm text-zinc-700 leading-relaxed font-medium">
           {isLoading ? (
             <span className="animate-pulse">Генерирую совет...</span>
           ) : (

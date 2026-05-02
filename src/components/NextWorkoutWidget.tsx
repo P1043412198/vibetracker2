@@ -16,9 +16,9 @@ export function NextWorkoutWidget() {
 
   if (!nextWorkout) {
     return (
-      <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
             <Dumbbell className="w-4 h-4 text-emerald-500" />
             Следующая тренировка
           </h2>
@@ -44,9 +44,9 @@ export function NextWorkoutWidget() {
   const estimatedTime = programExercises.length > 0 ? programExercises.length * 8 : 30; // 8 mins per exercise avg or 30 default
 
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
           <Dumbbell className="w-4 h-4 text-emerald-500" />
           Следующая тренировка
         </h2>
@@ -54,20 +54,20 @@ export function NextWorkoutWidget() {
           "text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider",
           nextWorkout.date === format(today, 'yyyy-MM-dd') 
             ? "bg-emerald-500/20 text-emerald-500 border border-emerald-500/30" 
-            : "bg-zinc-800 text-zinc-500"
+            : "bg-stone-100 text-zinc-500"
         )}>
           {nextWorkout.date === format(today, 'yyyy-MM-dd') ? 'Сегодня' : format(parseISO(nextWorkout.date), 'd MMM', { locale: ru })}
         </span>
       </div>
 
       <div className="space-y-4">
-        <div className="flex items-center justify-between bg-zinc-950 p-3 rounded-2xl border border-zinc-800">
+        <div className="flex items-center justify-between bg-stone-50 p-3 rounded-2xl border border-stone-200">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center border border-emerald-500/20">
               <Dumbbell className="w-5 h-5 text-emerald-500" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white truncate max-w-[120px]">
+              <p className="text-xs font-bold text-zinc-900 truncate max-w-[120px]">
                 {nextWorkout.label || program?.name || 'Тренировка'}
               </p>
               <div className="flex items-center gap-2 mt-0.5">
@@ -78,7 +78,7 @@ export function NextWorkoutWidget() {
           </div>
           <Link
             to={`/workouts?date=${nextWorkout.date}`}
-            className="p-2 bg-zinc-800 text-zinc-400 rounded-xl hover:text-white transition-colors"
+            className="p-2 bg-stone-100 text-zinc-500 rounded-xl hover:text-zinc-900 transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </Link>
@@ -89,8 +89,8 @@ export function NextWorkoutWidget() {
             <p className="text-[10px] text-zinc-500 uppercase font-bold px-1">План упражнений:</p>
             <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1 scrollbar-hide">
               {programExercises.slice(0, 4).map((ex, idx) => (
-                <div key={idx} className="flex items-center justify-between p-2 bg-zinc-950/50 rounded-xl border border-zinc-800/50">
-                  <span className="text-[10px] text-zinc-300 truncate max-w-[140px]">{ex.name}</span>
+                <div key={idx} className="flex items-center justify-between p-2 bg-stone-50/50 rounded-xl border border-stone-200/70">
+                  <span className="text-[10px] text-zinc-700 truncate max-w-[140px]">{ex.name}</span>
                   <span className="text-[9px] font-bold text-zinc-500">{ex.muscleGroup || 'Силовая'}</span>
                 </div>
               ))}

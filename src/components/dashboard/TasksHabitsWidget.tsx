@@ -57,10 +57,10 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, toggleTaskCom
       }}
       className={cn(
         "p-3 rounded-2xl border flex items-center gap-3 cursor-grab active:cursor-grabbing relative overflow-hidden",
-        task.completed ? "bg-zinc-900 border-zinc-800" : "bg-zinc-950 border-zinc-800"
+        task.completed ? "bg-white border-stone-200" : "bg-stone-50 border-stone-200"
       )}
     >
-      <div {...attributes} {...listeners} className="cursor-grab text-zinc-600 hover:text-zinc-400">
+      <div {...attributes} {...listeners} className="cursor-grab text-zinc-600 hover:text-zinc-500">
         <GripVertical className="w-4 h-4" />
       </div>
       <div className="absolute inset-y-0 left-0 w-1 bg-white opacity-0 transition-opacity" />
@@ -69,7 +69,7 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, toggleTaskCom
           onClick={() => toggleTaskCompletion(task.id)}
           className={cn(
             "transition-colors",
-            task.completed ? "text-white" : "text-zinc-600 hover:text-white"
+            task.completed ? "text-zinc-900" : "text-zinc-600 hover:text-zinc-900"
           )}
         >
           {task.completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
@@ -86,7 +86,7 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, toggleTaskCom
       </div>
       <div className="flex-1 min-w-0">
         <p className={cn(
-          "text-xs font-medium text-zinc-200 truncate",
+          "text-xs font-medium text-zinc-800 truncate",
           task.completed && "text-zinc-500 line-through",
           task.failed && "text-zinc-700 line-through"
         )}>
@@ -98,7 +98,7 @@ const SortableTaskItem: React.FC<SortableTaskItemProps> = ({ task, toggleTaskCom
               <span>Подзадачи</span>
               <span>{task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}</span>
             </div>
-            <div className="w-full bg-zinc-900 h-1 rounded-full overflow-hidden border border-zinc-800">
+            <div className="w-full bg-white h-1 rounded-full overflow-hidden border border-stone-200">
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: `${(task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100}%` }}
@@ -128,30 +128,30 @@ const SortableHabitItem: React.FC<{
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="bg-zinc-950 p-2 rounded-xl border border-zinc-800 flex items-center justify-between">
-      <div {...attributes} {...listeners} className="cursor-grab text-zinc-600 hover:text-zinc-400 mr-2">
+    <div ref={setNodeRef} style={style} className="bg-stone-50 p-2 rounded-xl border border-stone-200 flex items-center justify-between">
+      <div {...attributes} {...listeners} className="cursor-grab text-zinc-600 hover:text-zinc-500 mr-2">
         <GripVertical className="w-4 h-4" />
       </div>
-      <span className="text-xs text-zinc-200 font-medium truncate pr-2 flex-1">{hideHabitNames ? '***' : habit.title}</span>
+      <span className="text-xs text-zinc-800 font-medium truncate pr-2 flex-1">{hideHabitNames ? '***' : habit.title}</span>
       <div className="flex gap-1">
         {type === 'good' ? (
           <>
-            <button onClick={() => handleHabitLog(habit.id, 'done')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'done' ? "bg-white text-black" : "text-zinc-600 hover:bg-zinc-800")}>
+            <button onClick={() => handleHabitLog(habit.id, 'done')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'done' ? "bg-white text-black" : "text-zinc-600 hover:bg-stone-100")}>
               <CheckCircle2 className="w-4 h-4" />
             </button>
-            <button onClick={() => handleHabitLog(habit.id, 'skipped')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'skipped' ? "bg-zinc-800 text-zinc-400" : "text-zinc-600 hover:bg-zinc-800")}>
+            <button onClick={() => handleHabitLog(habit.id, 'skipped')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'skipped' ? "bg-stone-100 text-zinc-500" : "text-zinc-600 hover:bg-stone-100")}>
               <MinusCircle className="w-4 h-4" />
             </button>
-            <button onClick={() => handleHabitLog(habit.id, 'failed')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'failed' ? "bg-zinc-800 text-zinc-500" : "text-zinc-600 hover:bg-zinc-800")}>
+            <button onClick={() => handleHabitLog(habit.id, 'failed')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'failed' ? "bg-stone-100 text-zinc-500" : "text-zinc-600 hover:bg-stone-100")}>
               <XCircle className="w-4 h-4" />
             </button>
           </>
         ) : (
           <>
-            <button onClick={() => handleHabitLog(habit.id, 'done')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'done' ? "bg-white text-black" : "text-zinc-600 hover:bg-zinc-800")} title="Сдержался">
+            <button onClick={() => handleHabitLog(habit.id, 'done')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'done' ? "bg-white text-black" : "text-zinc-600 hover:bg-stone-100")} title="Сдержался">
               <CheckCircle2 className="w-4 h-4" />
             </button>
-            <button onClick={() => handleHabitLog(habit.id, 'failed')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'failed' ? "bg-zinc-800 text-zinc-500" : "text-zinc-600 hover:bg-zinc-800")} title="Сорвался">
+            <button onClick={() => handleHabitLog(habit.id, 'failed')} className={cn("p-1.5 rounded-lg transition-colors", log?.status === 'failed' ? "bg-stone-100 text-zinc-500" : "text-zinc-600 hover:bg-stone-100")} title="Сорвался">
               <XCircle className="w-4 h-4" />
             </button>
           </>
@@ -249,20 +249,20 @@ export const TasksHabitsWidget: React.FC<TasksHabitsWidgetProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800 flex flex-col">
+        <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200 flex flex-col">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold flex items-center gap-2 text-white">
-              <Target className="w-4 h-4 text-white" />
+            <h2 className="text-sm font-semibold flex items-center gap-2 text-zinc-900">
+              <Target className="w-4 h-4 text-zinc-900" />
               Задачи
             </h2>
             <div className="flex items-center gap-3">
               <button 
                 onClick={() => setIsAddingTask(!isAddingTask)}
-                className="text-xs text-zinc-300 hover:text-white font-medium flex items-center gap-1"
+                className="text-xs text-zinc-700 hover:text-zinc-900 font-medium flex items-center gap-1"
               >
                 <Plus className="w-3.5 h-3.5" /> Добавить
               </button>
-              <Link to="/tasks" className="text-xs text-zinc-500 hover:text-zinc-300 font-medium flex items-center gap-1">
+              <Link to="/tasks" className="text-xs text-zinc-500 hover:text-zinc-700 font-medium flex items-center gap-1">
                 Все <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
@@ -272,9 +272,9 @@ export const TasksHabitsWidget: React.FC<TasksHabitsWidgetProps> = ({
             <div className="mb-4 space-y-1.5">
               <div className="flex justify-between text-[10px] uppercase tracking-wider">
                 <span className="text-zinc-500">Прогресс задач</span>
-                <span className="text-white font-bold">{completedTasks}/{totalTasks}</span>
+                <span className="text-zinc-900 font-bold">{completedTasks}/{totalTasks}</span>
               </div>
-              <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${taskProgress}%` }}
@@ -285,20 +285,20 @@ export const TasksHabitsWidget: React.FC<TasksHabitsWidgetProps> = ({
           )}
 
           {isAddingTask && (
-            <form onSubmit={handleAddTask} className="mb-4 bg-zinc-950 p-3 rounded-2xl border border-zinc-800 space-y-3">
+            <form onSubmit={handleAddTask} className="mb-4 bg-stone-50 p-3 rounded-2xl border border-stone-200 space-y-3">
               <input
                 type="text"
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 placeholder="Название задачи..."
-                className="w-full px-3 py-2 text-sm bg-zinc-900 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500"
+                className="w-full px-3 py-2 text-sm bg-white border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500"
                 required
               />
               <div className="flex gap-2">
                 <select
                   value={newTaskSphere}
                   onChange={(e) => setNewTaskSphere(e.target.value)}
-                  className="flex-1 px-3 py-2 text-sm bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-xl focus:ring-2 focus:ring-zinc-500"
+                  className="flex-1 px-3 py-2 text-sm bg-white border border-stone-200 text-zinc-700 rounded-xl focus:ring-2 focus:ring-zinc-500"
                 >
                   <option value="">Без сферы</option>
                   {spheres.map(s => (
@@ -342,20 +342,20 @@ export const TasksHabitsWidget: React.FC<TasksHabitsWidgetProps> = ({
           )}
         </div>
 
-        <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800 flex flex-col">
+        <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200 flex flex-col">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold flex items-center gap-2 text-white">
-              <Activity className="w-4 h-4 text-white" />
+            <h2 className="text-sm font-semibold flex items-center gap-2 text-zinc-900">
+              <Activity className="w-4 h-4 text-zinc-900" />
               Привычки
             </h2>
-            <Link to="/habits" className="text-xs text-zinc-500 hover:text-zinc-300 font-medium flex items-center gap-1">
+            <Link to="/habits" className="text-xs text-zinc-500 hover:text-zinc-700 font-medium flex items-center gap-1">
               Все <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
 
           <div className="space-y-5 flex-1">
             <div>
-              <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Хорошие</h3>
+              <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">Хорошие</h3>
               <SortableContext items={goodHabits.map(h => h.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
                   {goodHabits.map(habit => {

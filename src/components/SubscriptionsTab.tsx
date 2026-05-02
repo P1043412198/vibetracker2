@@ -53,19 +53,19 @@ export function SubscriptionsTab() {
     <div className="space-y-6">
       {/* Dashboard Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-zinc-900/80 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden">
+        <div className="bg-white/80 border border-stone-200 p-6 rounded-3xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <Calendar className="w-24 h-24" />
           </div>
           <div className="relative z-10">
             <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-2">Сумма в месяц</p>
-            <p className="text-3xl font-bold text-white mb-1">
+            <p className="text-3xl font-bold text-zinc-900 mb-1">
               {totalMonthlyInBase.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {baseCurrency}
             </p>
-            <p className="text-xs text-zinc-400">Ежемесячные списания</p>
+            <p className="text-xs text-zinc-500">Ежемесячные списания</p>
           </div>
         </div>
-        <div className="bg-zinc-900/80 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden">
+        <div className="bg-white/80 border border-stone-200 p-6 rounded-3xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <TrendingUp className="w-24 h-24" />
           </div>
@@ -74,16 +74,16 @@ export function SubscriptionsTab() {
             <p className="text-3xl font-bold text-red-400 mb-1">
               {totalYearlyInBase.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {baseCurrency}
             </p>
-            <p className="text-xs text-zinc-400">Столько сервисы съедают за год</p>
+            <p className="text-xs text-zinc-500">Столько сервисы съедают за год</p>
           </div>
         </div>
       </div>
 
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-white">Мои подписки</h2>
+        <h2 className="text-lg font-semibold text-zinc-900">Мои подписки</h2>
         <button
           onClick={() => setIsAdding(!isAdding)}
-          className="p-2 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+          className="p-2 bg-blue-500 text-zinc-900 rounded-xl hover:bg-blue-600 transition-colors"
         >
           <Plus className="w-5 h-5" />
         </button>
@@ -96,7 +96,7 @@ export function SubscriptionsTab() {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             onSubmit={handleAdd}
-            className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4 overflow-hidden"
+            className="bg-white border border-stone-200 rounded-2xl p-4 space-y-4 overflow-hidden"
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -106,7 +106,7 @@ export function SubscriptionsTab() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Netflix, Spotify, Интернет..."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-blue-500/50"
                 />
               </div>
               <div className="space-y-2">
@@ -118,12 +118,12 @@ export function SubscriptionsTab() {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                    className="flex-1 bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-blue-500/50"
                   />
                   <select
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value as Currency)}
-                    className="w-24 bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-3 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                    className="w-24 bg-stone-50 border border-stone-200 rounded-xl py-2 px-3 text-sm text-zinc-900 focus:outline-none focus:border-blue-500/50"
                   >
                     <option value="BYN">BYN</option>
                     <option value="USD">USD</option>
@@ -141,7 +141,7 @@ export function SubscriptionsTab() {
                   max="31"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-blue-500/50"
                 />
               </div>
               <div className="space-y-2">
@@ -149,7 +149,7 @@ export function SubscriptionsTab() {
                 <select
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-blue-500/50"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-blue-500/50"
                 >
                   <option value="Подписки">Подписки</option>
                   <option value="Коммуналка">Коммуналка</option>
@@ -163,13 +163,13 @@ export function SubscriptionsTab() {
               <button
                 type="button"
                 onClick={() => setIsAdding(false)}
-                className="flex-1 py-2 bg-zinc-800 text-zinc-400 rounded-xl text-xs font-medium"
+                className="flex-1 py-2 bg-stone-100 text-zinc-500 rounded-xl text-xs font-medium"
               >
                 Отмена
               </button>
               <button
                 type="submit"
-                className="flex-1 py-2 bg-blue-500 text-white rounded-xl text-xs font-bold"
+                className="flex-1 py-2 bg-blue-500 text-zinc-900 rounded-xl text-xs font-bold"
               >
                 Добавить
               </button>
@@ -184,16 +184,16 @@ export function SubscriptionsTab() {
           const isPast = sub.dueDate < today;
           
           return (
-            <div key={sub.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between group">
+            <div key={sub.id} className="bg-white border border-stone-200 rounded-2xl p-4 flex items-center justify-between group">
               <div className="flex items-center gap-4">
                 <div className={cn(
                   "w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold",
-                  sub.isActive ? "bg-zinc-800 text-white" : "bg-zinc-800/50 text-zinc-600"
+                  sub.isActive ? "bg-stone-100 text-zinc-900" : "bg-stone-100/60 text-zinc-600"
                 )}>
                   {sub.dueDate}
                 </div>
                 <div>
-                  <h3 className={cn("font-bold", sub.isActive ? "text-white" : "text-zinc-500 line-through")}>{sub.name}</h3>
+                  <h3 className={cn("font-bold", sub.isActive ? "text-zinc-900" : "text-zinc-500 line-through")}>{sub.name}</h3>
                   <div className="flex items-center gap-2 text-xs">
                     <span className="text-zinc-500">{sub.category}</span>
                     {sub.isActive && isUpcoming && (
@@ -211,7 +211,7 @@ export function SubscriptionsTab() {
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <p className={cn("font-bold", sub.isActive ? "text-white" : "text-zinc-500")}>
+                  <p className={cn("font-bold", sub.isActive ? "text-zinc-900" : "text-zinc-500")}>
                     {sub.amount.toLocaleString()} {sub.currency || baseCurrency}
                   </p>
                   <p className="text-[10px] text-zinc-500">в месяц</p>
@@ -219,14 +219,14 @@ export function SubscriptionsTab() {
                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => updateRegularPayment(sub.id, { isActive: !sub.isActive })}
-                    className="p-2 text-zinc-400 hover:text-white transition-colors bg-zinc-800 rounded-lg"
+                    className="p-2 text-zinc-500 hover:text-zinc-900 transition-colors bg-stone-100 rounded-lg"
                     title={sub.isActive ? "Отключить" : "Включить"}
                   >
                     {sub.isActive ? <X className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={() => deleteRegularPayment(sub.id)}
-                    className="p-2 text-zinc-400 hover:text-red-400 transition-colors bg-zinc-800 rounded-lg"
+                    className="p-2 text-zinc-500 hover:text-red-400 transition-colors bg-stone-100 rounded-lg"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -237,8 +237,8 @@ export function SubscriptionsTab() {
         })}
 
         {sortedSubscriptions.length === 0 && (
-          <div className="text-center py-12 bg-zinc-900/30 rounded-3xl border border-dashed border-zinc-800">
-            <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="text-center py-12 bg-white/30 rounded-3xl border border-dashed border-stone-200">
+            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
               <CreditCard className="w-8 h-8 text-zinc-700" />
             </div>
             <p className="text-zinc-500">У вас пока нет добавленных подписок</p>

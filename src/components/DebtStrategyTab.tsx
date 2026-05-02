@@ -127,11 +127,11 @@ export function DebtStrategyTab() {
   if (loans.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-        <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center border border-zinc-800">
+        <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center border border-stone-200">
           <ShieldAlert className="w-10 h-10 text-zinc-700" />
         </div>
         <div>
-          <h3 className="text-xl font-bold text-white">Долгов не обнаружено</h3>
+          <h3 className="text-xl font-bold text-zinc-900">Долгов не обнаружено</h3>
           <p className="text-zinc-500 max-w-xs mx-auto mt-2">
             Добавьте ваши кредиты или займы во вкладке "Кредиты", чтобы составить стратегию их погашения.
           </p>
@@ -145,18 +145,18 @@ export function DebtStrategyTab() {
       
       {/* Header Summary */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden">
+        <div className="bg-white/60 border border-stone-200 p-6 rounded-3xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <TrendingDown className="w-12 h-12 text-red-500" />
           </div>
           <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider mb-1">Общий долг</p>
-          <p className="text-2xl font-black text-white">{totalDebt.toLocaleString()} <span className="text-sm font-normal text-zinc-500">BYN</span></p>
+          <p className="text-2xl font-black text-zinc-900">{totalDebt.toLocaleString()} <span className="text-sm font-normal text-zinc-500">BYN</span></p>
         </div>
-        <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl">
+        <div className="bg-white/60 border border-stone-200 p-6 rounded-3xl">
           <p className="text-xs text-zinc-500 uppercase font-bold tracking-wider mb-1">Обязательный платеж</p>
-          <p className="text-2xl font-black text-white">{monthlyMinimums.toLocaleString()} <span className="text-sm font-normal text-zinc-500">BYN/мес</span></p>
+          <p className="text-2xl font-black text-zinc-900">{monthlyMinimums.toLocaleString()} <span className="text-sm font-normal text-zinc-500">BYN/мес</span></p>
         </div>
-        <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden">
+        <div className="bg-white/60 border border-stone-200 p-6 rounded-3xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <Target className="w-12 h-12 text-emerald-500" />
           </div>
@@ -168,21 +168,21 @@ export function DebtStrategyTab() {
       </section>
 
       {/* Strategy Controls */}
-      <section className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-6 space-y-8">
+      <section className="bg-white/60 border border-stone-200 rounded-3xl p-6 space-y-8">
         <div className="flex flex-col md:flex-row gap-8">
           <div className="flex-1 space-y-6">
             <div>
-              <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-zinc-900 mb-2 flex items-center gap-2">
                 <Zap className="w-5 h-5 text-amber-400" />
                 Ускоритель погашения
               </h3>
-              <p className="text-sm text-zinc-400">Сколько вы готовы платить сверх минимума?</p>
+              <p className="text-sm text-zinc-500">Сколько вы готовы платить сверх минимума?</p>
             </div>
             
             <div className="space-y-4">
               <div className="flex justify-between items-end">
                 <span className="text-sm text-zinc-500">Доп. платеж</span>
-                <span className="text-2xl font-black text-white">{extraPayment.toLocaleString()} BYN</span>
+                <span className="text-2xl font-black text-zinc-900">{extraPayment.toLocaleString()} BYN</span>
               </div>
               <input 
                 type="range" min="0" max="5000" step="50"
@@ -201,11 +201,11 @@ export function DebtStrategyTab() {
                 onClick={() => setStrategy('avalanche')}
                 className={cn(
                   "p-4 rounded-2xl border transition-all text-left relative overflow-hidden group",
-                  strategy === 'avalanche' ? "bg-emerald-500/10 border-emerald-500/50" : "bg-zinc-950 border-zinc-800 hover:border-zinc-700"
+                  strategy === 'avalanche' ? "bg-emerald-500/10 border-emerald-500/50" : "bg-stone-50 border-stone-200 hover:border-stone-300"
                 )}
               >
                 <Flame className={cn("w-5 h-5 mb-2", strategy === 'avalanche' ? "text-emerald-400" : "text-zinc-500")} />
-                <p className="text-sm font-bold text-white">Лавина</p>
+                <p className="text-sm font-bold text-zinc-900">Лавина</p>
                 <p className="text-[10px] text-zinc-500 mt-1">Сначала самые дорогие (высокий %)</p>
                 {strategy === 'avalanche' && <div className="absolute top-2 right-2"><CheckCircle2 className="w-4 h-4 text-emerald-500" /></div>}
               </button>
@@ -213,25 +213,25 @@ export function DebtStrategyTab() {
                 onClick={() => setStrategy('snowball')}
                 className={cn(
                   "p-4 rounded-2xl border transition-all text-left relative overflow-hidden group",
-                  strategy === 'snowball' ? "bg-blue-500/10 border-blue-500/50" : "bg-zinc-950 border-zinc-800 hover:border-zinc-700"
+                  strategy === 'snowball' ? "bg-blue-500/10 border-blue-500/50" : "bg-stone-50 border-stone-200 hover:border-stone-300"
                 )}
               >
                 <Snowflake className={cn("w-5 h-5 mb-2", strategy === 'snowball' ? "text-blue-400" : "text-zinc-500")} />
-                <p className="text-sm font-bold text-white">Снежный ком</p>
+                <p className="text-sm font-bold text-zinc-900">Снежный ком</p>
                 <p className="text-[10px] text-zinc-500 mt-1">Сначала самые мелкие (психология)</p>
                 {strategy === 'snowball' && <div className="absolute top-2 right-2"><CheckCircle2 className="w-4 h-4 text-blue-500" /></div>}
               </button>
             </div>
           </div>
 
-          <div className="flex-1 bg-zinc-950/50 border border-zinc-800/50 rounded-2xl p-6 flex flex-col justify-center space-y-6">
+          <div className="flex-1 bg-stone-50/50 border border-stone-200/70 rounded-2xl p-6 flex flex-col justify-center space-y-6">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-emerald-500/10 rounded-xl">
                 <Sparkles className="w-6 h-6 text-emerald-400" />
               </div>
               <div>
-                <p className="text-sm text-white font-bold">Ваша выгода</p>
-                <p className="text-xs text-zinc-400">При текущем плане ускорения</p>
+                <p className="text-sm text-zinc-900 font-bold">Ваша выгода</p>
+                <p className="text-xs text-zinc-500">При текущем плане ускорения</p>
               </div>
             </div>
 
@@ -250,7 +250,7 @@ export function DebtStrategyTab() {
 
             <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3">
               <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5" />
-              <p className="text-[10px] text-zinc-400 leading-relaxed">
+              <p className="text-[10px] text-zinc-500 leading-relaxed">
                 {strategy === 'avalanche' 
                   ? "Метод Лавины математически выгоден — вы платите меньше процентов банку." 
                   : "Метод Снежного кома помогает не бросить начатое, так как вы быстрее видите закрытые счета."}
@@ -292,34 +292,34 @@ export function DebtStrategyTab() {
 
       {/* Step-by-Step Plan */}
       <section className="space-y-4">
-        <h3 className="text-lg font-bold text-white px-1 flex items-center gap-2">
-          <Calculator className="w-5 h-5 text-zinc-400" />
+        <h3 className="text-lg font-bold text-zinc-900 px-1 flex items-center gap-2">
+          <Calculator className="w-5 h-5 text-zinc-500" />
           Пошаговый план выхода
         </h3>
         <div className="space-y-3">
-          <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-3xl flex items-start gap-4">
+          <div className="bg-white/60 border border-stone-200 p-5 rounded-3xl flex items-start gap-4">
             <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-sm shrink-0">1</div>
             <div>
-              <p className="text-sm font-bold text-white">Зафиксируйте обязательные платежи</p>
-              <p className="text-xs text-zinc-400 mt-1">Ваш минимум: {monthlyMinimums.toLocaleString()} BYN. Никогда не платите меньше этой суммы, чтобы избежать штрафов.</p>
+              <p className="text-sm font-bold text-zinc-900">Зафиксируйте обязательные платежи</p>
+              <p className="text-xs text-zinc-500 mt-1">Ваш минимум: {monthlyMinimums.toLocaleString()} BYN. Никогда не платите меньше этой суммы, чтобы избежать штрафов.</p>
             </div>
           </div>
-          <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-3xl flex items-start gap-4">
+          <div className="bg-white/60 border border-stone-200 p-5 rounded-3xl flex items-start gap-4">
             <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-black text-sm shrink-0">2</div>
             <div>
-              <p className="text-sm font-bold text-white">Направьте доп. платеж на цель</p>
-              <p className="text-xs text-zinc-400 mt-1">
+              <p className="text-sm font-bold text-zinc-900">Направьте доп. платеж на цель</p>
+              <p className="text-xs text-zinc-500 mt-1">
                 {strategy === 'avalanche' 
                   ? "Все свободные средства ({extraPayment} BYN) направляйте на кредит с самой высокой ставкой."
                   : "Все свободные средства ({extraPayment} BYN) направляйте на самый маленький по сумме кредит."}
               </p>
             </div>
           </div>
-          <div className="bg-zinc-900/50 border border-zinc-800 p-5 rounded-3xl flex items-start gap-4">
+          <div className="bg-white/60 border border-stone-200 p-5 rounded-3xl flex items-start gap-4">
             <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-black text-sm shrink-0">3</div>
             <div>
-              <p className="text-sm font-bold text-white">Эффект снежного кома</p>
-              <p className="text-xs text-zinc-400 mt-1">Когда закроете первый кредит, не тратьте освободившиеся деньги. Добавьте их к платежу по следующему кредиту.</p>
+              <p className="text-sm font-bold text-zinc-900">Эффект снежного кома</p>
+              <p className="text-xs text-zinc-500 mt-1">Когда закроете первый кредит, не тратьте освободившиеся деньги. Добавьте их к платежу по следующему кредиту.</p>
             </div>
           </div>
         </div>
@@ -327,22 +327,22 @@ export function DebtStrategyTab() {
 
       {/* Educational Tips */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-zinc-900/30 border border-zinc-800 p-6 rounded-3xl space-y-3">
+        <div className="bg-white/30 border border-stone-200 p-6 rounded-3xl space-y-3">
           <div className="flex items-center gap-2 text-amber-400">
             <Info className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-wider">Важно знать</span>
           </div>
-          <h4 className="text-sm font-bold text-white">Досрочное погашение: Срок или Платеж?</h4>
+          <h4 className="text-sm font-bold text-zinc-900">Досрочное погашение: Срок или Платеж?</h4>
           <p className="text-xs text-zinc-500 leading-relaxed">
             Математически выгоднее сокращать <strong>срок</strong> кредита. Это уменьшает общую переплату по процентам. Сокращение платежа полезно только если вам нужно снизить ежемесячную нагрузку для психологического комфорта.
           </p>
         </div>
-        <div className="bg-zinc-900/30 border border-zinc-800 p-6 rounded-3xl space-y-3">
+        <div className="bg-white/30 border border-stone-200 p-6 rounded-3xl space-y-3">
           <div className="flex items-center gap-2 text-blue-400">
             <HelpCircle className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-wider">Совет</span>
           </div>
-          <h4 className="text-sm font-bold text-white">Кредитные карты</h4>
+          <h4 className="text-sm font-bold text-zinc-900">Кредитные карты</h4>
           <p className="text-xs text-zinc-500 leading-relaxed">
             У кредиток самые высокие ставки. Всегда закрывайте их в первую очередь по методу Лавины. Если возможно, переведите долг по кредитке на обычный потребительский кредит под меньший процент.
           </p>

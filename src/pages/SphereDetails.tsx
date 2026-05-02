@@ -27,10 +27,10 @@ export function SphereDetails() {
   if (!sphere) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-white">Сфера не найдена</h2>
+        <h2 className="text-xl font-semibold text-zinc-900">Сфера не найдена</h2>
         <button 
           onClick={() => navigate('/spheres')}
-          className="mt-4 text-zinc-400 hover:text-white"
+          className="mt-4 text-zinc-500 hover:text-zinc-900"
         >
           Вернуться к сферам
         </button>
@@ -82,20 +82,20 @@ export function SphereDetails() {
       <div className="flex items-center gap-4">
         <button 
           onClick={() => navigate('/spheres')}
-          className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-full transition-colors"
+          className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-full transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white">{sphere.title}</h1>
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900">{sphere.title}</h1>
           {sphere.description && (
-            <p className="text-xs text-zinc-400 mt-1">{sphere.description}</p>
+            <p className="text-xs text-zinc-500 mt-1">{sphere.description}</p>
           )}
         </div>
       </div>
 
       {sphere.deadline && (
-        <div className="flex items-center gap-2 text-xs text-zinc-400 bg-zinc-900/50 w-fit px-3 py-1.5 rounded-lg border border-zinc-800">
+        <div className="flex items-center gap-2 text-xs text-zinc-500 bg-white/60 w-fit px-3 py-1.5 rounded-lg border border-stone-200">
           <Calendar className="w-3.5 h-3.5" />
           <span>Дедлайн: {format(new Date(sphere.deadline), 'd MMM yyyy', { locale: ru })}</span>
         </div>
@@ -103,7 +103,7 @@ export function SphereDetails() {
 
       {sphereTasks.length > 0 && (
         <div className="mt-6">
-          <h2 className="text-base font-semibold text-white mb-4">Задачи</h2>
+          <h2 className="text-base font-semibold text-zinc-900 mb-4">Задачи</h2>
           <div className="space-y-2">
             {sphereTasks.map(task => (
               <div 
@@ -111,15 +111,15 @@ export function SphereDetails() {
                 className={cn(
                   "flex items-center gap-3 p-3 rounded-xl border transition-all",
                   task.completed 
-                    ? "bg-zinc-900/50 border-zinc-800/50 opacity-60" 
-                    : "bg-zinc-900 border-zinc-800"
+                    ? "bg-white/60 border-stone-200/70 opacity-60" 
+                    : "bg-white border-stone-200"
                 )}
               >
                 <button
                   onClick={() => toggleTaskCompletion(task.id)}
                   className={cn(
                     "shrink-0 transition-colors",
-                    task.completed ? "text-emerald-500" : "text-zinc-500 hover:text-zinc-400"
+                    task.completed ? "text-emerald-500" : "text-zinc-500 hover:text-zinc-500"
                   )}
                 >
                   {task.completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
@@ -127,7 +127,7 @@ export function SphereDetails() {
                 <div className="flex-1 min-w-0">
                   <p className={cn(
                     "text-sm font-medium truncate",
-                    task.completed ? "text-zinc-500 line-through" : "text-zinc-200"
+                    task.completed ? "text-zinc-500 line-through" : "text-zinc-800"
                   )}>
                     {task.title}
                   </p>
@@ -139,7 +139,7 @@ export function SphereDetails() {
       )}
 
       <div className="flex items-center justify-between mt-6">
-        <h2 className="text-base font-semibold text-white">Заметки</h2>
+        <h2 className="text-base font-semibold text-zinc-900">Заметки</h2>
         <button
           onClick={() => setIsAddingNote(true)}
           className="flex items-center gap-2 bg-white text-black px-3 py-1.5 rounded-xl hover:bg-zinc-200 transition-colors text-xs font-medium"
@@ -150,17 +150,17 @@ export function SphereDetails() {
       </div>
 
       {isAddingNote && (
-        <div className="bg-zinc-900 p-5 rounded-2xl shadow-sm border border-zinc-800">
+        <div className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200">
           <form onSubmit={handleAddNote} className="space-y-4">
             <div data-color-mode="dark">
-              <label className="block text-xs font-medium text-zinc-300 mb-1">Текст заметки</label>
-              <div className="border border-zinc-800 rounded-xl overflow-hidden">
+              <label className="block text-xs font-medium text-zinc-700 mb-1">Текст заметки</label>
+              <div className="border border-stone-200 rounded-xl overflow-hidden">
                 <MDEditor
                   value={noteContent}
                   onChange={(val) => setNoteContent(val || '')}
                   preview="edit"
                   height={200}
-                  className="!bg-zinc-950 !border-none"
+                  className="!bg-stone-50 !border-none"
                   textareaProps={{
                     placeholder: 'Подробное описание... Поддерживается Markdown (чекбоксы, фото, видео, ссылки)',
                   }}
@@ -168,20 +168,20 @@ export function SphereDetails() {
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1 flex items-center gap-2">
-                <Youtube className="w-3.5 h-3.5 text-zinc-400" />
+              <label className="block text-xs font-medium text-zinc-700 mb-1 flex items-center gap-2">
+                <Youtube className="w-3.5 h-3.5 text-zinc-500" />
                 Ссылка на YouTube (необязательно)
               </label>
               <input
                 type="url"
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 text-sm"
+                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500 text-sm"
                 placeholder="https://youtube.com/watch?v=..."
               />
             </div>
             <div className="flex items-center gap-2 pt-1">
-              <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border bg-zinc-950 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white cursor-pointer">
+              <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border bg-stone-50 text-zinc-500 border-stone-200 hover:border-stone-300 hover:text-zinc-900 cursor-pointer">
                 <input 
                   type="file" 
                   accept="image/*" 
@@ -194,12 +194,12 @@ export function SphereDetails() {
             </div>
 
             {photoUrl && (
-              <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-zinc-800 group">
+              <div className="relative w-32 h-32 rounded-xl overflow-hidden border border-stone-200 group">
                 <img src={photoUrl} alt="Note attachment" className="w-full h-full object-cover" />
                 <button
                   type="button"
                   onClick={() => setPhotoUrl(undefined)}
-                  className="absolute top-1 right-1 w-6 h-6 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
+                  className="absolute top-1 right-1 w-6 h-6 bg-zinc-900/30 backdrop-blur-md rounded-full flex items-center justify-center text-zinc-900 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -210,7 +210,7 @@ export function SphereDetails() {
               <button
                 type="button"
                 onClick={() => setIsAddingNote(false)}
-                className="px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 rounded-xl font-medium transition-colors"
+                className="px-3 py-1.5 text-xs text-zinc-500 hover:bg-stone-100 rounded-xl font-medium transition-colors"
               >
                 Отмена
               </button>
@@ -227,7 +227,7 @@ export function SphereDetails() {
 
       <div className="space-y-4">
         {(!sphere.notesList || sphere.notesList.length === 0) ? (
-          <div className="text-center py-10 bg-zinc-900/50 rounded-2xl border border-dashed border-zinc-800">
+          <div className="text-center py-10 bg-white/60 rounded-2xl border border-dashed border-stone-200">
             <p className="text-zinc-500 text-sm">В этой сфере пока нет заметок.</p>
           </div>
         ) : (
@@ -242,8 +242,8 @@ export function SphereDetails() {
               
               return (
                 <div key={note.id} className={cn(
-                  "bg-zinc-900 p-5 rounded-2xl shadow-sm border transition-all",
-                  note.isPinned ? "border-indigo-500/50 ring-1 ring-indigo-500/20" : "border-zinc-800"
+                  "bg-white p-5 rounded-2xl shadow-sm border transition-all",
+                  note.isPinned ? "border-indigo-500/50 ring-1 ring-indigo-500/20" : "border-stone-200"
                 )}>
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 flex gap-3">
@@ -253,8 +253,8 @@ export function SphereDetails() {
                           className={cn(
                             "mt-0.5 flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors border",
                             note.isChecked 
-                              ? "bg-emerald-500 border-emerald-500 text-white" 
-                              : "bg-zinc-950 border-zinc-700 text-transparent hover:border-zinc-500"
+                              ? "bg-emerald-500 border-emerald-500 text-zinc-900" 
+                              : "bg-stone-50 border-stone-300 text-transparent hover:border-zinc-500"
                           )}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
@@ -300,11 +300,11 @@ export function SphereDetails() {
                   </div>
                 
                 {note.photoUrl && (
-                  <div className="mt-4 relative rounded-xl overflow-hidden border border-zinc-800 group w-full max-w-2xl">
+                  <div className="mt-4 relative rounded-xl overflow-hidden border border-stone-200 group w-full max-w-2xl">
                     <img src={note.photoUrl} alt="Note attachment" className="w-full h-auto object-cover max-h-[400px]" />
                     <button 
                       onClick={() => updateSphereNote(sphere.id, note.id, { photoUrl: undefined })}
-                      className="absolute top-2 right-2 w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
+                      className="absolute top-2 right-2 w-8 h-8 bg-zinc-900/30 backdrop-blur-md rounded-full flex items-center justify-center text-zinc-900 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -312,7 +312,7 @@ export function SphereDetails() {
                 )}
                 
                 {videoId && (
-                  <div className="mt-4 rounded-xl overflow-hidden border border-zinc-800 aspect-video w-full max-w-2xl">
+                  <div className="mt-4 rounded-xl overflow-hidden border border-stone-200 aspect-video w-full max-w-2xl">
                     <iframe
                       width="100%"
                       height="100%"

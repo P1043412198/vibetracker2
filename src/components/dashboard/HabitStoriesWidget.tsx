@@ -20,7 +20,7 @@ export const HabitStoriesWidget: React.FC<HabitStoriesWidgetProps> = ({
   const { hideHabitNames } = useStore();
   
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
       <h2 className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
         <Activity className="w-3 h-3" />
         Привычки дня
@@ -46,17 +46,17 @@ export const HabitStoriesWidget: React.FC<HabitStoriesWidgetProps> = ({
               >
                 <div className={cn(
                   "absolute inset-0 rounded-full border-2 transition-colors",
-                  isDone ? "border-emerald-500" : "border-zinc-800"
+                  isDone ? "border-emerald-500" : "border-stone-200"
                 )} />
                 <div className={cn(
                   "w-full h-full rounded-full flex items-center justify-center text-xl transition-all",
-                  isDone ? "bg-emerald-500/20" : "bg-zinc-950"
+                  isDone ? "bg-emerald-500/20" : "bg-stone-50"
                 )}>
                   {habit.icon || '✨'}
                 </div>
                 {isDone && (
-                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 rounded-full p-0.5 border-2 border-zinc-900">
-                    <CheckCircle2 className="w-3 h-3 text-white" />
+                  <div className="absolute -bottom-1 -right-1 bg-emerald-500 rounded-full p-0.5 border-2 border-stone-200">
+                    <CheckCircle2 className="w-3 h-3 text-zinc-900" />
                   </div>
                 )}
               </button>
@@ -68,12 +68,12 @@ export const HabitStoriesWidget: React.FC<HabitStoriesWidgetProps> = ({
                       "w-1.5 h-1.5 rounded-full",
                       h.status === 'done' ? "bg-emerald-500" : 
                       h.status === 'failed' ? "bg-rose-500" : 
-                      h.status === 'skipped' ? "bg-zinc-700" : "bg-zinc-800"
+                      h.status === 'skipped' ? "bg-stone-200" : "bg-stone-100"
                     )} 
                   />
                 ))}
               </div>
-              <span className="text-[9px] text-zinc-400 font-medium truncate w-16 text-center">
+              <span className="text-[9px] text-zinc-500 font-medium truncate w-16 text-center">
                 {hideHabitNames ? '***' : habit.title}
               </span>
             </div>

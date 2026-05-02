@@ -24,19 +24,19 @@ export const WaterWidget: React.FC = () => {
   };
 
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800 flex flex-col h-full">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200 flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold flex items-center gap-2 text-white">
+        <h2 className="text-sm font-semibold flex items-center gap-2 text-zinc-900">
           <Droplets className="w-4 h-4 text-blue-400" />
           Водный баланс
         </h2>
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-zinc-400">
+          <span className="text-xs font-medium text-zinc-500">
             {totalAmount} / {waterGoal} мл
           </span>
           <button 
             onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            className="p-1 text-zinc-500 hover:text-white transition-colors"
+            className="p-1 text-zinc-500 hover:text-zinc-900 transition-colors"
           >
             <Settings className="w-3 h-3" />
           </button>
@@ -60,7 +60,7 @@ export const WaterWidget: React.FC = () => {
                     type="number"
                     value={waterGoal}
                     onChange={(e) => setWaterGoal(Number(e.target.value))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -69,7 +69,7 @@ export const WaterWidget: React.FC = () => {
                     type="number"
                     value={waterIncrement}
                     onChange={(e) => setWaterIncrement(Number(e.target.value))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div className="space-y-2">
@@ -80,8 +80,8 @@ export const WaterWidget: React.FC = () => {
                       className={cn(
                         "flex-1 py-2 rounded-xl text-xs font-medium transition-all border",
                         waterVisualization === 'glass' 
-                          ? "bg-blue-600 border-blue-500 text-white" 
-                          : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                          ? "bg-blue-600 border-blue-500 text-zinc-900" 
+                          : "bg-stone-50 border-stone-200 text-zinc-500 hover:border-stone-300"
                       )}
                     >
                       Стакан
@@ -91,8 +91,8 @@ export const WaterWidget: React.FC = () => {
                       className={cn(
                         "flex-1 py-2 rounded-xl text-xs font-medium transition-all border",
                         waterVisualization === 'bottle' 
-                          ? "bg-blue-600 border-blue-500 text-white" 
-                          : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                          ? "bg-blue-600 border-blue-500 text-zinc-900" 
+                          : "bg-stone-50 border-stone-200 text-zinc-500 hover:border-stone-300"
                       )}
                     >
                       Бутылка
@@ -102,7 +102,7 @@ export const WaterWidget: React.FC = () => {
               </div>
               <button 
                 onClick={() => setIsSettingsOpen(false)}
-                className="w-full bg-zinc-800 hover:bg-zinc-700 text-white text-xs py-2 rounded-xl transition-colors"
+                className="w-full bg-stone-100 hover:bg-stone-200 text-zinc-900 text-xs py-2 rounded-xl transition-colors"
               >
                 Готово
               </button>
@@ -118,14 +118,14 @@ export const WaterWidget: React.FC = () => {
               {/* Visualization */}
               <div className="flex justify-center py-4">
                 <div className={cn(
-                  "relative overflow-hidden bg-zinc-950/50 transition-all duration-500",
+                  "relative overflow-hidden bg-stone-50/50 transition-all duration-500",
                   waterVisualization === 'glass' 
-                    ? "w-24 h-32 border-x-2 border-b-2 border-zinc-700 rounded-b-2xl" 
-                    : "w-20 h-40 border-2 border-zinc-700 rounded-t-lg rounded-b-2xl"
+                    ? "w-24 h-32 border-x-2 border-b-2 border-stone-300 rounded-b-2xl" 
+                    : "w-20 h-40 border-2 border-stone-300 rounded-t-lg rounded-b-2xl"
                 )}>
                   {/* Bottle Neck */}
                   {waterVisualization === 'bottle' && (
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-4 border-x-2 border-zinc-700 bg-zinc-950/50 -mt-4 rounded-t-sm" />
+                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-4 border-x-2 border-stone-300 bg-stone-50/50 -mt-4 rounded-t-sm" />
                   )}
 
                   {/* Water Level */}
@@ -179,7 +179,7 @@ export const WaterWidget: React.FC = () => {
               </div>
 
               {/* Progress Bar */}
-              <div className="relative h-2 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800">
+              <div className="relative h-2 bg-stone-50 rounded-full overflow-hidden border border-stone-200">
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
@@ -189,26 +189,26 @@ export const WaterWidget: React.FC = () => {
 
               {/* Controls */}
               <div className="flex items-center gap-2">
-                <div className="flex-1 flex items-center bg-zinc-950 rounded-2xl border border-zinc-800 p-1">
+                <div className="flex-1 flex items-center bg-stone-50 rounded-2xl border border-stone-200 p-1">
                   <button 
                     onClick={() => setWaterIncrement(Math.max(50, waterIncrement - 50))}
-                    className="p-2 text-zinc-400 hover:text-white transition-colors"
+                    className="p-2 text-zinc-500 hover:text-zinc-900 transition-colors"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <div className="flex-1 text-center text-sm font-medium text-white">
+                  <div className="flex-1 text-center text-sm font-medium text-zinc-900">
                     {waterIncrement} мл
                   </div>
                   <button 
                     onClick={() => setWaterIncrement(waterIncrement + 50)}
-                    className="p-2 text-zinc-400 hover:text-white transition-colors"
+                    className="p-2 text-zinc-500 hover:text-zinc-900 transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
                 <button 
                   onClick={handleAdd}
-                  className="bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-2xl transition-colors shadow-lg shadow-blue-900/20"
+                  className="bg-blue-600 hover:bg-blue-500 text-zinc-900 p-3 rounded-2xl transition-colors shadow-lg shadow-blue-900/20"
                 >
                   <Plus className="w-5 h-5" />
                 </button>
@@ -223,11 +223,11 @@ export const WaterWidget: React.FC = () => {
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: 10 }}
-                      className="flex items-center justify-between p-2 bg-zinc-950 rounded-xl border border-zinc-800/50 group"
+                      className="flex items-center justify-between p-2 bg-stone-50 rounded-xl border border-stone-200/70 group"
                     >
                       <div className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                        <span className="text-xs text-zinc-300">{log.amount} мл</span>
+                        <span className="text-xs text-zinc-700">{log.amount} мл</span>
                         <span className="text-[10px] text-zinc-500">{log.timestamp.split('T')[1].slice(0, 5)}</span>
                       </div>
                       <button 

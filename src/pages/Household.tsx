@@ -71,27 +71,27 @@ export function Household() {
   return (
     <div className="space-y-6 pb-24">
       <header>
-        <h1 className="text-xl font-bold text-white mb-1.5 flex items-center gap-2">
+        <h1 className="text-xl font-bold text-zinc-900 mb-1.5 flex items-center gap-2">
           <Home className="w-6 h-6 text-blue-400" />
           Быт и Дом
         </h1>
-        <p className="text-sm text-zinc-400">Управление домашним хозяйством, уборка, ремонт и советы</p>
+        <p className="text-sm text-zinc-500">Управление домашним хозяйством, уборка, ремонт и советы</p>
       </header>
 
-      <div className="relative overflow-hidden rounded-3xl bg-zinc-900/50 border border-zinc-800 flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800/50 bg-zinc-900/80 z-10">
-          <button onClick={handlePrevDay} className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800 transition-colors">
+      <div className="relative overflow-hidden rounded-3xl bg-white/60 border border-stone-200 flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-stone-200/70 bg-white/80 z-10">
+          <button onClick={handlePrevDay} className="p-2 text-zinc-500 hover:text-zinc-900 rounded-xl hover:bg-stone-100 transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
           <div className="text-center">
-            <h2 className="text-lg font-bold text-white capitalize">
+            <h2 className="text-lg font-bold text-zinc-900 capitalize">
               {format(selectedDate, 'EEEE', { locale: ru })}
             </h2>
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-zinc-500">
               {format(selectedDate, 'd MMMM yyyy', { locale: ru })}
             </p>
           </div>
-          <button onClick={handleNextDay} className="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800 transition-colors">
+          <button onClick={handleNextDay} className="p-2 text-zinc-500 hover:text-zinc-900 rounded-xl hover:bg-stone-100 transition-colors">
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
@@ -127,14 +127,14 @@ export function Household() {
                     className={cn(
                       "flex flex-col items-center justify-center text-center gap-1.5 p-3 rounded-2xl border transition-colors",
                       isAdding === cat.id 
-                        ? "bg-zinc-800 border-zinc-700" 
-                        : "bg-zinc-900/50 border-zinc-800/50 hover:bg-zinc-800/50"
+                        ? "bg-stone-100 border-stone-300" 
+                        : "bg-white/60 border-stone-200/70 hover:bg-stone-100/60"
                     )}
                   >
                     <div className={cn("w-8 h-8 rounded-full flex items-center justify-center", cat.bg)}>
                       <cat.icon className={cn("w-4 h-4", cat.color)} />
                     </div>
-                    <span className="text-[10px] font-medium text-zinc-300">{cat.label}</span>
+                    <span className="text-[10px] font-medium text-zinc-700">{cat.label}</span>
                   </button>
                 ))}
               </div>
@@ -153,13 +153,13 @@ export function Household() {
                       value={newTaskTitle}
                       onChange={(e) => setNewTaskTitle(e.target.value)}
                       placeholder="Что нужно сделать?"
-                      className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                      className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
                       autoFocus
                     />
                     <button
                       type="submit"
                       disabled={!newTaskTitle.trim()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-500 transition-colors disabled:opacity-50"
+                      className="px-4 py-2 bg-blue-600 text-zinc-900 rounded-xl text-sm font-medium hover:bg-blue-500 transition-colors disabled:opacity-50"
                     >
                       <Plus className="w-5 h-5" />
                     </button>
@@ -185,8 +185,8 @@ export function Household() {
                         className={cn(
                           "flex items-center gap-3 p-3 rounded-2xl border transition-colors",
                           task.completed 
-                            ? "bg-zinc-900/30 border-zinc-800/30 opacity-50" 
-                            : "bg-zinc-900/50 border-zinc-800"
+                            ? "bg-white/30 border-stone-200/30 opacity-50" 
+                            : "bg-white/60 border-stone-200"
                         )}
                       >
                         <button
@@ -205,14 +205,14 @@ export function Household() {
 
                         <span className={cn(
                           "flex-1 text-sm transition-all",
-                          task.completed ? "text-zinc-500 line-through" : "text-zinc-200"
+                          task.completed ? "text-zinc-500 line-through" : "text-zinc-800"
                         )}>
                           {task.title}
                         </span>
 
                         <button
                           onClick={() => deleteTask(task.id)}
-                          className="p-2 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-zinc-800 transition-colors"
+                          className="p-2 text-zinc-500 hover:text-red-400 rounded-lg hover:bg-stone-100 transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>

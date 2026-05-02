@@ -170,14 +170,14 @@ export function AIFinanceAssistant({ initialPrompt }: { initialPrompt?: string }
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-220px)] bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
-      <div className="p-4 bg-zinc-950 border-b border-zinc-800 flex items-center gap-3">
+    <div className="flex flex-col h-[calc(100vh-220px)] bg-white rounded-2xl border border-stone-200 overflow-hidden">
+      <div className="p-4 bg-stone-50 border-b border-stone-200 flex items-center gap-3">
         <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
           <Bot className="w-6 h-6" />
         </div>
         <div>
-          <h3 className="font-bold text-white">Финансовый Ассистент</h3>
-          <p className="text-xs text-zinc-400">На страже вашего кошелька</p>
+          <h3 className="font-bold text-zinc-900">Финансовый Ассистент</h3>
+          <p className="text-xs text-zinc-500">На страже вашего кошелька</p>
         </div>
       </div>
 
@@ -194,8 +194,8 @@ export function AIFinanceAssistant({ initialPrompt }: { initialPrompt?: string }
               className={cn(
                 "max-w-[85%] rounded-2xl p-3 text-sm",
                 msg.role === 'user'
-                  ? "bg-emerald-600 text-white rounded-tr-sm"
-                  : "bg-zinc-800 text-zinc-200 rounded-tl-sm"
+                  ? "bg-emerald-600 text-zinc-900 rounded-tr-sm"
+                  : "bg-stone-100 text-zinc-800 rounded-tl-sm"
               )}
             >
               {msg.role === 'model' ? (
@@ -210,7 +210,7 @@ export function AIFinanceAssistant({ initialPrompt }: { initialPrompt?: string }
         ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-zinc-800 text-zinc-200 rounded-2xl rounded-tl-sm p-3 flex items-center gap-2">
+            <div className="bg-stone-100 text-zinc-800 rounded-2xl rounded-tl-sm p-3 flex items-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-emerald-500" />
               <span className="text-sm">Считаю копеечки...</span>
             </div>
@@ -219,7 +219,7 @@ export function AIFinanceAssistant({ initialPrompt }: { initialPrompt?: string }
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-3 bg-zinc-950 border-t border-zinc-800">
+      <div className="p-3 bg-stone-50 border-t border-stone-200">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -232,12 +232,12 @@ export function AIFinanceAssistant({ initialPrompt }: { initialPrompt?: string }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Спроси меня о финансах..."
-            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
+            className="flex-1 bg-white border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-emerald-500 transition-colors"
           />
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+            className="p-2 bg-emerald-600 text-zinc-900 rounded-xl hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
           >
             <Send className="w-5 h-5" />
           </button>

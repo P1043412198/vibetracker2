@@ -17,17 +17,17 @@ export function Workouts() {
   return (
     <div className="space-y-6 pb-24">
       <header>
-        <h1 className="text-xl font-bold text-white mb-2">Занятия</h1>
-        <p className="text-zinc-400">Тренировки, прогресс и измерения</p>
+        <h1 className="text-xl font-bold text-zinc-900 mb-2">Занятия</h1>
+        <p className="text-zinc-500">Тренировки, прогресс и измерения</p>
       </header>
 
       {/* Tabs */}
-      <div className="grid grid-cols-5 gap-1 bg-zinc-900/50 p-1 rounded-xl">
+      <div className="grid grid-cols-5 gap-1 bg-white/60 p-1 rounded-xl">
         <button
           onClick={() => setActiveTab('workouts')}
           className={cn(
             "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'workouts' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+            activeTab === 'workouts' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
           )}
         >
           <Dumbbell className="w-4 h-4 sm:w-4 sm:h-4" />
@@ -37,7 +37,7 @@ export function Workouts() {
           onClick={() => setActiveTab('calendar')}
           className={cn(
             "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'calendar' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+            activeTab === 'calendar' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
           )}
         >
           <Calendar className="w-4 h-4 sm:w-4 sm:h-4" />
@@ -47,7 +47,7 @@ export function Workouts() {
           onClick={() => setActiveTab('analytics')}
           className={cn(
             "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'analytics' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+            activeTab === 'analytics' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
           )}
         >
           <LineChart className="w-4 h-4 sm:w-4 sm:h-4" />
@@ -57,7 +57,7 @@ export function Workouts() {
           onClick={() => setActiveTab('history')}
           className={cn(
             "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'history' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+            activeTab === 'history' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
           )}
         >
           <Timer className="w-4 h-4 sm:w-4 sm:h-4" />
@@ -67,7 +67,7 @@ export function Workouts() {
           onClick={() => setActiveTab('profile')}
           className={cn(
             "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'profile' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+            activeTab === 'profile' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
           )}
         >
           <User className="w-4 h-4 sm:w-4 sm:h-4" />
@@ -162,11 +162,11 @@ function WorkoutsTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-white">Мои программы</h2>
+        <h2 className="text-xl font-semibold text-zinc-900">Мои программы</h2>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCamera(true)}
-            className="p-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors"
+            className="p-2 bg-stone-100 text-zinc-900 rounded-lg hover:bg-stone-200 transition-colors"
             title="Тренировка с камерой"
           >
             <Camera className="w-5 h-5" />
@@ -185,7 +185,7 @@ function WorkoutsTab() {
           </button>
           <button
             onClick={() => setIsAddingRoot(true)}
-            className="p-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors"
+            className="p-2 bg-stone-100 text-zinc-900 rounded-lg hover:bg-stone-200 transition-colors"
           >
             <Plus className="w-5 h-5" />
           </button>
@@ -201,25 +201,25 @@ function WorkoutsTab() {
             value={newRootName}
             onChange={(e) => setNewRootName(e.target.value)}
             placeholder="Название категории (например, Зал)"
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-zinc-600"
+            className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
             autoFocus
           />
           <div className="flex gap-2">
             <button type="submit" className="flex-1 px-4 py-2 bg-white text-black rounded-lg font-medium">
               Добавить
             </button>
-            <button type="button" onClick={() => setIsAddingRoot(false)} className="flex-1 px-4 py-2 bg-zinc-800 text-white rounded-lg">
+            <button type="button" onClick={() => setIsAddingRoot(false)} className="flex-1 px-4 py-2 bg-stone-100 text-zinc-900 rounded-lg">
               Отмена
             </button>
           </div>
         </form>
       )}
 
-      <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 space-y-3">
+      <div className="bg-white/60 p-4 rounded-xl border border-stone-200 space-y-3">
         <div className="grid grid-cols-3 gap-2">
-          <input type="number" value={genParams.duration} onChange={e => setGenParams({...genParams, duration: parseInt(e.target.value)})} placeholder="Минуты" className="bg-zinc-800 rounded px-2 py-1 text-xs text-white" />
-          <input type="text" value={genParams.focus} onChange={e => setGenParams({...genParams, focus: e.target.value})} placeholder="Акцент" className="bg-zinc-800 rounded px-2 py-1 text-xs text-white" />
-          <input type="text" value={genParams.equipment} onChange={e => setGenParams({...genParams, equipment: e.target.value})} placeholder="Оборудование" className="bg-zinc-800 rounded px-2 py-1 text-xs text-white" />
+          <input type="number" value={genParams.duration} onChange={e => setGenParams({...genParams, duration: parseInt(e.target.value)})} placeholder="Минуты" className="bg-stone-100 rounded px-2 py-1 text-xs text-zinc-900" />
+          <input type="text" value={genParams.focus} onChange={e => setGenParams({...genParams, focus: e.target.value})} placeholder="Акцент" className="bg-stone-100 rounded px-2 py-1 text-xs text-zinc-900" />
+          <input type="text" value={genParams.equipment} onChange={e => setGenParams({...genParams, equipment: e.target.value})} placeholder="Оборудование" className="bg-stone-100 rounded px-2 py-1 text-xs text-zinc-900" />
         </div>
       </div>
 
@@ -292,7 +292,7 @@ function WorkoutNodeItem({ node, level, onSelectExercise }: WorkoutNodeItemProps
       <div 
         className={cn(
           "flex flex-col p-3 rounded-xl border transition-colors group",
-          node.type === 'folder' ? "bg-zinc-900/50 border-zinc-800" : "bg-zinc-950 border-zinc-800/50 hover:bg-zinc-900 cursor-pointer"
+          node.type === 'folder' ? "bg-white/60 border-stone-200" : "bg-stone-50 border-stone-200/70 hover:bg-white cursor-pointer"
         )}
         style={{ marginLeft: level > 0 ? `${level * 16}px` : 0 }}
         onClick={() => node.type === 'exercise' && onSelectExercise(node)}
@@ -302,7 +302,7 @@ function WorkoutNodeItem({ node, level, onSelectExercise }: WorkoutNodeItemProps
             {node.type === 'folder' && (
               <button 
                 onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }} 
-                className="text-zinc-400 hover:text-white"
+                className="text-zinc-500 hover:text-zinc-900"
               >
                 {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
               </button>
@@ -315,13 +315,13 @@ function WorkoutNodeItem({ node, level, onSelectExercise }: WorkoutNodeItemProps
                   type="text"
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="flex-1 bg-zinc-800 border-none rounded px-2 py-1 text-white text-sm focus:outline-none"
+                  className="flex-1 bg-stone-100 border-none rounded px-2 py-1 text-zinc-900 text-sm focus:outline-none"
                   autoFocus
                   onBlur={handleEdit}
                 />
               </form>
             ) : (
-              <span className="text-zinc-200 font-medium">{node.name}</span>
+              <span className="text-zinc-800 font-medium">{node.name}</span>
             )}
           </div>
 
@@ -332,24 +332,24 @@ function WorkoutNodeItem({ node, level, onSelectExercise }: WorkoutNodeItemProps
                   onClick={() => updateWorkoutNode(node.id, { isTemplate: !node.isTemplate })} 
                   className={cn(
                     "p-1.5 rounded-lg transition-colors",
-                    node.isTemplate ? "text-emerald-400 bg-emerald-400/10" : "text-zinc-400 hover:text-white hover:bg-zinc-800"
+                    node.isTemplate ? "text-emerald-400 bg-emerald-400/10" : "text-zinc-500 hover:text-zinc-900 hover:bg-stone-100"
                   )}
                   title={node.isTemplate ? "Убрать из шаблонов" : "Сделать шаблоном"}
                 >
                   <Sparkles className={cn("w-4 h-4", node.isTemplate && "fill-current")} />
                 </button>
-                <button onClick={() => setIsAdding('folder')} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg" title="Добавить папку">
+                <button onClick={() => setIsAdding('folder')} className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg" title="Добавить папку">
                   <Folder className="w-4 h-4" />
                 </button>
-                <button onClick={() => setIsAdding('exercise')} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg" title="Добавить упражнение">
+                <button onClick={() => setIsAdding('exercise')} className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg" title="Добавить упражнение">
                   <Dumbbell className="w-4 h-4" />
                 </button>
               </>
             )}
-            <button onClick={() => setIsMoving(!isMoving)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg" title="Переместить">
+            <button onClick={() => setIsMoving(!isMoving)} className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg" title="Переместить">
               <Move className="w-4 h-4" />
             </button>
-            <button onClick={() => setIsEditing(true)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg">
+            <button onClick={() => setIsEditing(true)} className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg">
               <Edit2 className="w-4 h-4" />
             </button>
             <button onClick={() => deleteWorkoutNode(node.id)} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded-lg">
@@ -359,10 +359,10 @@ function WorkoutNodeItem({ node, level, onSelectExercise }: WorkoutNodeItemProps
         </div>
 
         {isMoving && (
-          <div className="px-4 py-2 bg-zinc-900/50 border-b border-zinc-800 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-            <span className="text-xs text-zinc-400">Переместить в:</span>
+          <div className="px-4 py-2 bg-white/60 border-b border-stone-200 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+            <span className="text-xs text-zinc-500">Переместить в:</span>
             <select 
-              className="bg-zinc-800 border-zinc-700 text-xs rounded px-2 py-1 outline-none text-white"
+              className="bg-stone-100 border-stone-300 text-xs rounded px-2 py-1 outline-none text-zinc-900"
               value={node.parentId || ''}
               onChange={(e) => handleMove(e.target.value || null)}
             >
@@ -371,7 +371,7 @@ function WorkoutNodeItem({ node, level, onSelectExercise }: WorkoutNodeItemProps
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
-            <button onClick={() => setIsMoving(false)} className="p-1 text-zinc-400 hover:text-white">
+            <button onClick={() => setIsMoving(false)} className="p-1 text-zinc-500 hover:text-zinc-900">
               <X className="w-3 h-3" />
             </button>
           </div>
@@ -381,7 +381,7 @@ function WorkoutNodeItem({ node, level, onSelectExercise }: WorkoutNodeItemProps
         {node.type === 'exercise' && (node.notes || node.videoUrl) && (
           <div className="mt-2 pl-8 space-y-2">
             {node.notes && (
-              <p className="text-xs text-zinc-400 whitespace-pre-wrap">{node.notes}</p>
+              <p className="text-xs text-zinc-500 whitespace-pre-wrap">{node.notes}</p>
             )}
             {node.videoUrl && (
               <a 
@@ -407,14 +407,14 @@ function WorkoutNodeItem({ node, level, onSelectExercise }: WorkoutNodeItemProps
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder={isAdding === 'folder' ? "Название папки" : "Название упражнения"}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-zinc-600"
+              className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm focus:outline-none focus:border-zinc-600"
               autoFocus
             />
             <div className="flex gap-2">
               <button type="submit" className="flex-1 px-3 py-1.5 bg-white text-black rounded-lg text-sm font-medium">
                 Добавить
               </button>
-              <button type="button" onClick={() => setIsAdding(null)} className="flex-1 px-3 py-1.5 bg-zinc-800 text-white rounded-lg text-sm">
+              <button type="button" onClick={() => setIsAdding(null)} className="flex-1 px-3 py-1.5 bg-stone-100 text-zinc-900 rounded-lg text-sm">
                 Отмена
               </button>
             </div>
@@ -504,23 +504,23 @@ function ExerciseModal({ exercise, onClose }: { exercise: WorkoutNode, onClose: 
   }, {} as Record<string, typeof logs>);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-white/80 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-2xl max-h-[90dvh] overflow-hidden flex flex-col"
+        className="bg-white border border-stone-200 rounded-2xl w-full max-w-2xl max-h-[90dvh] overflow-hidden flex flex-col"
       >
-        <div className="p-4 border-b border-zinc-800 flex justify-between items-center shrink-0">
-          <h3 className="text-xl font-bold text-white flex items-center gap-2">
-            <Dumbbell className="w-5 h-5 text-zinc-400" />
+        <div className="p-4 border-b border-stone-200 flex justify-between items-center shrink-0">
+          <h3 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
+            <Dumbbell className="w-5 h-5 text-zinc-500" />
             {exercise.name}
           </h3>
           <div className="flex items-center gap-2">
-            <button onClick={() => setIsEditing(!isEditing)} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors">
+            <button onClick={() => setIsEditing(!isEditing)} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg transition-colors">
               <Settings className="w-5 h-5" />
             </button>
-            <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors">
+            <button onClick={onClose} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -528,53 +528,53 @@ function ExerciseModal({ exercise, onClose }: { exercise: WorkoutNode, onClose: 
 
         <div className="flex-1 overflow-y-auto p-4 pb-24 space-y-6">
           {isEditing ? (
-            <div className="space-y-4 bg-zinc-950 p-4 rounded-xl border border-zinc-800">
-              <h4 className="font-medium text-white">Настройки упражнения</h4>
+            <div className="space-y-4 bg-stone-50 p-4 rounded-xl border border-stone-200">
+              <h4 className="font-medium text-zinc-900">Настройки упражнения</h4>
               
               <div className="space-y-2">
-                <label className="text-sm text-zinc-400">Заметки / Описание</label>
+                <label className="text-sm text-zinc-500">Заметки / Описание</label>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm min-h-[80px]"
+                  className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm min-h-[80px]"
                   placeholder="Опишите технику или важные детали..."
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm text-zinc-400">Ссылка на видео (YouTube)</label>
+                <label className="text-sm text-zinc-500">Ссылка на видео (YouTube)</label>
                 <div className="flex items-center gap-2">
                   <Video className="w-4 h-4 text-zinc-500" />
                   <input
                     type="text"
                     value={videoUrl}
                     onChange={e => setVideoUrl(e.target.value)}
-                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                    className="flex-1 bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                     placeholder="https://youtube.com/..."
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm text-zinc-400">Время отдыха (в секундах)</label>
+                <label className="text-sm text-zinc-500">Время отдыха (в секундах)</label>
                 <div className="flex items-center gap-2">
                   <Timer className="w-4 h-4 text-zinc-500" />
                   <input
                     type="number"
                     value={restTime}
                     onChange={e => setRestTime(e.target.value)}
-                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                    className="flex-1 bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                     placeholder="Например: 90"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm text-zinc-400">Группа мышц</label>
+                <label className="text-sm text-zinc-500">Группа мышц</label>
                 <select
                   value={muscleGroup}
                   onChange={e => setMuscleGroup(e.target.value as MuscleGroup | '')}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm focus:outline-none focus:border-zinc-600"
                 >
                   <option value="">Не выбрано</option>
                   {availableMuscleGroups.map(mg => (
@@ -584,7 +584,7 @@ function ExerciseModal({ exercise, onClose }: { exercise: WorkoutNode, onClose: 
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm text-zinc-400">Отслеживаемые показатели</label>
+                <label className="text-sm text-zinc-500">Отслеживаемые показатели</label>
                 <div className="flex flex-wrap gap-2">
                   {availableMetrics.map(m => (
                     <button
@@ -600,7 +600,7 @@ function ExerciseModal({ exercise, onClose }: { exercise: WorkoutNode, onClose: 
                         "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border",
                         metrics.includes(m.id) 
                           ? "bg-white text-black border-white" 
-                          : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:border-zinc-600"
+                          : "bg-white text-zinc-500 border-stone-200 hover:border-zinc-600"
                       )}
                     >
                       {m.label}
@@ -617,9 +617,9 @@ function ExerciseModal({ exercise, onClose }: { exercise: WorkoutNode, onClose: 
           ) : (
             <>
               {(exercise.notes || exercise.videoUrl || exercise.restTime) && (
-                <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-4">
+                <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-4">
                   {exercise.notes && (
-                    <div className="text-sm text-zinc-300 whitespace-pre-wrap">{exercise.notes}</div>
+                    <div className="text-sm text-zinc-700 whitespace-pre-wrap">{exercise.notes}</div>
                   )}
                   <div className="flex flex-wrap items-center gap-4">
                     {exercise.videoUrl && (
@@ -629,7 +629,7 @@ function ExerciseModal({ exercise, onClose }: { exercise: WorkoutNode, onClose: 
                       </a>
                     )}
                     {exercise.restTime && (
-                      <div className="inline-flex items-center gap-2 text-sm text-zinc-400">
+                      <div className="inline-flex items-center gap-2 text-sm text-zinc-500">
                         <Timer className="w-4 h-4" />
                         Отдых: {exercise.restTime} сек
                       </div>
@@ -638,32 +638,32 @@ function ExerciseModal({ exercise, onClose }: { exercise: WorkoutNode, onClose: 
                 </div>
               )}
 
-              <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-4">
-                <h4 className="font-medium text-white">Добавить подход / запись</h4>
+              <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-4">
+                <h4 className="font-medium text-zinc-900">Добавить подход / запись</h4>
                 <div className="flex flex-wrap gap-3 items-end">
                   {metrics.map(metricId => {
                     const metricDef = availableMetrics.find(m => m.id === metricId);
                     if (!metricDef) return null;
                     return (
                       <div key={metricId} className="space-y-1 flex-1 min-w-[120px]">
-                        <label className="text-xs text-zinc-400">{metricDef.label}</label>
+                        <label className="text-xs text-zinc-500">{metricDef.label}</label>
                         <input
                           type="number"
                           value={logValues[metricId] || ''}
                           onChange={e => setLogValues({ ...logValues, [metricId]: parseFloat(e.target.value) })}
-                          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                          className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                           placeholder="0"
                         />
                       </div>
                     );
                   })}
                   <div className="space-y-1 flex-1 min-w-[120px]">
-                    <label className="text-xs text-zinc-400">Отдых (сек)</label>
+                    <label className="text-xs text-zinc-500">Отдых (сек)</label>
                     <input
                       type="number"
                       value={logRestTime}
                       onChange={e => setLogRestTime(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                      className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                       placeholder="0"
                     />
                   </div>
@@ -674,36 +674,36 @@ function ExerciseModal({ exercise, onClose }: { exercise: WorkoutNode, onClose: 
               </div>
 
               <div className="space-y-3">
-                <h4 className="font-medium text-white">История</h4>
+                <h4 className="font-medium text-zinc-900">История</h4>
                 {Object.keys(groupedLogs).length === 0 ? (
                   <p className="text-sm text-zinc-500">Пока нет записей. Добавьте первую!</p>
                 ) : (
                   <div className="space-y-4">
                     {Object.entries(groupedLogs).map(([date, dayLogs]) => (
-                      <div key={date} className="bg-zinc-900/50 rounded-xl border border-zinc-800/50 overflow-hidden">
-                        <div className="bg-zinc-900 px-4 py-2 border-b border-zinc-800/50 flex items-center gap-2">
-                          <Calendar className="w-4 h-4 text-zinc-400" />
-                          <span className="text-sm font-medium text-zinc-200">
+                      <div key={date} className="bg-white/60 rounded-xl border border-stone-200/70 overflow-hidden">
+                        <div className="bg-white px-4 py-2 border-b border-stone-200/70 flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-zinc-500" />
+                          <span className="text-sm font-medium text-zinc-800">
                             {new Date(date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
                           </span>
                         </div>
-                        <div className="divide-y divide-zinc-800/50">
+                        <div className="divide-y divide-stone-200/50">
                           {dayLogs.map((log, index) => (
-                            <div key={log.id} className="p-3 flex justify-between items-center hover:bg-zinc-800/20 transition-colors">
+                            <div key={log.id} className="p-3 flex justify-between items-center hover:bg-stone-100/20 transition-colors">
                               <span className="text-xs text-zinc-500 font-medium w-6">#{dayLogs.length - index}</span>
                               <div className="flex gap-4 flex-1 justify-end items-center">
                                 {Object.entries(log.metrics).map(([key, val]) => {
                                   const label = availableMetrics.find(m => m.id === key)?.label.split(' ')[0] || key;
                                   return (
                                     <div key={key} className="text-sm flex items-baseline gap-1.5">
-                                      <span className="text-white font-medium">{val}</span>
+                                      <span className="text-zinc-900 font-medium">{val}</span>
                                       <span className="text-zinc-500 text-xs">{label}</span>
                                     </div>
                                   );
                                 })}
                                 {log.restTime && (
                                   <div className="text-sm flex items-baseline gap-1.5">
-                                    <span className="text-white font-medium">{log.restTime}</span>
+                                    <span className="text-zinc-900 font-medium">{log.restTime}</span>
                                     <span className="text-zinc-500 text-xs">сек отдых</span>
                                   </div>
                                 )}
@@ -768,40 +768,40 @@ function CalendarModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 w-full max-w-md space-y-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/30 backdrop-blur-sm">
+      <div className="bg-white border border-stone-200 rounded-2xl p-6 w-full max-w-md space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Тренировка на {date}</h3>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white">
+          <h3 className="text-lg font-semibold text-zinc-900">Тренировка на {date}</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-900">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-zinc-400 mb-1">Статус</label>
+            <label className="block text-sm font-medium text-zinc-500 mb-1">Статус</label>
             <div className="grid grid-cols-4 gap-2">
               <button
                 onClick={() => setStatus(null)}
-                className={cn("p-2 rounded-lg text-sm border transition-colors", status === null ? "bg-zinc-800 border-zinc-700 text-white" : "border-zinc-800/50 text-zinc-500 hover:bg-zinc-800/50")}
+                className={cn("p-2 rounded-lg text-sm border transition-colors", status === null ? "bg-stone-100 border-stone-300 text-zinc-900" : "border-stone-200/70 text-zinc-500 hover:bg-stone-100/60")}
               >
                 Нет
               </button>
               <button
                 onClick={() => setStatus('planned')}
-                className={cn("p-2 rounded-lg text-sm border transition-colors", status === 'planned' ? "bg-blue-500/20 border-blue-500/50 text-blue-400" : "border-zinc-800/50 text-zinc-500 hover:bg-zinc-800/50")}
+                className={cn("p-2 rounded-lg text-sm border transition-colors", status === 'planned' ? "bg-blue-500/20 border-blue-500/50 text-blue-400" : "border-stone-200/70 text-zinc-500 hover:bg-stone-100/60")}
               >
                 План
               </button>
               <button
                 onClick={() => setStatus('completed')}
-                className={cn("p-2 rounded-lg text-sm border transition-colors", status === 'completed' ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" : "border-zinc-800/50 text-zinc-500 hover:bg-zinc-800/50")}
+                className={cn("p-2 rounded-lg text-sm border transition-colors", status === 'completed' ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" : "border-stone-200/70 text-zinc-500 hover:bg-stone-100/60")}
               >
                 Готово
               </button>
               <button
                 onClick={() => setStatus('missed')}
-                className={cn("p-2 rounded-lg text-sm border transition-colors", status === 'missed' ? "bg-red-500/20 border-red-500/50 text-red-400" : "border-zinc-800/50 text-zinc-500 hover:bg-zinc-800/50")}
+                className={cn("p-2 rounded-lg text-sm border transition-colors", status === 'missed' ? "bg-red-500/20 border-red-500/50 text-red-400" : "border-stone-200/70 text-zinc-500 hover:bg-stone-100/60")}
               >
                 Пропуск
               </button>
@@ -812,7 +812,7 @@ function CalendarModal({
             <>
               {templates.length > 0 && (
                 <div>
-                  <label className="block text-sm font-medium text-zinc-400 mb-2">Шаблоны</label>
+                  <label className="block text-sm font-medium text-zinc-500 mb-2">Шаблоны</label>
                   <div className="flex flex-wrap gap-2">
                     {templates.map(t => (
                       <button
@@ -825,7 +825,7 @@ function CalendarModal({
                           "px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors flex items-center gap-1.5",
                           programId === t.id 
                             ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" 
-                            : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                            : "bg-stone-50 border-stone-200 text-zinc-500 hover:border-stone-300"
                         )}
                       >
                         <Sparkles className="w-3 h-3" />
@@ -837,11 +837,11 @@ function CalendarModal({
               )}
 
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Программа / Папка</label>
+                <label className="block text-sm font-medium text-zinc-500 mb-1">Программа / Папка</label>
                 <select
                   value={programId}
                   onChange={(e) => setProgramId(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-zinc-900 focus:outline-none focus:border-emerald-500/50"
                 >
                   <option value="">Без программы</option>
                   {folders.map(f => (
@@ -851,13 +851,13 @@ function CalendarModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Подпись (например, "День ног")</label>
+                <label className="block text-sm font-medium text-zinc-500 mb-1">Подпись (например, "День ног")</label>
                 <input
                   type="text"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   placeholder="Введите подпись..."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500/50"
                 />
               </div>
             </>
@@ -865,13 +865,13 @@ function CalendarModal({
 
           {loggedExercises.length > 0 && (
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">Выполненные упражнения</label>
+              <label className="block text-sm font-medium text-zinc-500 mb-2">Выполненные упражнения</label>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                 {loggedExercises.map(ex => {
                   const exLogs = logsForDate.filter(l => l.exerciseId === ex.id);
                   return (
-                    <div key={ex.id} className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex justify-between items-center">
-                      <span className="text-sm text-white font-medium">{ex.name}</span>
+                    <div key={ex.id} className="bg-stone-50 border border-stone-200 rounded-lg p-3 flex justify-between items-center">
+                      <span className="text-sm text-zinc-900 font-medium">{ex.name}</span>
                       <span className="text-xs text-zinc-500">{exLogs.length} {exLogs.length === 1 ? 'подход' : exLogs.length > 1 && exLogs.length < 5 ? 'подхода' : 'подходов'}</span>
                     </div>
                   );
@@ -897,14 +897,14 @@ function CalendarModal({
                 });
                 onClose();
               }}
-              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-3 rounded-xl transition-colors"
+              className="flex-1 bg-blue-500 hover:bg-blue-600 text-zinc-900 font-medium py-3 rounded-xl transition-colors"
             >
               Копировать на сегодня
             </button>
           )}
           <button
             onClick={handleSave}
-            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-medium py-3 rounded-xl transition-colors"
+            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-zinc-900 font-medium py-3 rounded-xl transition-colors"
           >
             Сохранить
           </button>
@@ -955,16 +955,16 @@ function CalendarTab() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
+      <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-white capitalize">
+          <h2 className="text-xl font-semibold text-zinc-900 capitalize">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h2>
           <div className="flex items-center gap-2">
-            <button onClick={prevMonth} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors">
+            <button onClick={prevMonth} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg transition-colors">
               <ChevronLeft className="w-5 h-5" />
             </button>
-            <button onClick={nextMonth} className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors">
+            <button onClick={nextMonth} className="p-2 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg transition-colors">
               <ChevronRight className="w-5 h-5" />
             </button>
           </div>
@@ -998,7 +998,7 @@ function CalendarTab() {
                 onClick={() => handleDayClick(day)}
                 className={cn(
                   "min-h-[60px] sm:min-h-[80px] p-1 rounded-xl flex flex-col items-center relative transition-all border",
-                  isToday ? "border-zinc-500 bg-zinc-800/50" : "border-zinc-800/50 bg-zinc-950 hover:bg-zinc-900",
+                  isToday ? "border-zinc-500 bg-stone-100/60" : "border-stone-200/70 bg-stone-50 hover:bg-white",
                   planned?.status === 'planned' && "border-blue-500/50 bg-blue-500/10",
                   planned?.status === 'completed' && "border-emerald-500/50 bg-emerald-500/10",
                   planned?.status === 'missed' && "border-red-500/50 bg-red-500/10"
@@ -1006,7 +1006,7 @@ function CalendarTab() {
               >
                 <span className={cn(
                   "text-sm font-medium mt-1",
-                  isToday ? "text-white" : "text-zinc-400",
+                  isToday ? "text-zinc-900" : "text-zinc-500",
                   planned?.status === 'planned' && "text-blue-400",
                   planned?.status === 'completed' && "text-emerald-400",
                   planned?.status === 'missed' && "text-red-400"
@@ -1015,7 +1015,7 @@ function CalendarTab() {
                 </span>
                 
                 {displayLabel && (
-                  <span className="text-[10px] leading-tight text-center mt-1 px-1 text-zinc-300 line-clamp-2">
+                  <span className="text-[10px] leading-tight text-center mt-1 px-1 text-zinc-700 line-clamp-2">
                     {displayLabel}
                   </span>
                 )}
@@ -1035,19 +1035,19 @@ function CalendarTab() {
         </div>
         
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <div className="w-3 h-3 rounded bg-zinc-950 border border-zinc-800/50" />
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
+            <div className="w-3 h-3 rounded bg-stone-50 border border-stone-200/70" />
             Нет планов
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
             <div className="w-3 h-3 rounded bg-blue-500/10 border border-blue-500/50" />
             Запланировано
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
             <div className="w-3 h-3 rounded bg-emerald-500/10 border border-emerald-500/50" />
             Выполнено
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
             <div className="w-3 h-3 rounded bg-red-500/10 border border-red-500/50" />
             Пропущено
           </div>
@@ -1070,9 +1070,9 @@ function AnalyticsTab() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-2 pb-2">
-        <button onClick={() => setSubTab('general')} className={cn("flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap text-center transition-colors", subTab === 'general' ? "bg-zinc-800 text-white" : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200")}>Общая</button>
-        <button onClick={() => setSubTab('exercise')} className={cn("flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap text-center transition-colors", subTab === 'exercise' ? "bg-zinc-800 text-white" : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200")}>По упражнениям</button>
-        <button onClick={() => setSubTab('body')} className={cn("flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap text-center transition-colors", subTab === 'body' ? "bg-zinc-800 text-white" : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200")}>Тело/Замеры</button>
+        <button onClick={() => setSubTab('general')} className={cn("flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap text-center transition-colors", subTab === 'general' ? "bg-stone-100 text-zinc-900" : "bg-white/60 text-zinc-500 hover:text-zinc-800")}>Общая</button>
+        <button onClick={() => setSubTab('exercise')} className={cn("flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap text-center transition-colors", subTab === 'exercise' ? "bg-stone-100 text-zinc-900" : "bg-white/60 text-zinc-500 hover:text-zinc-800")}>По упражнениям</button>
+        <button onClick={() => setSubTab('body')} className={cn("flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap text-center transition-colors", subTab === 'body' ? "bg-stone-100 text-zinc-900" : "bg-white/60 text-zinc-500 hover:text-zinc-800")}>Тело/Замеры</button>
       </div>
       
       {subTab === 'general' && <GeneralAnalytics />}
@@ -1207,18 +1207,18 @@ function GeneralAnalytics() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
           <p className="text-[9px] text-zinc-500 uppercase font-bold mb-1">Всего тренировок</p>
-          <p className="text-xl font-bold text-white">{totalWorkouts}</p>
+          <p className="text-xl font-bold text-zinc-900">{totalWorkouts}</p>
         </div>
-        <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
           <p className="text-[9px] text-zinc-500 uppercase font-bold mb-1">Общий объем</p>
-          <p className="text-xl font-bold text-white">{Math.round(totalVolume / 1000)} т</p>
+          <p className="text-xl font-bold text-zinc-900">{Math.round(totalVolume / 1000)} т</p>
         </div>
       </div>
 
-      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+      <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+        <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
           <Award className="w-5 h-5 text-yellow-400" />
           Личные рекорды
         </h2>
@@ -1226,7 +1226,7 @@ function GeneralAnalytics() {
           {personalRecords.length > 0 ? personalRecords.map((pr, idx) => (
             <div key={idx} className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-bold text-white">{pr.name}</p>
+                <p className="text-sm font-bold text-zinc-900">{pr.name}</p>
                 <p className="text-[9px] text-zinc-500 uppercase">Прогноз 1RM: {pr.max1RM} кг</p>
               </div>
               <div className="text-right">
@@ -1239,8 +1239,8 @@ function GeneralAnalytics() {
         </div>
       </div>
 
-      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+      <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+        <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
           <Activity className="w-5 h-5 text-rose-400" />
           Тепловая карта мышц (7 дней)
         </h2>
@@ -1253,19 +1253,19 @@ function GeneralAnalytics() {
               chest: 'Грудь', back: 'Спина', legs: 'Ноги', shoulders: 'Плечи', arms: 'Руки', core: 'Пресс', cardio: 'Кардио'
             };
             return (
-              <div key={muscle} className="flex items-center gap-1.5 bg-zinc-900 px-2 py-1 rounded-lg border border-zinc-800">
+              <div key={muscle} className="flex items-center gap-1.5 bg-white px-2 py-1 rounded-lg border border-stone-200">
                 <div className="w-2 h-2 rounded-full" style={{ 
                   backgroundColor: val > 0.8 ? '#34d399' : val > 0.5 ? '#10b981' : val > 0.2 ? '#059669' : '#064e3b' 
                 }} />
-                <span className="text-xs text-zinc-400">{labels[muscle]}</span>
+                <span className="text-xs text-zinc-500">{labels[muscle]}</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+      <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+        <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
           <Activity className="w-5 h-5 text-emerald-400" />
           Активность (подходы)
         </h2>
@@ -1288,8 +1288,8 @@ function GeneralAnalytics() {
         </div>
       </div>
 
-      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+      <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+        <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
           <Dumbbell className="w-5 h-5 text-blue-400" />
           Объем (Тоннаж)
         </h2>
@@ -1312,8 +1312,8 @@ function GeneralAnalytics() {
         </div>
       </div>
 
-      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-        <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+      <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+        <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
           <Timer className="w-5 h-5 text-orange-400" />
           Время подходов (мин)
         </h2>
@@ -1337,17 +1337,17 @@ function GeneralAnalytics() {
       </div>
 
       {topExercises.length > 0 && (
-        <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-          <h2 className="text-base font-semibold text-white mb-4 flex items-center gap-2">
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+          <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
             <LineChart className="w-5 h-5 text-purple-400" />
             Частые упражнения
           </h2>
           <div className="space-y-3">
             {topExercises.map((ex, i) => (
               <div key={i} className="flex items-center justify-between">
-                <span className="text-sm text-zinc-300 truncate pr-4">{ex.name}</span>
+                <span className="text-sm text-zinc-700 truncate pr-4">{ex.name}</span>
                 <div className="flex items-center gap-3">
-                  <div className="w-32 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="w-32 h-2 bg-stone-100 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-purple-500 rounded-full" 
                       style={{ width: `${(ex.count / topExercises[0].count) * 100}%` }}
@@ -1418,7 +1418,7 @@ function ExerciseAnalytics() {
       <select
         value={selectedId}
         onChange={e => setSelectedId(e.target.value)}
-        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500/50"
+        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 text-zinc-900 focus:outline-none focus:border-emerald-500/50"
       >
         {exercises.map(ex => (
           <option key={ex.id} value={ex.id}>{ex.name}</option>
@@ -1426,8 +1426,8 @@ function ExerciseAnalytics() {
       </select>
 
       {hasWeight && (
-        <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-          <h3 className="text-sm font-semibold text-zinc-400 mb-4">Прогресс веса</h3>
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+          <h3 className="text-sm font-semibold text-zinc-500 mb-4">Прогресс веса</h3>
           <div className="h-[200px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <RechartsLineChart data={data}>
@@ -1449,8 +1449,8 @@ function ExerciseAnalytics() {
         <>
           {hasWeight && (
             <>
-              <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-                <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+                <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
                   <Dumbbell className="w-5 h-5 text-blue-400" />
                   Максимальный вес (кг)
                 </h2>
@@ -1473,8 +1473,8 @@ function ExerciseAnalytics() {
                 </div>
               </div>
 
-              <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-                <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+                <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
                   <Activity className="w-5 h-5 text-rose-400" />
                   Прогноз 1RM (кг)
                 </h2>
@@ -1497,8 +1497,8 @@ function ExerciseAnalytics() {
                 </div>
               </div>
 
-              <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-                <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+                <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
                   <Activity className="w-5 h-5 text-emerald-400" />
                   Объем (Тоннаж)
                 </h2>
@@ -1521,8 +1521,8 @@ function ExerciseAnalytics() {
                 </div>
               </div>
 
-              <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-                <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+                <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
                   <LineChart className="w-5 h-5 text-purple-400" />
                   Повторения
                 </h2>
@@ -1548,8 +1548,8 @@ function ExerciseAnalytics() {
           )}
 
           {hasDistance && (
-            <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+              <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
                 <Activity className="w-5 h-5 text-cyan-400" />
                 Дистанция (км)
               </h2>
@@ -1574,8 +1574,8 @@ function ExerciseAnalytics() {
           )}
 
           {hasTime && (
-            <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+              <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
                 <Timer className="w-5 h-5 text-orange-400" />
                 Время (мин)
               </h2>
@@ -1629,15 +1629,15 @@ function DailyActivityTracker() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
+      <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-zinc-900 flex items-center gap-2">
             <Flame className="w-5 h-5 text-orange-400" />
             Активность
           </h3>
           <button
             onClick={() => setIsAdding(!isAdding)}
-            className="p-1.5 bg-zinc-800 text-zinc-400 rounded-lg hover:text-white transition-colors"
+            className="p-1.5 bg-stone-100 text-zinc-500 rounded-lg hover:text-zinc-900 transition-colors"
           >
             {isAdding ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
           </button>
@@ -1647,31 +1647,31 @@ function DailyActivityTracker() {
           <form onSubmit={handleLog} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Дата</label>
+                <label className="text-xs text-zinc-500">Дата</label>
                 <input
                   type="date"
                   value={date}
                   onChange={e => setDate(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Шаги</label>
+                <label className="text-xs text-zinc-500">Шаги</label>
                 <input
                   type="number"
                   value={steps}
                   onChange={e => setSteps(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0"
                 />
               </div>
               <div className="space-y-1 col-span-2">
-                <label className="text-xs text-zinc-400">Калории (ккал)</label>
+                <label className="text-xs text-zinc-500">Калории (ккал)</label>
                 <input
                   type="number"
                   value={calories}
                   onChange={e => setCalories(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0"
                 />
               </div>
@@ -1682,14 +1682,14 @@ function DailyActivityTracker() {
           </form>
         ) : (
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50 text-center">
+            <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70 text-center">
               <div className="text-xs text-zinc-500 mb-1">Шаги сегодня</div>
-              <div className="text-xl font-bold text-white">{today?.steps || 0}</div>
+              <div className="text-xl font-bold text-zinc-900">{today?.steps || 0}</div>
               <div className="text-[10px] text-zinc-600">цель: 10,000</div>
             </div>
-            <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50 text-center">
+            <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70 text-center">
               <div className="text-xs text-zinc-500 mb-1">Калории сегодня</div>
-              <div className="text-xl font-bold text-white">{today?.calories || 0}</div>
+              <div className="text-xl font-bold text-zinc-900">{today?.calories || 0}</div>
               <div className="text-[10px] text-zinc-600">цель: 2,500</div>
             </div>
           </div>
@@ -1743,8 +1743,8 @@ function BodyAnalytics() {
     <div className="space-y-6">
       {activityData.length > 0 && (
         <>
-          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+            <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
               <Flame className="w-5 h-5 text-orange-400" />
               Шаги
             </h2>
@@ -1767,8 +1767,8 @@ function BodyAnalytics() {
             </div>
           </div>
 
-          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+            <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
               <Zap className="w-5 h-5 text-yellow-400" />
               Калории
             </h2>
@@ -1795,8 +1795,8 @@ function BodyAnalytics() {
 
       {data.length > 0 && (
         <>
-          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+            <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
               <User className="w-5 h-5 text-blue-400" />
               Динамика веса (кг)
             </h2>
@@ -1819,8 +1819,8 @@ function BodyAnalytics() {
             </div>
           </div>
 
-          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+            <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-emerald-400" />
               Процент жира (%)
             </h2>
@@ -1843,8 +1843,8 @@ function BodyAnalytics() {
             </div>
           </div>
 
-          <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+            <h2 className="text-lg font-semibold text-zinc-900 mb-4 flex items-center gap-2">
               <Activity className="w-5 h-5 text-purple-400" />
               Объемы (см)
             </h2>
@@ -1962,10 +1962,10 @@ function ProfileTab() {
       <DailyActivityTracker />
 
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-white">Измерения тела</h2>
+        <h2 className="text-xl font-semibold text-zinc-900">Измерения тела</h2>
         <button
           onClick={() => setIsAdding(!isAdding)}
-          className="p-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors"
+          className="p-2 bg-stone-100 text-zinc-900 rounded-lg hover:bg-stone-200 transition-colors"
         >
           {isAdding ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
         </button>
@@ -1978,144 +1978,144 @@ function ProfileTab() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             onSubmit={handleAdd}
-            className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50 space-y-4 overflow-hidden"
+            className="bg-white/60 p-4 rounded-2xl border border-stone-200/70 space-y-4 overflow-hidden"
           >
             <div className="space-y-1">
-              <label className="text-xs text-zinc-400">Дата</label>
+              <label className="text-xs text-zinc-500">Дата</label>
               <input
                 type="date"
                 value={date}
                 onChange={e => setDate(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                 required
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Пол</label>
+                <label className="text-xs text-zinc-500">Пол</label>
                 <select
                   value={gender}
                   onChange={e => setGender(e.target.value as 'male' | 'female')}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                 >
                   <option value="male">Мужской</option>
                   <option value="female">Женский</option>
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Вес (кг)</label>
+                <label className="text-xs text-zinc-500">Вес (кг)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={weight}
                   onChange={e => setWeight(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0.0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Рост (см)</label>
+                <label className="text-xs text-zinc-500">Рост (см)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={height}
                   onChange={e => setHeight(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0.0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Шея (см)</label>
+                <label className="text-xs text-zinc-500">Шея (см)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={neck}
                   onChange={e => setNeck(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0.0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Грудь (см)</label>
+                <label className="text-xs text-zinc-500">Грудь (см)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={chest}
                   onChange={e => setChest(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0.0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Талия (см)</label>
+                <label className="text-xs text-zinc-500">Талия (см)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={waist}
                   onChange={e => setWaist(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0.0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Бедра (см)</label>
+                <label className="text-xs text-zinc-500">Бедра (см)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={hips}
                   onChange={e => setHips(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0.0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Бицепс (см)</label>
+                <label className="text-xs text-zinc-500">Бицепс (см)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={biceps}
                   onChange={e => setBiceps(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0.0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Бедро (см)</label>
+                <label className="text-xs text-zinc-500">Бедро (см)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={thighs}
                   onChange={e => setThighs(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0.0"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-zinc-400">Икры (см)</label>
+                <label className="text-xs text-zinc-500">Икры (см)</label>
                 <input
                   type="number"
                   step="0.1"
                   value={calves}
                   onChange={e => setCalves(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-white text-sm"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 text-sm"
                   placeholder="0.0"
                 />
               </div>
             </div>
 
-            <div className="space-y-2 pt-2 border-t border-zinc-800/50">
-              <label className="text-xs text-zinc-400">Фотографии прогресса</label>
+            <div className="space-y-2 pt-2 border-t border-stone-200/70">
+              <label className="text-xs text-zinc-500">Фотографии прогресса</label>
               
               {photos.length > 0 && (
                 <div className="grid grid-cols-3 gap-2 mb-2">
                   {photos.map((photo, i) => (
-                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-zinc-800 group">
+                    <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-stone-200 group">
                       <img src={photo} alt={`Progress ${i}`} className="w-full h-full object-cover" />
                       <button
                         type="button"
                         onClick={() => removePhoto(i)}
-                        className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
+                        className="absolute top-1 right-1 p-1 bg-zinc-900/30 text-zinc-900 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -2135,7 +2135,7 @@ function ProfileTab() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2 bg-zinc-950 border border-zinc-800 text-zinc-300 rounded-lg text-sm flex items-center justify-center gap-2 hover:bg-zinc-900 transition-colors"
+                className="w-full py-2 bg-stone-50 border border-stone-200 text-zinc-700 rounded-lg text-sm flex items-center justify-center gap-2 hover:bg-white transition-colors"
               >
                 <Camera className="w-4 h-4" />
                 Добавить фото
@@ -2154,9 +2154,9 @@ function ProfileTab() {
           <p className="text-zinc-500 text-center py-8">Нет записей. Добавьте первые измерения!</p>
         ) : (
           sortedMeasurements.map(m => (
-            <div key={m.id} className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50 space-y-3">
-              <div className="flex justify-between items-center border-b border-zinc-800/50 pb-2">
-                <div className="flex items-center gap-2 text-zinc-300 font-medium">
+            <div key={m.id} className="bg-white/60 p-4 rounded-2xl border border-stone-200/70 space-y-3">
+              <div className="flex justify-between items-center border-b border-stone-200/70 pb-2">
+                <div className="flex items-center gap-2 text-zinc-700 font-medium">
                   <Calendar className="w-4 h-4 text-zinc-500" />
                   {new Date(m.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
                 </div>
@@ -2169,19 +2169,19 @@ function ProfileTab() {
                 {m.weight && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Вес:</span>
-                    <span className="text-white font-medium">{m.weight} кг</span>
+                    <span className="text-zinc-900 font-medium">{m.weight} кг</span>
                   </div>
                 )}
                 {m.height && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Рост:</span>
-                    <span className="text-white font-medium">{m.height} см</span>
+                    <span className="text-zinc-900 font-medium">{m.height} см</span>
                   </div>
                 )}
                 {m.neck && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Шея:</span>
-                    <span className="text-white font-medium">{m.neck} см</span>
+                    <span className="text-zinc-900 font-medium">{m.neck} см</span>
                   </div>
                 )}
                 {calculateBodyFat(m) !== null && (
@@ -2193,44 +2193,44 @@ function ProfileTab() {
                 {m.measurements?.chest && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Грудь:</span>
-                    <span className="text-white font-medium">{m.measurements.chest} см</span>
+                    <span className="text-zinc-900 font-medium">{m.measurements.chest} см</span>
                   </div>
                 )}
                 {m.measurements?.waist && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Талия:</span>
-                    <span className="text-white font-medium">{m.measurements.waist} см</span>
+                    <span className="text-zinc-900 font-medium">{m.measurements.waist} см</span>
                   </div>
                 )}
                 {m.measurements?.hips && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Бедра:</span>
-                    <span className="text-white font-medium">{m.measurements.hips} см</span>
+                    <span className="text-zinc-900 font-medium">{m.measurements.hips} см</span>
                   </div>
                 )}
                 {m.measurements?.biceps && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Бицепс:</span>
-                    <span className="text-white font-medium">{m.measurements.biceps} см</span>
+                    <span className="text-zinc-900 font-medium">{m.measurements.biceps} см</span>
                   </div>
                 )}
                 {m.measurements?.thighs && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Бедро:</span>
-                    <span className="text-white font-medium">{m.measurements.thighs} см</span>
+                    <span className="text-zinc-900 font-medium">{m.measurements.thighs} см</span>
                   </div>
                 )}
                 {m.measurements?.calves && (
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Икры:</span>
-                    <span className="text-white font-medium">{m.measurements.calves} см</span>
+                    <span className="text-zinc-900 font-medium">{m.measurements.calves} см</span>
                   </div>
                 )}
               </div>
 
               {m.photos && m.photos.length > 0 && (
-                <div className="pt-3 mt-3 border-t border-zinc-800/50">
-                  <div className="flex items-center gap-2 text-xs text-zinc-400 mb-2">
+                <div className="pt-3 mt-3 border-t border-stone-200/70">
+                  <div className="flex items-center gap-2 text-xs text-zinc-500 mb-2">
                     <ImageIcon className="w-3.5 h-3.5" />
                     Фотографии ({m.photos.length})
                   </div>
@@ -2240,7 +2240,7 @@ function ProfileTab() {
                         key={i} 
                         src={photo} 
                         alt={`Progress ${i}`} 
-                        className="h-24 w-24 object-cover rounded-lg border border-zinc-800 flex-shrink-0 snap-start"
+                        className="h-24 w-24 object-cover rounded-lg border border-stone-200 flex-shrink-0 snap-start"
                       />
                     ))}
                   </div>

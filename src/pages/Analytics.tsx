@@ -367,16 +367,16 @@ export function Analytics() {
     <div className="space-y-8 pb-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900 flex items-center gap-2">
             <BrainCircuit className="w-7 h-7 text-indigo-500" />
             Глубокая аналитика
           </h1>
-          <p className="text-sm text-zinc-400 mt-1">Детальный разбор вашей продуктивности, трендов и привычек.</p>
+          <p className="text-sm text-zinc-500 mt-1">Детальный разбор вашей продуктивности, трендов и привычек.</p>
         </div>
         <button
           onClick={handleAnalyze}
           disabled={isAnalyzing}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/50 text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-indigo-500/20"
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-600/50 text-zinc-900 rounded-xl text-sm font-medium transition-all shadow-lg shadow-indigo-500/20"
         >
           {isAnalyzing ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -396,15 +396,15 @@ export function Analytics() {
             <div className="p-2 bg-indigo-500/20 rounded-lg">
               <Sparkles className="w-5 h-5 text-indigo-400" />
             </div>
-            <h3 className="text-lg font-bold text-white">AI Аналитик</h3>
+            <h3 className="text-lg font-bold text-zinc-900">AI Аналитик</h3>
             <button 
               onClick={() => setAnalysisResult(null)}
-              className="ml-auto text-zinc-500 hover:text-zinc-300"
+              className="ml-auto text-zinc-500 hover:text-zinc-700"
             >
               <XCircle className="w-5 h-5" />
             </button>
           </div>
-          <div className="prose prose-invert prose-sm max-w-none text-zinc-300">
+          <div className="prose prose-invert prose-sm max-w-none text-zinc-700">
             <ReactMarkdown>{analysisResult}</ReactMarkdown>
           </div>
         </div>
@@ -417,7 +417,7 @@ export function Analytics() {
             <Zap className="w-20 h-20 text-indigo-500" />
           </div>
           <h3 className="text-[8px] font-medium text-indigo-400 mb-1 uppercase tracking-wider">Самый продуктивный день</h3>
-          <p className="text-base font-bold text-white mt-1">{mostProductiveDay?.name || 'Нет данных'}</p>
+          <p className="text-base font-bold text-zinc-900 mt-1">{mostProductiveDay?.name || 'Нет данных'}</p>
           <p className="text-[10px] text-indigo-300/80 mt-1">Успешность: {mostProductiveDay?.rate || 0}%</p>
         </div>
 
@@ -426,7 +426,7 @@ export function Analytics() {
             <Award className="w-20 h-20 text-emerald-500" />
           </div>
           <h3 className="text-[8px] font-medium text-emerald-400 mb-1 uppercase tracking-wider">Лучшая сфера</h3>
-          <p className="text-base font-bold text-white mt-1 truncate">{bestSphere?.name || 'Нет данных'}</p>
+          <p className="text-base font-bold text-zinc-900 mt-1 truncate">{bestSphere?.name || 'Нет данных'}</p>
           <p className="text-[10px] text-emerald-300/80 mt-1">Успешность: {bestSphere?.rate || 0}%</p>
         </div>
 
@@ -435,17 +435,17 @@ export function Analytics() {
             <Trophy className="w-20 h-20 text-amber-500" />
           </div>
           <h3 className="text-[8px] font-medium text-amber-400 mb-1 uppercase tracking-wider">Идеальных дней (за 30 дн.)</h3>
-          <p className="text-base font-bold text-white mt-1">{perfectDaysCount}</p>
+          <p className="text-base font-bold text-zinc-900 mt-1">{perfectDaysCount}</p>
           <p className="text-[10px] text-amber-300/80 mt-1">Дни, когда выполнено 100% задач</p>
         </div>
       </div>
 
       {/* 30-DAY TREND */}
-      <div className="bg-zinc-900 p-6 rounded-3xl shadow-sm border border-zinc-800">
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-stone-200">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-lg font-bold text-white">Активность за 30 дней</h2>
-            <p className="text-xs text-zinc-400">Объем выполненных задач и привычек</p>
+            <h2 className="text-lg font-bold text-zinc-900">Активность за 30 дней</h2>
+            <p className="text-xs text-zinc-500">Объем выполненных задач и привычек</p>
           </div>
           <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-indigo-500"></div> Задачи</div>
@@ -501,39 +501,39 @@ export function Analytics() {
           <p className="text-lg font-bold text-yellow-500 mt-1">{maxStreak} <span className="text-[8px] font-normal text-yellow-500/60 uppercase">дней</span></p>
         </div>
 
-        <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+        <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 bg-zinc-800 text-white rounded-lg">
+            <div className="p-1.5 bg-stone-100 text-zinc-900 rounded-lg">
               <ListTodo className="w-3 h-3" />
             </div>
-            <h3 className="text-[8px] font-medium text-zinc-400 uppercase tracking-wider">Всего задач</h3>
+            <h3 className="text-[8px] font-medium text-zinc-500 uppercase tracking-wider">Всего задач</h3>
           </div>
-          <p className="text-lg font-bold text-white mt-1">{totalTasks}</p>
+          <p className="text-lg font-bold text-zinc-900 mt-1">{totalTasks}</p>
         </div>
 
-        <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+        <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-1.5 bg-zinc-800 text-white rounded-lg">
+            <div className="p-1.5 bg-stone-100 text-zinc-900 rounded-lg">
               <Activity className="w-3 h-3" />
             </div>
-            <h3 className="text-[8px] font-medium text-zinc-400 uppercase tracking-wider">Всего привычек</h3>
+            <h3 className="text-[8px] font-medium text-zinc-500 uppercase tracking-wider">Всего привычек</h3>
           </div>
-          <p className="text-lg font-bold text-white mt-1">{habits.length}</p>
+          <p className="text-lg font-bold text-zinc-900 mt-1">{habits.length}</p>
         </div>
       </div>
 
       {/* TASKS DEEP DIVE */}
       <div className="space-y-4">
-        <h2 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-          <Target className="w-5 h-5 text-zinc-400" />
+        <h2 className="text-lg font-bold tracking-tight text-zinc-900 flex items-center gap-2">
+          <Target className="w-5 h-5 text-zinc-500" />
           Аналитика задач
         </h2>
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Status Donut */}
-          <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800 flex flex-col">
-            <h3 className="text-xs font-semibold text-white mb-1">Статус задач</h3>
-            <p className="text-[10px] text-zinc-400 mb-4">Общее распределение</p>
+          <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200 flex flex-col">
+            <h3 className="text-xs font-semibold text-zinc-900 mb-1">Статус задач</h3>
+            <p className="text-[10px] text-zinc-500 mb-4">Общее распределение</p>
             <div className="flex-1 min-h-[160px] relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -558,13 +558,13 @@ export function Analytics() {
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-xl font-bold text-white">{taskCompletionRate}%</span>
+                <span className="text-xl font-bold text-zinc-900">{taskCompletionRate}%</span>
                 <span className="text-[9px] text-zinc-500 uppercase tracking-wider">Успех</span>
               </div>
             </div>
             <div className="flex justify-center gap-3 mt-4">
               {taskStatusPie.map((entry, i) => (
-                <div key={i} className="flex items-center gap-1 text-[10px] text-zinc-400">
+                <div key={i} className="flex items-center gap-1 text-[10px] text-zinc-500">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }}></div>
                   {entry.name}
                 </div>
@@ -573,9 +573,9 @@ export function Analytics() {
           </div>
 
           {/* Day of Week Tasks */}
-          <div className="lg:col-span-2 bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
-            <h3 className="text-xs font-semibold text-white mb-1">Продуктивность по дням недели (Задачи)</h3>
-            <p className="text-[10px] text-zinc-400 mb-4">Процент успешного выполнения задач</p>
+          <div className="lg:col-span-2 bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
+            <h3 className="text-xs font-semibold text-zinc-900 mb-1">Продуктивность по дням недели (Задачи)</h3>
+            <p className="text-[10px] text-zinc-500 mb-4">Процент успешного выполнения задач</p>
             <div className="h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={shiftedTasksByDayOfWeek} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -598,12 +598,12 @@ export function Analytics() {
         </div>
 
         {/* Day of Week Habits */}
-        <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
-          <h3 className="text-xs font-semibold text-white mb-1 flex items-center gap-2">
+        <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
+          <h3 className="text-xs font-semibold text-zinc-900 mb-1 flex items-center gap-2">
             <Activity className="w-4 h-4 text-emerald-500" />
             Эффективность привычек по дням недели
           </h3>
-          <p className="text-[10px] text-zinc-400 mb-4">Процент выполнения привычек по дням недели</p>
+          <p className="text-[10px] text-zinc-500 mb-4">Процент выполнения привычек по дням недели</p>
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={shiftedHabitsByDayOfWeek} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -627,9 +627,9 @@ export function Analytics() {
 
         {/* Spheres Grouped Bar Chart */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
-            <h3 className="text-xs font-semibold text-white mb-1">Прогресс по сферам</h3>
-            <p className="text-[10px] text-zinc-400 mb-4">Общее количество vs Выполненные задачи</p>
+          <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
+            <h3 className="text-xs font-semibold text-zinc-900 mb-1">Прогресс по сферам</h3>
+            <p className="text-[10px] text-zinc-500 mb-4">Общее количество vs Выполненные задачи</p>
             <div className="h-56">
               {tasksBySphere.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -653,9 +653,9 @@ export function Analytics() {
           </div>
 
           {sphereBalance.length > 2 && (
-            <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
-              <h3 className="text-xs font-semibold text-white mb-1">Баланс сфер жизни</h3>
-              <p className="text-[10px] text-zinc-400 mb-2">Радар успешности</p>
+            <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
+              <h3 className="text-xs font-semibold text-zinc-900 mb-1">Баланс сфер жизни</h3>
+              <p className="text-[10px] text-zinc-500 mb-2">Радар успешности</p>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart cx="50%" cy="50%" outerRadius="65%" data={sphereBalance}>
@@ -676,40 +676,40 @@ export function Analytics() {
 
       {/* HABITS DEEP DIVE */}
       <div className="space-y-4">
-        <h2 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-          <Activity className="w-5 h-5 text-zinc-400" />
+        <h2 className="text-lg font-bold tracking-tight text-zinc-900 flex items-center gap-2">
+          <Activity className="w-5 h-5 text-zinc-500" />
           Аналитика привычек
         </h2>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
-            <h3 className="text-[10px] font-medium text-zinc-400 mb-1">Успешность</h3>
-            <p className="text-xl font-bold text-white">{habitCompletionRate}%</p>
+          <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
+            <h3 className="text-[10px] font-medium text-zinc-500 mb-1">Успешность</h3>
+            <p className="text-xl font-bold text-zinc-900">{habitCompletionRate}%</p>
           </div>
-          <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
-            <h3 className="text-[10px] font-medium text-zinc-400 mb-1">Выполнено</h3>
+          <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
+            <h3 className="text-[10px] font-medium text-zinc-500 mb-1">Выполнено</h3>
             <p className="text-xl font-bold text-emerald-500">{doneHabits}</p>
           </div>
-          <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
-            <h3 className="text-[10px] font-medium text-zinc-400 mb-1">Провалено</h3>
+          <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
+            <h3 className="text-[10px] font-medium text-zinc-500 mb-1">Провалено</h3>
             <p className="text-xl font-bold text-red-500">{failedHabitLogs}</p>
           </div>
-          <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
-            <h3 className="text-[10px] font-medium text-zinc-400 mb-1">Пропущено</h3>
+          <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
+            <h3 className="text-[10px] font-medium text-zinc-500 mb-1">Пропущено</h3>
             <p className="text-xl font-bold text-zinc-500">{skippedHabitLogs}</p>
           </div>
         </div>
 
         {/* Habit Heatmap */}
-        <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800 overflow-hidden">
-          <h3 className="text-xs font-semibold text-white mb-1 flex items-center gap-2">
+        <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
+          <h3 className="text-xs font-semibold text-zinc-900 mb-1 flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 text-indigo-500" />
             Календарь активности (90 дней)
           </h3>
-          <p className="text-[10px] text-zinc-400 mb-4">Интенсивность выполнения привычек</p>
+          <p className="text-[10px] text-zinc-500 mb-4">Интенсивность выполнения привычек</p>
           <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-hide">
             {habitHeatmap.map((day, i) => {
-              let colorClass = "bg-zinc-950 border border-zinc-800";
+              let colorClass = "bg-stone-50 border border-stone-200";
               if (day.count > 0) {
                 if (day.count <= 1) colorClass = "bg-emerald-900/50 border border-emerald-900";
                 else if (day.count <= 3) colorClass = "bg-emerald-700/50 border border-emerald-700";
@@ -730,9 +730,9 @@ export function Analytics() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Good vs Bad Habits */}
           {goodVsBadData.length > 0 && (
-            <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
-              <h3 className="text-xs font-semibold text-white mb-1">Хорошие vs Вредные</h3>
-              <p className="text-[10px] text-zinc-400 mb-4">Соотношение успешных и проваленных привычек</p>
+            <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
+              <h3 className="text-xs font-semibold text-zinc-900 mb-1">Хорошие vs Вредные</h3>
+              <p className="text-[10px] text-zinc-500 mb-4">Соотношение успешных и проваленных привычек</p>
               <div className="h-56">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -760,9 +760,9 @@ export function Analytics() {
           )}
 
           {/* 7-Day Habit Trend */}
-          <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
-            <h3 className="text-xs font-semibold text-white mb-1">Динамика привычек (7 дней)</h3>
-            <p className="text-[10px] text-zinc-400 mb-4">Процент выполнения по дням</p>
+          <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
+            <h3 className="text-xs font-semibold text-zinc-900 mb-1">Динамика привычек (7 дней)</h3>
+            <p className="text-[10px] text-zinc-500 mb-4">Процент выполнения по дням</p>
             <div className="h-56">
               {habits.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -791,27 +791,27 @@ export function Analytics() {
         </div>
 
         {/* Streak Leaderboard */}
-        <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
-          <h3 className="text-xs font-semibold text-white mb-1 flex items-center gap-2">
+        <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
+          <h3 className="text-xs font-semibold text-zinc-900 mb-1 flex items-center gap-2">
             <Flame className="w-3.5 h-3.5 text-orange-500" />
             Рекорды (Стрики)
           </h3>
-          <p className="text-[10px] text-zinc-400 mb-4">Самые длинные серии выполнения</p>
+          <p className="text-[10px] text-zinc-500 mb-4">Самые длинные серии выполнения</p>
           <div className="space-y-3">
             {detailedHabitStreaks.length > 0 ? detailedHabitStreaks.map((h, i) => (
-              <div key={h.id} className="flex items-center justify-between p-3 rounded-2xl bg-zinc-800/50 border border-zinc-800">
+              <div key={h.id} className="flex items-center justify-between p-3 rounded-2xl bg-stone-100/60 border border-stone-200">
                 <div className="flex items-center gap-3 overflow-hidden">
                   <div className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0",
                     i === 0 ? "bg-orange-500/20 text-orange-500" :
-                    i === 1 ? "bg-zinc-300/20 text-zinc-300" :
+                    i === 1 ? "bg-zinc-300/20 text-zinc-700" :
                     i === 2 ? "bg-amber-700/20 text-amber-700" :
-                    "bg-zinc-700/20 text-zinc-500"
+                    "bg-stone-200/20 text-zinc-500"
                   )}>
                     #{i + 1}
                   </div>
                   <div>
-                    <span className="text-xs font-medium text-white truncate block">{h.name}</span>
+                    <span className="text-xs font-medium text-zinc-900 truncate block">{h.name}</span>
                     <span className="text-[9px] text-zinc-500 uppercase tracking-wider">
                       {h.type === 'good' ? 'Хорошая' : 'Вредная'} • Всего: {h.totalDone}
                     </span>
@@ -825,7 +825,7 @@ export function Analytics() {
                     <div className="text-[9px] text-zinc-500 uppercase tracking-wider">Текущий</div>
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-zinc-300 flex items-center justify-end gap-1">
+                    <div className="text-xs font-bold text-zinc-700 flex items-center justify-end gap-1">
                       <Trophy className="w-3 h-3" /> {h.maxStreak}
                     </div>
                     <div className="text-[9px] text-zinc-500 uppercase tracking-wider">Максимум</div>
@@ -840,21 +840,21 @@ export function Analytics() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Best Habits */}
-          <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
-            <h3 className="text-xs font-semibold text-white mb-1 flex items-center gap-2">
+          <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
+            <h3 className="text-xs font-semibold text-zinc-900 mb-1 flex items-center gap-2">
               <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
               Топ привычек
             </h3>
-            <p className="text-[10px] text-zinc-400 mb-4">Самые стабильные привычки</p>
+            <p className="text-[10px] text-zinc-500 mb-4">Самые стабильные привычки</p>
             
             <div className="space-y-3">
               {bestHabits.length > 0 ? bestHabits.map((h, i) => (
-                <div key={i} className="flex items-center justify-between p-2.5 rounded-2xl bg-zinc-800/50 border border-zinc-800">
+                <div key={i} className="flex items-center justify-between p-2.5 rounded-2xl bg-stone-100/60 border border-stone-200">
                   <div className="flex items-center gap-2.5 overflow-hidden">
                     <div className="w-6 h-6 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-[10px] shrink-0">
                       #{i + 1}
                     </div>
-                    <span className="text-xs text-white truncate">{h.name}</span>
+                    <span className="text-xs text-zinc-900 truncate">{h.name}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {h.streak > 0 && (
@@ -873,21 +873,21 @@ export function Analytics() {
           </div>
 
           {/* Worst Habits */}
-          <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
-            <h3 className="text-xs font-semibold text-white mb-1 flex items-center gap-2">
+          <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
+            <h3 className="text-xs font-semibold text-zinc-900 mb-1 flex items-center gap-2">
               <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
               Требуют внимания
             </h3>
-            <p className="text-[10px] text-zinc-400 mb-4">Привычки с низким процентом выполнения</p>
+            <p className="text-[10px] text-zinc-500 mb-4">Привычки с низким процентом выполнения</p>
             
             <div className="space-y-3">
               {worstHabits.length > 0 ? worstHabits.map((h, i) => (
-                <div key={i} className="flex items-center justify-between p-2.5 rounded-2xl bg-zinc-800/50 border border-zinc-800">
+                <div key={i} className="flex items-center justify-between p-2.5 rounded-2xl bg-stone-100/60 border border-stone-200">
                   <div className="flex items-center gap-2.5 overflow-hidden">
                     <div className="w-6 h-6 rounded-full bg-red-500/10 text-red-500 flex items-center justify-center font-bold text-[10px] shrink-0">
                       !
                     </div>
-                    <span className="text-xs text-white truncate">{h.name}</span>
+                    <span className="text-xs text-zinc-900 truncate">{h.name}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs font-bold text-red-500 w-10 text-right">{h.rate}%</span>

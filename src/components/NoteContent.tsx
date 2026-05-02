@@ -53,20 +53,20 @@ export const NoteContent: React.FC<NoteContentProps> = ({ content, onUpdateConte
   if (editMode) {
     return (
       <div className="space-y-3" data-color-mode="dark">
-        <div className="border border-zinc-800 rounded-xl overflow-hidden">
+        <div className="border border-stone-200 rounded-xl overflow-hidden">
           <MDEditor
             value={localContent}
             onChange={(val) => setLocalContent(val || '')}
             preview="edit"
             height={300}
-            className="!bg-zinc-950 !border-none"
+            className="!bg-stone-50 !border-none"
             textareaProps={{
               placeholder: 'Введите текст заметки... Поддерживается Markdown (чекбоксы, фото, видео, ссылки)',
             }}
           />
         </div>
         <div className="flex justify-between items-center">
-          <label className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border bg-zinc-950 text-zinc-400 border-zinc-800 hover:border-zinc-700 hover:text-white cursor-pointer">
+          <label className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border bg-stone-50 text-zinc-500 border-stone-200 hover:border-stone-300 hover:text-zinc-900 cursor-pointer">
             <input 
               type="file" 
               accept="image/*" 
@@ -82,7 +82,7 @@ export const NoteContent: React.FC<NoteContentProps> = ({ content, onUpdateConte
                 setLocalContent(content);
                 setEditMode(false);
               }}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 rounded-xl font-medium transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 text-xs text-zinc-500 hover:bg-stone-100 rounded-xl font-medium transition-colors"
             >
               <X className="w-3.5 h-3.5" /> Отмена
             </button>
@@ -99,16 +99,16 @@ export const NoteContent: React.FC<NoteContentProps> = ({ content, onUpdateConte
   }
 
   return (
-    <div className="text-sm leading-relaxed text-zinc-200 group relative" data-color-mode="dark">
+    <div className="text-sm leading-relaxed text-zinc-800 group relative" data-color-mode="dark">
       <button 
         onClick={() => setEditMode(true)}
-        className="absolute -top-2 -right-2 p-1.5 bg-zinc-800 text-zinc-400 hover:text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        className="absolute -top-2 -right-2 p-1.5 bg-stone-100 text-zinc-500 hover:text-zinc-900 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity z-10"
         title="Редактировать заметку"
       >
         <Edit2 className="w-3.5 h-3.5" />
       </button>
       
-      <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-zinc-900 prose-pre:border prose-pre:border-zinc-800">
+      <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-pre:bg-white prose-pre:border prose-pre:border-stone-200">
         <MDEditor.Markdown 
           source={content || '*Пустая заметка*'} 
           style={{ backgroundColor: 'transparent' }}
@@ -125,7 +125,7 @@ export const NoteContent: React.FC<NoteContentProps> = ({ content, onUpdateConte
                         toggleCheckbox(lineIndex);
                       }
                     }}
-                    className="w-4 h-4 rounded border-zinc-700 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-zinc-950 bg-zinc-900 cursor-pointer mt-1"
+                    className="w-4 h-4 rounded border-stone-300 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-zinc-950 bg-white cursor-pointer mt-1"
                   />
                 );
               }
@@ -140,7 +140,7 @@ export const NoteContent: React.FC<NoteContentProps> = ({ content, onUpdateConte
                   
                 if (videoId) {
                   return (
-                    <div className="my-4 rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900 aspect-video">
+                    <div className="my-4 rounded-xl overflow-hidden border border-stone-200 bg-white aspect-video">
                       <iframe
                         width="100%"
                         height="100%"
@@ -157,7 +157,7 @@ export const NoteContent: React.FC<NoteContentProps> = ({ content, onUpdateConte
               return <a href={href} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 underline" {...props}>{children}</a>;
             },
             img: ({ node, src, alt, ...props }) => (
-              <img src={src} alt={alt} className="rounded-xl border border-zinc-800 max-h-96 object-contain bg-zinc-900" {...props} />
+              <img src={src} alt={alt} className="rounded-xl border border-stone-200 max-h-96 object-contain bg-white" {...props} />
             )
           }}
         />

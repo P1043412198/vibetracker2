@@ -58,9 +58,9 @@ export function PomodoroWidget() {
   const progress = (pomodoro.timeLeft / pomodoro.totalTime) * 100;
 
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800 relative overflow-hidden">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200 relative overflow-hidden">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
           <Brain className="w-4 h-4 text-indigo-500" />
           Фокус (Pomodoro)
         </h2>
@@ -69,17 +69,17 @@ export function PomodoroWidget() {
             onClick={() => setShowSettings(!showSettings)}
             className={cn(
               "p-1.5 rounded-lg transition-colors",
-              showSettings ? "bg-indigo-500 text-white" : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+              showSettings ? "bg-indigo-500 text-zinc-900" : "text-zinc-500 hover:text-zinc-700 hover:bg-stone-100"
             )}
           >
             <Settings className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-1.5 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+          <div className="flex items-center gap-1.5 bg-stone-50 p-1 rounded-xl border border-stone-200">
             <button
               onClick={() => startPomodoro('work')}
               className={cn(
                 "px-2 py-1 text-[9px] font-bold rounded-lg transition-all",
-                pomodoro.type === 'work' ? "bg-indigo-500 text-white" : "text-zinc-500 hover:text-zinc-300"
+                pomodoro.type === 'work' ? "bg-indigo-500 text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
               )}
             >
               Работа
@@ -88,7 +88,7 @@ export function PomodoroWidget() {
               onClick={() => startPomodoro('shortBreak')}
               className={cn(
                 "px-2 py-1 text-[9px] font-bold rounded-lg transition-all",
-                pomodoro.type === 'shortBreak' ? "bg-emerald-500 text-white" : "text-zinc-500 hover:text-zinc-300"
+                pomodoro.type === 'shortBreak' ? "bg-emerald-500 text-zinc-900" : "text-zinc-500 hover:text-zinc-700"
               )}
             >
               Перерыв
@@ -103,7 +103,7 @@ export function PomodoroWidget() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            className="absolute inset-x-0 bottom-0 top-[52px] bg-zinc-900 z-10 p-4 flex flex-col gap-4"
+            className="absolute inset-x-0 bottom-0 top-[52px] bg-white z-10 p-4 flex flex-col gap-4"
           >
             <div className="grid grid-cols-3 gap-2">
               <div className="flex flex-col gap-1">
@@ -112,7 +112,7 @@ export function PomodoroWidget() {
                   type="number"
                   value={pomodoro?.settings?.workTime || 25}
                   onChange={(e) => updatePomodoroSettings({ workTime: parseInt(e.target.value) || 1 })}
-                  className="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-zinc-900 focus:outline-none focus:border-indigo-500"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -121,7 +121,7 @@ export function PomodoroWidget() {
                   type="number"
                   value={pomodoro?.settings?.shortBreakTime || 5}
                   onChange={(e) => updatePomodoroSettings({ shortBreakTime: parseInt(e.target.value) || 1 })}
-                  className="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-zinc-900 focus:outline-none focus:border-emerald-500"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -130,21 +130,21 @@ export function PomodoroWidget() {
                   type="number"
                   value={pomodoro?.settings?.longBreakTime || 15}
                   onChange={(e) => updatePomodoroSettings({ longBreakTime: parseInt(e.target.value) || 1 })}
-                  className="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-zinc-900 focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
             <div className="flex items-center justify-between">
               <button
                 onClick={() => updatePomodoroSettings({ soundEnabled: !pomodoro?.settings?.soundEnabled })}
-                className="flex items-center gap-2 text-xs text-zinc-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-xs text-zinc-500 hover:text-zinc-900 transition-colors"
               >
                 {pomodoro?.settings?.soundEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
                 Звуковой сигнал
               </button>
               <button
                 onClick={() => setShowSettings(false)}
-                className="px-3 py-1 bg-indigo-500 text-white text-xs font-bold rounded-lg hover:bg-indigo-600 transition-colors"
+                className="px-3 py-1 bg-indigo-500 text-zinc-900 text-xs font-bold rounded-lg hover:bg-indigo-600 transition-colors"
               >
                 Готово
               </button>
@@ -182,7 +182,7 @@ export function PomodoroWidget() {
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-bold text-white tabular-nums">
+            <span className="text-2xl font-bold text-zinc-900 tabular-nums">
               {formatTime(pomodoro.timeLeft)}
             </span>
             <span className="text-[10px] text-zinc-500 uppercase tracking-wider">
@@ -194,7 +194,7 @@ export function PomodoroWidget() {
         <div className="flex items-center gap-4">
           <button
             onClick={resetPomodoro}
-            className="p-2 bg-zinc-800 text-zinc-400 rounded-xl hover:text-white transition-colors"
+            className="p-2 bg-stone-100 text-zinc-500 rounded-xl hover:text-zinc-900 transition-colors"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -203,14 +203,14 @@ export function PomodoroWidget() {
             className={cn(
               "w-12 h-12 flex items-center justify-center rounded-2xl transition-all active:scale-95 shadow-lg",
               pomodoro.isRunning 
-                ? "bg-zinc-800 text-white" 
+                ? "bg-stone-100 text-zinc-900" 
                 : "bg-white text-black hover:bg-zinc-200"
             )}
           >
             {pomodoro.isRunning ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 fill-current" />}
           </button>
           <div className="w-8 flex flex-col items-center">
-            <span className="text-xs font-bold text-white">{pomodoro.sessionsCompleted}</span>
+            <span className="text-xs font-bold text-zinc-900">{pomodoro.sessionsCompleted}</span>
             <span className="text-[8px] text-zinc-500 uppercase">Сессий</span>
           </div>
         </div>

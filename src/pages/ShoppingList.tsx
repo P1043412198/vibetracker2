@@ -168,12 +168,12 @@ export function ShoppingList() {
       className="max-w-md mx-auto pb-24"
     >
       {/* Tabs */}
-      <div className="flex gap-1 bg-zinc-900/50 p-1 rounded-xl mb-6">
+      <div className="flex gap-1 bg-white/60 p-1 rounded-xl mb-6">
         <button
           onClick={() => setActiveTab('list')}
           className={cn(
             "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all",
-            activeTab === 'list' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+            activeTab === 'list' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
           )}
         >
           <List className="w-4 h-4" />
@@ -183,7 +183,7 @@ export function ShoppingList() {
           onClick={() => setActiveTab('analytics')}
           className={cn(
             "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all",
-            activeTab === 'analytics' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+            activeTab === 'analytics' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
           )}
         >
           <PieChartIcon className="w-4 h-4" />
@@ -193,7 +193,7 @@ export function ShoppingList() {
           onClick={() => setActiveTab('categories')}
           className={cn(
             "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium transition-all",
-            activeTab === 'categories' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+            activeTab === 'categories' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
           )}
         >
           <Settings className="w-4 h-4" />
@@ -209,11 +209,11 @@ export function ShoppingList() {
           />
 
           <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
+            <div className="bg-white p-4 rounded-2xl border border-stone-200">
               <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">План</div>
-              <div className="text-lg font-bold text-white">{totalEstimated.toLocaleString('ru-RU')} ₽</div>
+              <div className="text-lg font-bold text-zinc-900">{totalEstimated.toLocaleString('ru-RU')} ₽</div>
             </div>
-            <div className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800">
+            <div className="bg-white p-4 rounded-2xl border border-stone-200">
               <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">Куплено</div>
               <div className="text-lg font-bold text-emerald-400">{totalSpent.toLocaleString('ru-RU')} ₽</div>
             </div>
@@ -226,12 +226,12 @@ export function ShoppingList() {
                 value={newItemText}
                 onChange={(e) => setNewItemText(e.target.value)}
                 placeholder="Что купить?"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl py-3.5 pl-4 pr-12 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
+                className="w-full bg-white border border-stone-200 rounded-2xl py-3.5 pl-4 pr-12 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-stone-300 transition-colors"
               />
               <button
                 type="submit"
                 disabled={!newItemText.trim()}
-                className="absolute right-2 top-2 bottom-2 aspect-square bg-white text-black rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-zinc-800 disabled:text-zinc-500 transition-colors"
+                className="absolute right-2 top-2 bottom-2 aspect-square bg-white text-black rounded-xl flex items-center justify-center disabled:opacity-50 disabled:bg-stone-100 disabled:text-zinc-500 transition-colors"
               >
                 <Plus className="w-5 h-5" />
               </button>
@@ -245,14 +245,14 @@ export function ShoppingList() {
                   onChange={(e) => setNewItemPrice(e.target.value)}
                   placeholder="Цена (опц.)"
                   step="0.01"
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-stone-300 transition-colors"
                 />
                 <input
                   type="text"
                   value={newItemHashtags}
                   onChange={(e) => setNewItemHashtags(e.target.value)}
                   placeholder="#теги #через #пробел"
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-stone-300 transition-colors"
                 />
               </div>
 
@@ -267,7 +267,7 @@ export function ShoppingList() {
                         setNewItemCategory(e.target.value);
                       }
                     }}
-                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-zinc-700 transition-colors appearance-none"
+                    className="flex-1 bg-white border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-stone-300 transition-colors appearance-none"
                   >
                     {shoppingCategories.map(cat => (
                       <option key={cat.id} value={cat.id}>{cat.name}</option>
@@ -281,13 +281,13 @@ export function ShoppingList() {
                       value={customCategoryName}
                       onChange={(e) => setCustomCategoryName(e.target.value)}
                       placeholder="Название категории"
-                      className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors"
+                      className="flex-1 bg-white border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-stone-300 transition-colors"
                       autoFocus
                     />
                     <button
                       type="button"
                       onClick={() => setIsCustomCategory(false)}
-                      className="px-3 bg-zinc-800 text-zinc-400 rounded-xl text-xs"
+                      className="px-3 bg-stone-100 text-zinc-500 rounded-xl text-xs"
                     >
                       Отмена
                     </button>
@@ -308,7 +308,7 @@ export function ShoppingList() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex flex-col gap-3"
+                      className="bg-white border border-stone-200 rounded-2xl p-4 flex flex-col gap-3"
                     >
                       <div className="flex items-center gap-4">
                         <button
@@ -317,10 +317,10 @@ export function ShoppingList() {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-white text-sm truncate">{item.text}</span>
+                            <span className="text-zinc-900 text-sm truncate">{item.text}</span>
                             {item.category && (
                               <span 
-                                className="text-[8px] px-1.5 py-0.5 rounded-full text-white uppercase font-bold"
+                                className="text-[8px] px-1.5 py-0.5 rounded-full text-zinc-900 uppercase font-bold"
                                 style={{ backgroundColor: shoppingCategories.find(c => c.id === item.category)?.color || "#71717a" }}
                               >
                                 {shoppingCategories.find(c => c.id === item.category)?.name}
@@ -363,11 +363,11 @@ export function ShoppingList() {
                       </div>
 
                       {item.photo && (
-                        <div className="relative rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 group">
+                        <div className="relative rounded-xl overflow-hidden bg-stone-50 border border-stone-200 group">
                           <img src={item.photo} alt="Shopping item" className="w-full h-48 object-cover" />
                           <button 
                             onClick={() => removePhoto(item.id)}
-                            className="absolute top-2 right-2 w-8 h-8 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
+                            className="absolute top-2 right-2 w-8 h-8 bg-zinc-900/30 backdrop-blur-md rounded-full flex items-center justify-center text-zinc-900 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
                           >
                             <X className="w-4 h-4" />
                           </button>
@@ -383,7 +383,7 @@ export function ShoppingList() {
               <div>
                 <button 
                   onClick={() => setShowCompleted(!showCompleted)}
-                  className="w-full flex items-center justify-between py-2 text-zinc-500 hover:text-zinc-400 transition-colors"
+                  className="w-full flex items-center justify-between py-2 text-zinc-500 hover:text-zinc-500 transition-colors"
                 >
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-medium uppercase tracking-wider">Куплено ({completedItems.length})</h3>
@@ -395,7 +395,7 @@ export function ShoppingList() {
                         e.stopPropagation();
                         clearCompletedShoppingItems();
                       }}
-                      className="text-[10px] text-zinc-600 hover:text-zinc-400 flex items-center gap-1 transition-colors"
+                      className="text-[10px] text-zinc-600 hover:text-zinc-500 flex items-center gap-1 transition-colors"
                     >
                       <Eraser className="w-3 h-3" />
                       Очистить
@@ -418,7 +418,7 @@ export function ShoppingList() {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95 }}
-                          className="bg-zinc-950 border border-zinc-900 rounded-2xl p-4 flex flex-col gap-3 opacity-60"
+                          className="bg-stone-50 border border-stone-200 rounded-2xl p-4 flex flex-col gap-3 opacity-60"
                         >
                           <div className="flex items-center gap-4">
                             <button
@@ -431,7 +431,7 @@ export function ShoppingList() {
                               <div className="flex items-center gap-2">
                                 <span className="text-zinc-500 text-sm line-through truncate">{item.text}</span>
                                 {item.category && (
-                                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-zinc-800 text-zinc-600 uppercase font-bold">
+                                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-stone-100 text-zinc-600 uppercase font-bold">
                                     {shoppingCategories.find(c => c.id === item.category)?.name}
                                   </span>
                                 )}
@@ -464,7 +464,7 @@ export function ShoppingList() {
 
             {shoppingItems.length === 0 && (
               <div className="text-center py-12">
-                <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
                   <ShoppingCart className="w-8 h-8 text-zinc-600" />
                 </div>
                 <p className="text-zinc-500">Список покупок пуст</p>
@@ -476,14 +476,14 @@ export function ShoppingList() {
 
       {activeTab === 'analytics' && (
         <div className="space-y-6">
-          <div className="flex gap-2 bg-zinc-900/50 p-1 rounded-xl">
+          <div className="flex gap-2 bg-white/60 p-1 rounded-xl">
             {(['week', 'month', 'all'] as const).map((range) => (
               <button
                 key={range}
                 onClick={() => setTimeRange(range)}
                 className={cn(
                   "flex-1 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all",
-                  timeRange === range ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
+                  timeRange === range ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700"
                 )}
               >
                 {range === 'week' ? 'Неделя' : range === 'month' ? 'Месяц' : 'Все время'}
@@ -491,8 +491,8 @@ export function ShoppingList() {
             ))}
           </div>
 
-          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-            <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-6">Траты по категориям</h3>
+          <div className="bg-white p-6 rounded-2xl border border-stone-200">
+            <h3 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-6">Траты по категориям</h3>
             {analyticsData.length > 0 ? (
               <>
                 <div className="h-64">
@@ -524,7 +524,7 @@ export function ShoppingList() {
                       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
                       <div className="flex-1 min-w-0">
                         <div className="text-[10px] text-zinc-500 truncate">{item.name}</div>
-                        <div className="text-xs font-bold text-white">{item.value.toLocaleString('ru-RU')} ₽</div>
+                        <div className="text-xs font-bold text-zinc-900">{item.value.toLocaleString('ru-RU')} ₽</div>
                       </div>
                     </div>
                   ))}
@@ -539,39 +539,39 @@ export function ShoppingList() {
           </div>
 
           {tagAnalyticsData.length > 0 && (
-            <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-6">Траты по тегам</h3>
+            <div className="bg-white p-6 rounded-2xl border border-stone-200">
+              <h3 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-6">Траты по тегам</h3>
               <div className="space-y-4">
                 {tagAnalyticsData.map(tag => (
                   <div key={tag.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="px-2 py-1 bg-zinc-800 rounded text-[10px] text-zinc-400 font-mono">
+                      <div className="px-2 py-1 bg-stone-100 rounded text-[10px] text-zinc-500 font-mono">
                         #{tag.name}
                       </div>
                     </div>
-                    <div className="text-xs font-bold text-white">{tag.value.toLocaleString('ru-RU')} ₽</div>
+                    <div className="text-xs font-bold text-zinc-900">{tag.value.toLocaleString('ru-RU')} ₽</div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-            <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider mb-4">Общая статистика</h3>
+          <div className="bg-white p-6 rounded-2xl border border-stone-200">
+            <h3 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-4">Общая статистика</h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-zinc-400">Товаров в периоде</span>
-                <span className="text-sm font-bold text-white">{filteredItems.length}</span>
+                <span className="text-sm text-zinc-500">Товаров в периоде</span>
+                <span className="text-sm font-bold text-zinc-900">{filteredItems.length}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-zinc-400">Куплено</span>
+                <span className="text-sm text-zinc-500">Куплено</span>
                 <span className="text-sm font-bold text-emerald-400">
                   {filteredItems.filter(i => i.completed).length}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-zinc-400">Средний чек</span>
-                <span className="text-sm font-bold text-white">
+                <span className="text-sm text-zinc-500">Средний чек</span>
+                <span className="text-sm font-bold text-zinc-900">
                   {filteredItems.length > 0 
                     ? (filteredItems.reduce((sum, i) => sum + (i.price || 0), 0) / filteredItems.length).toFixed(2) 
                     : 0} ₽
@@ -584,12 +584,12 @@ export function ShoppingList() {
 
       {activeTab === 'categories' && (
         <div className="space-y-6">
-          <div className="bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
+          <div className="bg-white p-6 rounded-2xl border border-stone-200">
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Ваши категории</h3>
+              <h3 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Ваши категории</h3>
               <button
                 onClick={() => setIsAddingCategory(true)}
-                className="p-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700 transition-colors"
+                className="p-2 bg-stone-100 text-zinc-900 rounded-lg hover:bg-stone-200 transition-colors"
               >
                 <Plus className="w-4 h-4" />
               </button>
@@ -611,7 +611,7 @@ export function ShoppingList() {
                       value={newCatName}
                       onChange={(e) => setNewCatName(e.target.value)}
                       placeholder="Напр: Животные"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-zinc-700"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-stone-300"
                     />
                   </div>
                   <div className="space-y-2">
@@ -635,7 +635,7 @@ export function ShoppingList() {
                     <button
                       type="button"
                       onClick={() => setIsAddingCategory(false)}
-                      className="flex-1 py-2 bg-zinc-800 text-zinc-400 rounded-xl text-xs font-medium"
+                      className="flex-1 py-2 bg-stone-100 text-zinc-500 rounded-xl text-xs font-medium"
                     >
                       Отмена
                     </button>
@@ -653,10 +653,10 @@ export function ShoppingList() {
 
             <div className="space-y-2">
               {shoppingCategories.map(cat => (
-                <div key={cat.id} className="flex items-center justify-between p-3 bg-zinc-950 rounded-xl border border-zinc-800/50">
+                <div key={cat.id} className="flex items-center justify-between p-3 bg-stone-50 rounded-xl border border-stone-200/70">
                   <div className="flex items-center gap-3">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
-                    <span className="text-sm text-white font-medium">{cat.name}</span>
+                    <span className="text-sm text-zinc-900 font-medium">{cat.name}</span>
                   </div>
                   {cat.id !== 'other' && (
                     <button
@@ -705,11 +705,11 @@ function PriceHistoryModal({ itemName, onClose }: { itemName: string | null, onC
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/40 backdrop-blur-sm">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-zinc-900 border border-zinc-800 w-full max-w-md rounded-3xl p-6 shadow-2xl"
+        className="bg-white border border-stone-200 w-full max-w-md rounded-3xl p-6 shadow-2xl"
       >
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
@@ -717,11 +717,11 @@ function PriceHistoryModal({ itemName, onClose }: { itemName: string | null, onC
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white leading-tight">{itemName}</h3>
+              <h3 className="text-lg font-bold text-zinc-900 leading-tight">{itemName}</h3>
               <p className="text-xs text-zinc-500">История изменения цены</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-zinc-500 hover:text-white rounded-xl">
+          <button onClick={onClose} className="p-2 text-zinc-500 hover:text-zinc-900 rounded-xl">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -766,7 +766,7 @@ function PriceHistoryModal({ itemName, onClose }: { itemName: string | null, onC
               value={newPrice}
               onChange={e => setNewPrice(e.target.value)}
               placeholder="0.00"
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white text-sm focus:border-blue-500/50 outline-none"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-zinc-900 text-sm focus:border-blue-500/50 outline-none"
             />
           </div>
           <div className="space-y-1">
@@ -775,10 +775,10 @@ function PriceHistoryModal({ itemName, onClose }: { itemName: string | null, onC
               type="date" 
               value={newDate}
               onChange={e => setNewDate(e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white text-sm focus:border-blue-500/50 outline-none"
+              className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-zinc-900 text-sm focus:border-blue-500/50 outline-none"
             />
           </div>
-          <button type="submit" className="col-span-2 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
+          <button type="submit" className="col-span-2 py-2 bg-blue-600 text-zinc-900 rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
             Добавить запись
           </button>
         </form>
@@ -788,13 +788,13 @@ function PriceHistoryModal({ itemName, onClose }: { itemName: string | null, onC
             <p className="text-center py-4 text-zinc-500 text-sm">Нет записей истории</p>
           ) : (
             history.slice().reverse().map(p => (
-              <div key={p.id} className="flex items-center justify-between bg-zinc-950 p-3 rounded-2xl border border-zinc-800/50">
+              <div key={p.id} className="flex items-center justify-between bg-stone-50 p-3 rounded-2xl border border-stone-200/70">
                 <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-zinc-900 text-zinc-400 rounded-lg">
+                  <div className="p-1.5 bg-white text-zinc-500 rounded-lg">
                     <Calendar className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white">{p.price.toLocaleString('ru-RU')} ₽</p>
+                    <p className="text-sm font-bold text-zinc-900">{p.price.toLocaleString('ru-RU')} ₽</p>
                     <p className="text-[10px] text-zinc-500">{format(parseISO(p.date), 'dd MMMM yyyy', { locale: ru })}</p>
                   </div>
                 </div>

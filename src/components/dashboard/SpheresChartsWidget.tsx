@@ -11,7 +11,7 @@ export const SpheresChartsWidget: React.FC<SpheresChartsWidgetProps> = ({
   tasksByStatus 
 }) => {
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800 grid grid-cols-2 gap-4">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200 grid grid-cols-2 gap-4">
       <div className="h-32">
         <p className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider mb-2">Аналитика сфер</p>
         {tasksBySphere.length > 0 ? (

@@ -41,18 +41,18 @@ export function Passwords() {
     <div className="space-y-6 pb-24">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white mb-1 flex items-center gap-2">
+          <h1 className="text-xl font-bold text-zinc-900 mb-1 flex items-center gap-2">
             <Shield className="w-6 h-6 text-indigo-400" />
             Пароли и 2FA
           </h1>
-          <p className="text-sm text-zinc-400">Менеджер паролей и аутентификатор</p>
+          <p className="text-sm text-zinc-500">Менеджер паролей и аутентификатор</p>
         </div>
         <button
           onClick={() => {
             setEditingId(null);
             setIsAdding(true);
           }}
-          className="p-2.5 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-500/20"
+          className="p-2.5 bg-indigo-500 text-zinc-900 rounded-xl hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-500/20"
         >
           <Plus className="w-5 h-5" />
         </button>
@@ -67,7 +67,7 @@ export function Passwords() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск паролей..."
-            className="w-full bg-zinc-900/50 border border-zinc-800 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
+            className="w-full bg-white/60 border border-stone-200 rounded-xl pl-9 pr-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
           />
         </div>
 
@@ -78,8 +78,8 @@ export function Passwords() {
             className={cn(
               "flex-1 sm:flex-none px-4 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap text-center border",
               activeCategory === 'all'
-                ? "bg-indigo-500 border-indigo-500 text-white"
-                : "bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                ? "bg-indigo-500 border-indigo-500 text-zinc-900"
+                : "bg-white/60 border-stone-200 text-zinc-500 hover:border-stone-300"
             )}
           >
             Все
@@ -91,8 +91,8 @@ export function Passwords() {
               className={cn(
                 "flex-1 sm:flex-none px-4 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap text-center border",
                 activeCategory === cat
-                  ? "bg-indigo-500 border-indigo-500 text-white"
-                  : "bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:border-zinc-700"
+                  ? "bg-indigo-500 border-indigo-500 text-zinc-900"
+                  : "bg-white/60 border-stone-200 text-zinc-500 hover:border-stone-300"
               )}
             >
               {cat}
@@ -197,10 +197,10 @@ function PasswordCard({ entry, onEdit, onDelete, onTogglePin }: { entry: Passwor
   };
 
   return (
-    <div className={`bg-zinc-900/50 border rounded-2xl p-4 space-y-4 transition-all duration-300 ${
+    <div className={`bg-white/60 border rounded-2xl p-4 space-y-4 transition-all duration-300 ${
       entry.isPinned 
         ? 'border-indigo-500/50 shadow-lg shadow-indigo-500/10 ring-1 ring-indigo-500/20' 
-        : 'border-zinc-800/50'
+        : 'border-stone-200/70'
     }`}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -211,16 +211,16 @@ function PasswordCard({ entry, onEdit, onDelete, onTogglePin }: { entry: Passwor
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-medium text-white">{entry.title}</h3>
+              <h3 className="text-sm font-medium text-zinc-900">{entry.title}</h3>
               {entry.isPinned && <Pin className="w-3 h-3 text-indigo-400 fill-indigo-400" />}
               {entry.category && (
-                <span className="px-1.5 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-400 border border-zinc-700 flex items-center gap-1">
+                <span className="px-1.5 py-0.5 rounded bg-stone-100 text-[10px] text-zinc-500 border border-stone-300 flex items-center gap-1">
                   <Tag className="w-2.5 h-2.5" />
                   {entry.category}
                 </span>
               )}
             </div>
-            {entry.username && <p className="text-xs text-zinc-400">{entry.username}</p>}
+            {entry.username && <p className="text-xs text-zinc-500">{entry.username}</p>}
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -229,30 +229,30 @@ function PasswordCard({ entry, onEdit, onDelete, onTogglePin }: { entry: Passwor
             className={`p-1.5 rounded-lg transition-colors ${
               entry.isPinned 
                 ? 'text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20' 
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                : 'text-zinc-500 hover:text-zinc-900 hover:bg-stone-100'
             }`}
             title={entry.isPinned ? "Открепить" : "Закрепить"}
           >
             <Pin className={`w-3.5 h-3.5 ${entry.isPinned ? 'fill-indigo-400' : ''}`} />
           </button>
-          <button onClick={onEdit} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors">
+          <button onClick={onEdit} className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg transition-colors">
             <Edit2 className="w-3.5 h-3.5" />
           </button>
-          <button onClick={onDelete} className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors">
+          <button onClick={onDelete} className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-stone-100 rounded-lg transition-colors">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {entry.password && (
-        <div className="flex items-center gap-2 bg-zinc-950 p-1.5 rounded-lg border border-zinc-800/50">
-          <div className="flex-1 font-mono text-xs text-zinc-300 px-2 tracking-wider">
+        <div className="flex items-center gap-2 bg-stone-50 p-1.5 rounded-lg border border-stone-200/70">
+          <div className="flex-1 font-mono text-xs text-zinc-700 px-2 tracking-wider">
             {showPassword ? entry.password : '••••••••••••'}
           </div>
-          <button onClick={() => setShowPassword(!showPassword)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors">
+          <button onClick={() => setShowPassword(!showPassword)} className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-md transition-colors">
             {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
-          <button onClick={() => copyToClipboard(entry.password!)} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors">
+          <button onClick={() => copyToClipboard(entry.password!)} className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-md transition-colors">
             <Copy className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -269,7 +269,7 @@ function PasswordCard({ entry, onEdit, onDelete, onTogglePin }: { entry: Passwor
               <Copy className="w-3.5 h-3.5" />
             </button>
           </div>
-          <div className="mt-1 font-mono text-xl font-bold text-white tracking-[0.2em] relative z-10">
+          <div className="mt-1 font-mono text-xl font-bold text-zinc-900 tracking-[0.2em] relative z-10">
             {totpCode.slice(0, 3)} {totpCode.slice(3)}
           </div>
           
@@ -284,12 +284,12 @@ function PasswordCard({ entry, onEdit, onDelete, onTogglePin }: { entry: Passwor
       )}
 
       {entry.notes && (
-        <div className="bg-zinc-950/50 border border-zinc-800/50 rounded-xl p-3">
+        <div className="bg-stone-50/50 border border-stone-200/70 rounded-xl p-3">
           <div className="flex items-center gap-2 mb-1.5">
             <FileText className="w-3 h-3 text-zinc-500" />
             <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Заметки</span>
           </div>
-          <p className="text-xs text-zinc-400 whitespace-pre-wrap leading-relaxed">{entry.notes}</p>
+          <p className="text-xs text-zinc-500 whitespace-pre-wrap leading-relaxed">{entry.notes}</p>
         </div>
       )}
     </div>
@@ -385,22 +385,22 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-white/80 backdrop-blur-sm">
       <motion.div
         initial={{ opacity: 0, y: "100%" }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: "100%" }}
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
-        className="bg-zinc-900 border-t sm:border border-zinc-800 rounded-t-3xl sm:rounded-2xl w-full max-w-md flex flex-col h-[88dvh] sm:h-auto sm:max-h-[90vh] overflow-hidden shadow-2xl"
+        className="bg-white border-t sm:border border-stone-200 rounded-t-3xl sm:rounded-2xl w-full max-w-md flex flex-col h-[88dvh] sm:h-auto sm:max-h-[90vh] overflow-hidden shadow-2xl"
       >
-        <div className="w-12 h-1 bg-zinc-800 rounded-full mx-auto mt-2 mb-1 sm:hidden shrink-0" />
+        <div className="w-12 h-1 bg-stone-100 rounded-full mx-auto mt-2 mb-1 sm:hidden shrink-0" />
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           {/* Header - Fixed */}
-          <div className="px-4 py-2 border-b border-zinc-800 flex items-center justify-between bg-zinc-900 shrink-0">
-            <h2 className="text-sm font-semibold text-white">
+          <div className="px-4 py-2 border-b border-stone-200 flex items-center justify-between bg-white shrink-0">
+            <h2 className="text-sm font-semibold text-zinc-900">
               {entry ? 'Редактировать пароль' : 'Новый пароль'}
             </h2>
-            <button type="button" onClick={onClose} className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors">
+            <button type="button" onClick={onClose} className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -415,7 +415,7 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                   required
                   value={formData.title}
                   onChange={e => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-indigo-500"
                   placeholder="Google, GitHub, VK..."
                 />
               </div>
@@ -426,7 +426,7 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                   type="text"
                   value={formData.username}
                   onChange={e => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-indigo-500"
                   placeholder="user@example.com"
                 />
               </div>
@@ -453,13 +453,13 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                     type="text"
                     value={formData.password}
                     onChange={e => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-3 pr-10 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl pl-3 pr-10 py-2 text-sm text-zinc-900 focus:outline-none focus:border-indigo-500 font-mono"
                     placeholder="••••••••••••"
                   />
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg transition-colors"
                   >
                     {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                   </button>
@@ -473,9 +473,9 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                       exit={{ height: 0, opacity: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-3 p-3 bg-zinc-950 border border-zinc-800 rounded-xl space-y-3">
+                      <div className="mt-3 p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">Уровень паранойи</span>
+                          <span className="text-[10px] font-medium text-zinc-500 uppercase tracking-wider">Уровень паранойи</span>
                           <span className={`text-[10px] font-bold ${PARANOIA_LEVELS[paranoiaLevel - 1].textColor}`}>
                             {PARANOIA_LEVELS[paranoiaLevel - 1].label}
                           </span>
@@ -492,7 +492,7 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                             setParanoiaLevel(newLevel);
                             handleGenerate(newLevel);
                           }}
-                          className="w-full accent-indigo-500"
+                          className="w-full accent-emerald-500"
                         />
                         
                         <div className="flex justify-between text-[8px] text-zinc-600 font-bold uppercase tracking-widest">
@@ -507,7 +507,7 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                         <button
                           type="button"
                           onClick={() => handleGenerate(paranoiaLevel)}
-                          className="w-full py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors border border-zinc-800"
+                          className="w-full py-1.5 bg-white hover:bg-stone-100 text-zinc-700 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors border border-stone-200"
                         >
                           Сгенерировать другой
                         </button>
@@ -523,7 +523,7 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                   type="text"
                   value={formData.totpSecret}
                   onChange={e => setFormData({ ...formData, totpSecret: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500 font-mono text-xs"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-zinc-900 focus:outline-none focus:border-indigo-500 font-mono text-xs"
                   placeholder="JBSWY3DPEHPK3PXP"
                 />
               </div>
@@ -535,7 +535,7 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                   list="password-categories"
                   value={formData.category}
                   onChange={e => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-indigo-500"
                   placeholder="Работа, Личное, Финансы..."
                 />
                 <datalist id="password-categories">
@@ -551,7 +551,7 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                   type="text"
                   value={formData.url}
                   onChange={e => setFormData({ ...formData, url: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-indigo-500"
                   placeholder="example.com"
                 />
               </div>
@@ -561,7 +561,7 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
                 <textarea
                   value={formData.notes}
                   onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 min-h-[60px]"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-indigo-500 min-h-[60px]"
                   placeholder="Дополнительная информация..."
                 />
               </div>
@@ -569,10 +569,10 @@ function PasswordModal({ entry, onClose, onSave }: { entry?: PasswordEntry, onCl
           </div>
 
           {/* Footer - Fixed */}
-          <div className="p-3 pb-12 sm:pb-3 pb-safe border-t border-zinc-800 bg-zinc-900 shrink-0">
+          <div className="p-3 pb-12 sm:pb-3 pb-safe border-t border-stone-200 bg-white shrink-0">
             <button
               type="submit"
-              className="w-full py-2.5 text-xs bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-wider hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-500/20 active:scale-[0.98]"
+              className="w-full py-2.5 text-xs bg-indigo-500 text-zinc-900 rounded-xl font-bold uppercase tracking-wider hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-500/20 active:scale-[0.98]"
             >
               Сохранить
             </button>

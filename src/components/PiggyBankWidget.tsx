@@ -23,11 +23,11 @@ export function PiggyBankWidget() {
 
   if (savingsGoals.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-zinc-900 rounded-3xl border border-zinc-800">
-        <div className="w-12 h-12 bg-zinc-800 rounded-full flex items-center justify-center mb-3">
+      <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-white rounded-3xl border border-stone-200">
+        <div className="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-3">
           <PiggyBank className="w-6 h-6 text-zinc-500" />
         </div>
-        <h3 className="text-sm font-medium text-white mb-1">Копилка пуста</h3>
+        <h3 className="text-sm font-medium text-zinc-900 mb-1">Копилка пуста</h3>
         <p className="text-xs text-zinc-500 mb-4">Установите цель в разделе Финансы</p>
       </div>
     );
@@ -38,15 +38,15 @@ export function PiggyBankWidget() {
 
   return (
     <div className={cn(
-      "h-full flex flex-col bg-zinc-900 rounded-3xl border transition-all duration-500 p-5",
-      isFull ? "border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.1)]" : "border-zinc-800"
+      "h-full flex flex-col bg-white rounded-3xl border transition-all duration-500 p-5",
+      isFull ? "border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.1)]" : "border-stone-200"
     )}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <div className={cn("p-2 rounded-lg", isFull ? "bg-amber-500/10" : "bg-pink-500/10")}>
             <PiggyBank className={cn("w-4 h-4", isFull ? "text-amber-500" : "text-pink-500")} />
           </div>
-          <span className="text-sm font-bold text-white">Копилка</span>
+          <span className="text-sm font-bold text-zinc-900">Копилка</span>
         </div>
         <div className={cn("text-[10px] font-bold uppercase tracking-wider", isFull ? "text-amber-500" : "text-zinc-500")}>
           {progress.toFixed(0)}%
@@ -80,22 +80,22 @@ export function PiggyBankWidget() {
           </div>
 
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={cn("text-lg font-black", isFull ? "text-amber-500" : "text-white")}>
+            <span className={cn("text-lg font-black", isFull ? "text-amber-500" : "text-zinc-900")}>
               {selectedGoal.currentAmount.toLocaleString()}
             </span>
             <span className="text-[8px] text-zinc-500 uppercase font-bold">из {selectedGoal.targetAmount.toLocaleString()}</span>
           </div>
         </div>
-        <h4 className="text-xs font-medium text-zinc-300 mt-2">{selectedGoal.title}</h4>
+        <h4 className="text-xs font-medium text-zinc-700 mt-2">{selectedGoal.title}</h4>
       </div>
 
       <div className="space-y-2">
-        <div className="flex gap-1 p-1 bg-zinc-950 rounded-xl border border-zinc-800/50">
+        <div className="flex gap-1 p-1 bg-stone-50 rounded-xl border border-stone-200/70">
           <button
             onClick={() => setIsWithdraw(false)}
             className={cn(
               "flex-1 py-1 text-[10px] font-bold rounded-lg transition-all",
-              !isWithdraw ? "bg-zinc-800 text-white" : "text-zinc-500"
+              !isWithdraw ? "bg-stone-100 text-zinc-900" : "text-zinc-500"
             )}
           >
             ВНОС
@@ -104,7 +104,7 @@ export function PiggyBankWidget() {
             onClick={() => setIsWithdraw(true)}
             className={cn(
               "flex-1 py-1 text-[10px] font-bold rounded-lg transition-all",
-              isWithdraw ? "bg-zinc-800 text-white" : "text-zinc-500"
+              isWithdraw ? "bg-stone-100 text-zinc-900" : "text-zinc-500"
             )}
           >
             СНЯТИЕ
@@ -116,13 +116,13 @@ export function PiggyBankWidget() {
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder={isWithdraw ? "Снять..." : "Пополнить..."}
-            className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-700"
+            className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-stone-300"
           />
           <button
             type="submit"
             disabled={!amount}
             className={cn(
-              "p-2 rounded-xl text-white transition-colors disabled:opacity-50",
+              "p-2 rounded-xl text-zinc-900 transition-colors disabled:opacity-50",
               isWithdraw ? "bg-red-500 hover:bg-red-600" : "bg-pink-500 hover:bg-pink-600"
             )}
           >

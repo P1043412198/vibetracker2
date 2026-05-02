@@ -13,13 +13,13 @@ export const SpheresProgressWidget: React.FC<SpheresProgressWidgetProps> = ({
   tasks 
 }) => {
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
           <LayoutGrid className="w-4 h-4" />
           Прогресс по сферам
         </h2>
-        <Link to="/spheres" className="text-xs text-zinc-500 hover:text-zinc-300 font-medium flex items-center gap-1">
+        <Link to="/spheres" className="text-xs text-zinc-500 hover:text-zinc-700 font-medium flex items-center gap-1">
           Все сферы <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
@@ -30,17 +30,17 @@ export const SpheresProgressWidget: React.FC<SpheresProgressWidgetProps> = ({
           const progress = sphereTasks.length > 0 ? (completed / sphereTasks.length) * 100 : 0;
           
           return (
-            <div key={sphere.id} className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800">
+            <div key={sphere.id} className="bg-stone-50 p-3 rounded-2xl border border-stone-200">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-zinc-900 flex items-center justify-center text-xs">
+                  <div className="w-6 h-6 rounded-lg bg-white flex items-center justify-center text-xs">
                     {sphere.icon || '🌐'}
                   </div>
-                  <span className="text-[10px] font-bold text-white truncate max-w-[80px]">{sphere.title}</span>
+                  <span className="text-[10px] font-bold text-zinc-900 truncate max-w-[80px]">{sphere.title}</span>
                 </div>
                 <span className="text-[9px] font-bold text-zinc-500">{Math.round(progress)}%</span>
               </div>
-              <div className="w-full bg-zinc-900 h-1 rounded-full overflow-hidden">
+              <div className="w-full bg-white h-1 rounded-full overflow-hidden">
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}

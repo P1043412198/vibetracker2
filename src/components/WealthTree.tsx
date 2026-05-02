@@ -94,11 +94,11 @@ export function WealthTree() {
   };
 
   return (
-    <div className="bg-zinc-900/50 border border-zinc-800 rounded-3xl p-8 relative overflow-hidden flex flex-col items-center text-center">
+    <div className="bg-white/60 border border-stone-200 rounded-3xl p-8 relative overflow-hidden flex flex-col items-center text-center">
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500/0 via-emerald-500/50 to-emerald-500/0" />
       
       <div className="mb-6 w-full flex flex-col items-center">
-        <h3 className="text-lg font-bold text-white flex items-center justify-center gap-2">
+        <h3 className="text-lg font-bold text-zinc-900 flex items-center justify-center gap-2">
           <TreeDeciduous className="w-5 h-5 text-emerald-500" />
           Дерево богатства
         </h3>
@@ -106,7 +106,7 @@ export function WealthTree() {
           Стадия: <span className="text-emerald-400">{getStageName(growthLevel)}</span>
         </p>
         
-        <div className="mt-4 flex items-center gap-2 bg-zinc-950 px-3 py-1.5 rounded-xl border border-zinc-800">
+        <div className="mt-4 flex items-center gap-2 bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-200">
           <span className="text-xs text-zinc-500 font-medium">Цель:</span>
           {isEditingTarget ? (
             <div className="flex items-center gap-2">
@@ -114,7 +114,7 @@ export function WealthTree() {
                 type="number"
                 value={tempTarget}
                 onChange={(e) => setTempTarget(e.target.value)}
-                className="w-24 bg-zinc-900 text-white text-sm px-2 py-1 rounded-lg border border-zinc-700 outline-none focus:border-emerald-500"
+                className="w-24 bg-white text-zinc-900 text-sm px-2 py-1 rounded-lg border border-stone-300 outline-none focus:border-emerald-500"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -128,7 +128,7 @@ export function WealthTree() {
                   setWealthTreeTarget(Number(tempTarget));
                   setIsEditingTarget(false);
                 }}
-                className="p-1 hover:bg-zinc-800 rounded-lg text-emerald-500"
+                className="p-1 hover:bg-stone-100 rounded-lg text-emerald-500"
               >
                 <Check className="w-4 h-4" />
               </button>
@@ -145,7 +145,7 @@ export function WealthTree() {
       {/* Tree Visualization */}
       <div className="relative w-64 h-64 flex items-end justify-center mb-8">
         {/* Ground */}
-        <div className="absolute bottom-0 w-48 h-2 bg-zinc-800 rounded-full" />
+        <div className="absolute bottom-0 w-48 h-2 bg-stone-100 rounded-full" />
         
         {/* The Tree (SVG) */}
         <svg viewBox="0 0 100 100" className="w-full h-full">
@@ -254,23 +254,23 @@ export function WealthTree() {
 
         {/* Floating Stats */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-          <div className="bg-zinc-950/80 backdrop-blur-sm border border-zinc-800 px-4 py-2 rounded-2xl shadow-2xl">
+          <div className="bg-stone-50/80 backdrop-blur-sm border border-stone-200 px-4 py-2 rounded-2xl shadow-2xl">
             <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Чистый капитал</p>
-            <p className="text-lg font-black text-white">{netWorth.toLocaleString()} {baseCurrency}</p>
+            <p className="text-lg font-black text-zinc-900">{netWorth.toLocaleString()} {baseCurrency}</p>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 w-full">
-        <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 flex flex-col items-center">
+        <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 flex flex-col items-center">
           <Coins className="w-4 h-4 text-amber-500 mb-1" />
           <span className="text-[10px] text-zinc-500 uppercase font-bold">Активы</span>
-          <span className="text-sm font-bold text-white">{totalSavings.toLocaleString()} {baseCurrency}</span>
+          <span className="text-sm font-bold text-zinc-900">{totalSavings.toLocaleString()} {baseCurrency}</span>
         </div>
-        <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 flex flex-col items-center">
+        <div className="bg-stone-50 p-4 rounded-2xl border border-stone-200 flex flex-col items-center">
           <TrendingUp className="w-4 h-4 text-emerald-500 mb-1" />
           <span className="text-[10px] text-zinc-500 uppercase font-bold">До цели</span>
-          <span className="text-sm font-bold text-white">
+          <span className="text-sm font-bold text-zinc-900">
             {growthLevel < 5 ? (targetAmount - netWorth).toLocaleString() : 'MAX'} {growthLevel < 5 ? baseCurrency : ''}
           </span>
         </div>

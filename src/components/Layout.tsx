@@ -50,16 +50,18 @@ export function Layout() {
   ].filter(item => !item.module || enabledModules?.[item.module as keyof typeof enabledModules] !== false);
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-zinc-950 text-zinc-100 font-sans">
+    <div className="flex flex-col md:flex-row h-screen bg-[var(--vs-bg)] text-zinc-900 font-sans">
       {/* Sidebar for Desktop */}
-      <aside className="hidden md:flex w-64 bg-zinc-900 border-r border-zinc-800 flex-col">
+      <aside className="hidden md:flex w-64 bg-white border-r border-stone-200 flex-col">
         <div className="p-6">
-          <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            <Target className="w-5 h-5 text-white" />
+          <h1 className="text-xl font-bold tracking-tight text-emerald-800 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-600 text-white">
+              <Target className="w-4 h-4" />
+            </span>
             Vibesight
           </h1>
         </div>
-        
+
         <nav className="flex-1 px-4 space-y-1">
           {navItems.map((item) => (
             <NavLink
@@ -67,10 +69,10 @@ export function Layout() {
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-zinc-800 text-white'
-                    : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                    ? 'bg-emerald-50 text-emerald-800'
+                    : 'text-zinc-500 hover:bg-stone-50 hover:text-zinc-800'
                 )
               }
             >
@@ -82,9 +84,11 @@ export function Layout() {
       </aside>
 
       {/* Mobile Header */}
-      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-zinc-900/90 backdrop-blur-md border-b border-zinc-800 pt-safe sticky top-0 z-40">
-        <div className="flex items-center gap-2 text-white font-bold text-lg">
-          <Target className="w-5 h-5 text-white" />
+      <header className="md:hidden flex items-center justify-between px-4 py-3 bg-white/90 backdrop-blur-md border-b border-stone-200 pt-safe sticky top-0 z-40">
+        <div className="flex items-center gap-2 text-emerald-800 font-bold text-lg">
+          <span className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-emerald-600 text-white">
+            <Target className="w-4 h-4" />
+          </span>
           Vibesight
         </div>
         <NavLink
@@ -92,7 +96,7 @@ export function Layout() {
           className={({ isActive }) =>
             cn(
               'p-2 rounded-full transition-colors',
-              isActive ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800/50'
+              isActive ? 'bg-stone-100 text-zinc-900' : 'text-zinc-500 hover:text-zinc-900 hover:bg-stone-100/60'
             )
           }
         >
@@ -116,18 +120,18 @@ export function Layout() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMoreOpen(false)}
-              className="md:hidden fixed inset-0 bg-black/60 z-40"
+              className="md:hidden fixed inset-0 bg-zinc-900/40 z-40"
             />
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="md:hidden fixed bottom-[60px] left-0 right-0 bg-zinc-900 border-t border-zinc-800 rounded-t-2xl z-50 p-4 pb-safe shadow-2xl"
+              className="md:hidden fixed bottom-[60px] left-0 right-0 bg-white border-t border-stone-200 rounded-t-2xl z-50 p-4 pb-safe shadow-2xl"
             >
               <div className="flex justify-between items-center mb-4 px-2">
-                <h2 className="text-lg font-bold text-white">Меню</h2>
-                <button onClick={() => setIsMoreOpen(false)} className="p-2 text-zinc-400 hover:text-white bg-zinc-800/50 rounded-full transition-colors">
+                <h2 className="text-lg font-bold text-zinc-900">Меню</h2>
+                <button onClick={() => setIsMoreOpen(false)} className="p-2 text-zinc-500 hover:text-zinc-900 bg-stone-100/60 rounded-full transition-colors">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -140,8 +144,8 @@ export function Layout() {
                       cn(
                         'flex flex-col items-center justify-center gap-2 p-3 rounded-xl transition-colors',
                         isActive
-                          ? 'bg-zinc-800 text-white'
-                          : 'bg-zinc-950/50 text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                          ? 'bg-stone-100 text-zinc-900'
+                          : 'bg-stone-50/50 text-zinc-500 hover:bg-stone-100/60 hover:text-zinc-800'
                       )
                     }
                   >
@@ -156,7 +160,7 @@ export function Layout() {
       </AnimatePresence>
 
       {/* Bottom Navigation for Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-zinc-900/90 backdrop-blur-md border-t border-zinc-800 z-50 pb-safe">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-stone-200 z-50 pb-safe">
         <div className="flex justify-around items-center px-2 pt-2 pb-1.5 w-full">
           {mainMobileNav.map((item) => (
             <NavLink
@@ -166,8 +170,8 @@ export function Layout() {
                 cn(
                   'flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-lg transition-colors',
                   isActive && !isMoreOpen
-                    ? 'text-white'
-                    : 'text-zinc-500 hover:text-zinc-300'
+                    ? 'text-emerald-700'
+                    : 'text-zinc-500 hover:text-zinc-700'
                 )
               }
             >
@@ -182,8 +186,8 @@ export function Layout() {
             className={cn(
               'flex flex-col items-center justify-center gap-1 flex-1 py-1 rounded-lg transition-colors',
               isMoreOpen || moreMobileNav.some(item => location.pathname === item.to)
-                ? 'text-white'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'text-emerald-700'
+                : 'text-zinc-500 hover:text-zinc-700'
             )}
           >
             <Menu className="w-5 h-5 shrink-0" />

@@ -114,15 +114,15 @@ export function HouseholdAssistant() {
   ];
 
   return (
-    <div className="flex flex-col h-[calc(100vh-12rem)] bg-zinc-900/50 rounded-2xl border border-zinc-800 overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-12rem)] bg-white/60 rounded-2xl border border-stone-200 overflow-hidden">
       {/* Header */}
-      <div className="p-3 border-b border-zinc-800 bg-zinc-900/80 flex items-center gap-3">
+      <div className="p-3 border-b border-stone-200 bg-white/80 flex items-center gap-3">
         <div className="w-8 h-8 rounded-xl bg-blue-500/20 flex items-center justify-center">
           <Home className="w-4 h-4 text-blue-400" />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-white">Бытовой Ассистент</h2>
-          <p className="text-[10px] text-zinc-400">Эксперт по дому, чистоте и ремонту</p>
+          <h2 className="text-sm font-bold text-zinc-900">Бытовой Ассистент</h2>
+          <p className="text-[10px] text-zinc-500">Эксперт по дому, чистоте и ремонту</p>
         </div>
       </div>
 
@@ -138,7 +138,7 @@ export function HouseholdAssistant() {
           >
             <div className={cn(
               "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-1",
-              msg.role === 'user' ? "bg-zinc-800" : "bg-blue-500/20"
+              msg.role === 'user' ? "bg-stone-100" : "bg-blue-500/20"
             )}>
               {msg.role === 'user' ? (
                 <div className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
@@ -149,8 +149,8 @@ export function HouseholdAssistant() {
             <div className={cn(
               "p-2.5 rounded-2xl text-xs",
               msg.role === 'user' 
-                ? "bg-blue-600 text-white rounded-tr-sm" 
-                : "bg-zinc-800 text-zinc-200 rounded-tl-sm prose prose-invert prose-xs max-w-none"
+                ? "bg-blue-600 text-zinc-900 rounded-tr-sm" 
+                : "bg-stone-100 text-zinc-800 rounded-tl-sm prose prose-invert prose-xs max-w-none"
             )}>
               {msg.role === 'user' ? (
                 msg.text
@@ -165,9 +165,9 @@ export function HouseholdAssistant() {
             <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-1">
               <Home className="w-3 h-3 text-blue-400" />
             </div>
-            <div className="p-3 rounded-2xl bg-zinc-800 rounded-tl-sm flex items-center gap-2">
+            <div className="p-3 rounded-2xl bg-stone-100 rounded-tl-sm flex items-center gap-2">
               <Loader2 className="w-3 h-3 animate-spin text-blue-400" />
-              <span className="text-xs text-zinc-400">Ассистент печатает...</span>
+              <span className="text-xs text-zinc-500">Ассистент печатает...</span>
             </div>
           </div>
         )}
@@ -176,7 +176,7 @@ export function HouseholdAssistant() {
 
       {/* Suggestions */}
       {messages.length === 1 && (
-        <div className="p-3 flex flex-wrap gap-1.5 border-t border-zinc-800/50 bg-zinc-900/30">
+        <div className="p-3 flex flex-wrap gap-1.5 border-t border-stone-200/70 bg-white/30">
           {suggestions.map((suggestion, idx) => (
             <button
               key={idx}
@@ -184,7 +184,7 @@ export function HouseholdAssistant() {
                 setInput(suggestion);
                 setTimeout(() => handleSend(), 100);
               }}
-              className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-[10px] transition-colors flex items-center gap-1"
+              className="px-2.5 py-1 bg-stone-100 hover:bg-stone-200 text-zinc-700 rounded-lg text-[10px] transition-colors flex items-center gap-1"
             >
               <Sparkles className="w-2.5 h-2.5 text-blue-400" />
               {suggestion}
@@ -194,7 +194,7 @@ export function HouseholdAssistant() {
       )}
 
       {/* Input */}
-      <div className="p-3 border-t border-zinc-800 bg-zinc-900/80">
+      <div className="p-3 border-t border-stone-200 bg-white/80">
         <div className="flex gap-2">
           <input
             type="text"
@@ -202,12 +202,12 @@ export function HouseholdAssistant() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             placeholder="Спроси, как отмыть плиту или починить кран..."
-            className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
+            className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-blue-500 transition-colors"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="p-1.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-8 h-8"
+            className="p-1.5 bg-blue-600 text-zinc-900 rounded-xl hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-8 h-8"
           >
             <Send className="w-3 h-3" />
           </button>

@@ -165,7 +165,7 @@ function MonthPicker({ value, onChange }: MonthPickerProps) {
                   className={cn(
                     "px-2 py-2 text-xs font-medium rounded-xl capitalize transition-colors",
                     active
-                      ? "bg-emerald-600 text-white shadow-sm"
+                      ? "bg-emerald-600 text-zinc-900 shadow-sm"
                       : "text-emerald-900 hover:bg-emerald-50"
                   )}
                 >
@@ -371,7 +371,7 @@ export function MonthlyBudgetPlanTab() {
           <MonthPicker value={month} onChange={setMonth} />
           <button
             onClick={() => setEditing(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold shadow-sm transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-zinc-900 text-sm font-semibold shadow-sm transition-colors"
           >
             {plan ? <Edit3 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             {plan ? 'Редактировать план' : 'Создать план'}
@@ -534,7 +534,7 @@ export function MonthlyBudgetPlanTab() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-2 sm:p-6"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-zinc-900/20 p-2 sm:p-6"
             onClick={() => setEditing(false)}
           >
             <motion.div
@@ -729,7 +729,7 @@ export function MonthlyBudgetPlanTab() {
                 </button>
                 <button
                   onClick={handleSavePlan}
-                  className="px-5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm flex items-center gap-2 shadow-sm transition-colors"
+                  className="px-5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-zinc-900 font-semibold text-sm flex items-center gap-2 shadow-sm transition-colors"
                 >
                   <Save className="w-4 h-4" /> Сохранить план
                 </button>

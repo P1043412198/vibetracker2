@@ -34,7 +34,7 @@ function GoalLogsSection({ goalId }: { goalId: string }) {
   };
 
   return (
-    <div className="p-3 pt-0 mt-4 border-t border-zinc-800/50">
+    <div className="p-3 pt-0 mt-4 border-t border-stone-200/70">
       <h4 className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider mb-3 mt-3">Записи и действия</h4>
       
       <form onSubmit={handleAddLog} className="flex flex-col gap-2 mb-4">
@@ -43,19 +43,19 @@ function GoalLogsSection({ goalId }: { goalId: string }) {
             type="date"
             value={newLogDate}
             onChange={(e) => setNewLogDate(e.target.value)}
-            className="bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 w-[110px] shrink-0"
+            className="bg-white border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-indigo-500 w-[110px] shrink-0"
           />
           <input
             type="text"
             value={newLogContent}
             onChange={(e) => setNewLogContent(e.target.value)}
             placeholder="Что было сделано?"
-            className="flex-1 min-w-[150px] bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            className="flex-1 min-w-[150px] bg-white border border-stone-200 rounded-lg px-3 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-indigo-500"
           />
           <button
             type="submit"
             disabled={!newLogContent.trim()}
-            className="w-full sm:w-auto px-4 py-1.5 bg-indigo-500 text-white rounded-lg text-xs font-medium disabled:opacity-50 shrink-0"
+            className="w-full sm:w-auto px-4 py-1.5 bg-indigo-500 text-zinc-900 rounded-lg text-xs font-medium disabled:opacity-50 shrink-0"
           >
             Добавить
           </button>
@@ -67,7 +67,7 @@ function GoalLogsSection({ goalId }: { goalId: string }) {
           <p className="text-xs text-zinc-500 text-center py-2">Нет записей. Добавьте первое действие!</p>
         ) : (
           logs.map(log => (
-            <div key={log.id} className="flex items-start gap-3 p-2 rounded-lg bg-zinc-900/50 border border-zinc-800/50 group">
+            <div key={log.id} className="flex items-start gap-3 p-2 rounded-lg bg-white/60 border border-stone-200/70 group">
               <div className="shrink-0 mt-0.5">
                 <MessageSquare className="w-3.5 h-3.5 text-zinc-500" />
               </div>
@@ -81,7 +81,7 @@ function GoalLogsSection({ goalId }: { goalId: string }) {
                     <X className="w-3 h-3" />
                   </button>
                 </div>
-                <p className="text-xs text-zinc-300 mt-0.5 whitespace-pre-wrap">{log.content}</p>
+                <p className="text-xs text-zinc-700 mt-0.5 whitespace-pre-wrap">{log.content}</p>
               </div>
             </div>
           ))
@@ -229,7 +229,7 @@ export function Goals() {
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
           <Rocket className="w-6 h-6 text-orange-400" />
           Развитие
         </h1>
@@ -260,7 +260,7 @@ export function Goals() {
                 }}
                 className={cn(
                   "flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                  isActive ? "bg-zinc-800 text-white shadow-sm" : "bg-zinc-900/50 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-zinc-800/50"
+                  isActive ? "bg-stone-100 text-zinc-900 shadow-sm" : "bg-white/60 text-zinc-500 hover:text-zinc-800 hover:bg-stone-100/60 border border-stone-200/70"
                 )}
               >
                 <Icon className={cn("w-4 h-4 shrink-0", isActive ? config.color : "")} />
@@ -270,12 +270,12 @@ export function Goals() {
           })}
         </div>
 
-        <div className="flex bg-zinc-900/50 p-1 rounded-xl border border-zinc-800/50 self-end sm:self-auto">
+        <div className="flex bg-white/60 p-1 rounded-xl border border-stone-200/70 self-end sm:self-auto">
           <button
             onClick={() => setViewMode('list')}
             className={cn(
               "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-              viewMode === 'list' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+              viewMode === 'list' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
             )}
           >
             Список
@@ -284,7 +284,7 @@ export function Goals() {
             onClick={() => setViewMode('kanban')}
             className={cn(
               "px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-              viewMode === 'kanban' ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
+              viewMode === 'kanban' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
             )}
           >
             Канбан
@@ -300,25 +300,25 @@ export function Goals() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             onSubmit={handleSave}
-            className="bg-zinc-900 p-4 sm:p-6 rounded-2xl border border-zinc-800 space-y-4"
+            className="bg-white p-4 sm:p-6 rounded-2xl border border-stone-200 space-y-4"
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-lg font-bold text-zinc-900">
                 {editingId ? 'Редактировать' : 'Новая запись'}
               </h2>
-              <button type="button" onClick={resetForm} className="text-zinc-400 hover:text-white">
+              <button type="button" onClick={resetForm} className="text-zinc-500 hover:text-zinc-900">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Название</label>
+                <label className="text-xs text-zinc-500 mb-1 block">Название</label>
                 <input
                   type="text"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                   placeholder={activeTab === 'book' ? 'Название книги' : 'Название цели/навыка'}
                   required
                 />
@@ -326,23 +326,23 @@ export function Goals() {
 
               {activeTab === 'book' && (
                 <div>
-                  <label className="text-xs text-zinc-400 mb-1 block">Автор</label>
+                  <label className="text-xs text-zinc-500 mb-1 block">Автор</label>
                   <input
                     type="text"
                     value={author}
                     onChange={e => setAuthor(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                     placeholder="Автор книги"
                   />
                 </div>
               )}
 
               <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Описание</label>
+                <label className="text-xs text-zinc-500 mb-1 block">Описание</label>
                 <textarea
                   value={description}
                   onChange={e => setDescription(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600 min-h-[80px]"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600 min-h-[80px]"
                   placeholder="Зачем вам это нужно? Что это даст?"
                 />
               </div>
@@ -351,23 +351,23 @@ export function Goals() {
                 {activeTab === 'book' ? (
                   <>
                     <div>
-                      <label className="text-xs text-zinc-400 mb-1 block">Прочитано страниц</label>
+                      <label className="text-xs text-zinc-500 mb-1 block">Прочитано страниц</label>
                       <input
                         type="number"
                         value={readPages}
                         onChange={e => setReadPages(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                         placeholder="0"
                         min="0"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-zinc-400 mb-1 block">Всего страниц</label>
+                      <label className="text-xs text-zinc-500 mb-1 block">Всего страниц</label>
                       <input
                         type="number"
                         value={totalPages}
                         onChange={e => setTotalPages(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                        className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                         placeholder="300"
                         min="1"
                       />
@@ -375,12 +375,12 @@ export function Goals() {
                   </>
                 ) : (
                   <div>
-                    <label className="text-xs text-zinc-400 mb-1 block">Дедлайн (необязательно)</label>
+                    <label className="text-xs text-zinc-500 mb-1 block">Дедлайн (необязательно)</label>
                     <input
                       type="date"
                       value={deadline}
                       onChange={e => setDeadline(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-600"
+                      className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-zinc-600"
                     />
                   </div>
                 )}
@@ -388,20 +388,20 @@ export function Goals() {
 
               {(activeTab === 'book' || activeTab === 'skill') && (
                 <div>
-                  <label className="text-xs text-zinc-400 mb-1 block">Обложка / Картинка</label>
+                  <label className="text-xs text-zinc-500 mb-1 block">Обложка / Картинка</label>
                   {coverUrl ? (
                     <div className="relative inline-block">
-                      <img src={coverUrl} alt="Cover" className="h-32 rounded-lg border border-zinc-800 object-cover" />
+                      <img src={coverUrl} alt="Cover" className="h-32 rounded-lg border border-stone-200 object-cover" />
                       <button
                         type="button"
                         onClick={() => setCoverUrl('')}
-                        className="absolute -top-2 -right-2 p-1 bg-red-500 rounded-full text-white hover:bg-red-600"
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 rounded-full text-zinc-900 hover:bg-red-600"
                       >
                         <X className="w-3 h-3" />
                       </button>
                     </div>
                   ) : (
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-zinc-800 border-dashed rounded-lg cursor-pointer hover:bg-zinc-800/50 transition-colors">
+                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-stone-200 border-dashed rounded-lg cursor-pointer hover:bg-stone-100/60 transition-colors">
                       <div className="flex flex-col items-center justify-center pt-5 pb-6">
                         <ImagePlus className="w-8 h-8 text-zinc-500 mb-2" />
                         <p className="text-xs text-zinc-500">Нажмите для загрузки фото</p>
@@ -419,7 +419,7 @@ export function Goals() {
                   "w-full flex items-center justify-between p-3 rounded-xl border transition-all",
                   showOnDashboard 
                     ? "bg-indigo-500/10 border-indigo-500/50 text-indigo-400" 
-                    : "bg-zinc-950 border-zinc-800 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300"
+                    : "bg-stone-50 border-stone-200 text-zinc-500 hover:bg-white hover:text-zinc-700"
                 )}
               >
                 <span className="text-sm font-medium">Отображать на главной (Дашборд)</span>
@@ -435,7 +435,7 @@ export function Goals() {
               <button
                 type="button"
                 onClick={resetForm}
-                className="flex-1 px-4 py-2 bg-zinc-800 text-white rounded-lg text-sm font-medium hover:bg-zinc-700 transition-colors"
+                className="flex-1 px-4 py-2 bg-stone-100 text-zinc-900 rounded-lg text-sm font-medium hover:bg-stone-200 transition-colors"
               >
                 Отмена
               </button>
@@ -471,36 +471,36 @@ export function Goals() {
                         status === 'not_started' ? "bg-zinc-600" : 
                         status === 'in_progress' ? "bg-blue-500" : "bg-emerald-500"
                       )} />
-                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">{statusLabels[status]}</h3>
+                      <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider">{statusLabels[status]}</h3>
                       <span className="text-xs text-zinc-500 font-mono">({statusGoals.length})</span>
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-3 min-h-[200px] p-2 rounded-2xl bg-zinc-900/30 border border-zinc-800/30">
+                  <div className="flex flex-col gap-3 min-h-[200px] p-2 rounded-2xl bg-white/30 border border-stone-200/30">
                     {statusGoals.map((goal) => (
                       <div 
                         key={goal.id} 
                         className={cn(
-                          "bg-zinc-900 p-4 rounded-xl border shadow-sm hover:border-zinc-700 transition-all group cursor-pointer",
-                          goal.isPinned ? "border-indigo-500/50 ring-1 ring-indigo-500/20" : "border-zinc-800"
+                          "bg-white p-4 rounded-xl border shadow-sm hover:border-stone-300 transition-all group cursor-pointer",
+                          goal.isPinned ? "border-indigo-500/50 ring-1 ring-indigo-500/20" : "border-stone-200"
                         )}
                         onClick={() => setExpandedId(expandedId === goal.id ? null : goal.id)}
                       >
                         <div className="flex justify-between items-start mb-2">
                           <div className="flex items-center gap-2 min-w-0">
                             {goal.isPinned && <Pin className="w-3 h-3 text-indigo-400 shrink-0 fill-current" />}
-                            <h4 className="text-sm font-bold text-white truncate pr-2">{goal.title}</h4>
+                            <h4 className="text-sm font-bold text-zinc-900 truncate pr-2">{goal.title}</h4>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button 
                               onClick={(e) => { e.stopPropagation(); togglePin(goal.id, !!goal.isPinned); }} 
-                              className={cn("p-1 transition-colors", goal.isPinned ? "text-indigo-400" : "text-zinc-500 hover:text-white")}
+                              className={cn("p-1 transition-colors", goal.isPinned ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-900")}
                             >
                               {goal.isPinned ? <PinOff className="w-3 h-3" /> : <Pin className="w-3 h-3" />}
                             </button>
                             <button 
                               onClick={(e) => { e.stopPropagation(); handleEdit(goal); }} 
-                              className="p-1 text-zinc-500 hover:text-white"
+                              className="p-1 text-zinc-500 hover:text-zinc-900"
                             >
                               <Edit2 className="w-3 h-3" />
                             </button>
@@ -517,15 +517,15 @@ export function Goals() {
                               <div 
                                 key={step.id} 
                                 className={cn(
-                                  "w-5 h-5 rounded-full border-2 border-zinc-900 flex items-center justify-center",
-                                  step.completed ? "bg-emerald-500" : "bg-zinc-800"
+                                  "w-5 h-5 rounded-full border-2 border-stone-200 flex items-center justify-center",
+                                  step.completed ? "bg-emerald-500" : "bg-stone-100"
                                 )}
                               >
-                                {step.completed && <CheckCircle2 className="w-3 h-3 text-white" />}
+                                {step.completed && <CheckCircle2 className="w-3 h-3 text-zinc-900" />}
                               </div>
                             ))}
                             {(goal.steps?.length || 0) > 3 && (
-                              <div className="w-5 h-5 rounded-full border-2 border-zinc-900 bg-zinc-700 flex items-center justify-center text-[8px] text-white font-bold">
+                              <div className="w-5 h-5 rounded-full border-2 border-stone-200 bg-stone-200 flex items-center justify-center text-[8px] text-zinc-900 font-bold">
                                 +{(goal.steps?.length || 0) - 3}
                               </div>
                             )}
@@ -535,7 +535,7 @@ export function Goals() {
                             value={goal.status}
                             onClick={e => e.stopPropagation()}
                             onChange={(e) => updateGoal(goal.id, { status: e.target.value as GoalStatus })}
-                            className="bg-zinc-800 border-none text-[10px] text-zinc-400 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-zinc-700"
+                            className="bg-stone-100 border-none text-[10px] text-zinc-500 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-stone-300"
                           >
                             <option value="not_started">К выполнению</option>
                             <option value="in_progress">В процессе</option>
@@ -558,15 +558,15 @@ export function Goals() {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
           >
             {filteredGoals.length === 0 ? (
-              <div className="col-span-full text-center py-12 bg-zinc-900/50 rounded-2xl border border-zinc-800/50">
+              <div className="col-span-full text-center py-12 bg-white/60 rounded-2xl border border-stone-200/70">
                 {(() => {
                   const Icon = TYPE_CONFIG[activeTab].icon;
                   return <Icon className="w-12 h-12 text-zinc-700 mx-auto mb-3" />;
                 })()}
-                <p className="text-zinc-400">Здесь пока ничего нет</p>
+                <p className="text-zinc-500">Здесь пока ничего нет</p>
                 <button
                   onClick={() => setIsAdding(true)}
-                  className="mt-4 text-sm text-zinc-300 hover:text-white underline underline-offset-4"
+                  className="mt-4 text-sm text-zinc-700 hover:text-zinc-900 underline underline-offset-4"
                 >
                   Добавить первую запись
                 </button>
@@ -578,31 +578,31 @@ export function Goals() {
 
                 return (
                   <div key={goal.id} className={cn(
-                    "bg-zinc-900 rounded-2xl border overflow-hidden flex flex-col transition-all",
-                    goal.isPinned ? "border-indigo-500/50 ring-1 ring-indigo-500/20" : "border-zinc-800"
+                    "bg-white rounded-2xl border overflow-hidden flex flex-col transition-all",
+                    goal.isPinned ? "border-indigo-500/50 ring-1 ring-indigo-500/20" : "border-stone-200"
                   )}>
                     <div className="p-4 flex-1">
                       <div className="flex gap-4">
                         {goal.type === 'book' && goal.totalPages ? (
                           <BookVisualization read={goal.readPages || 0} total={goal.totalPages} />
                         ) : goal.coverUrl ? (
-                          <img src={goal.coverUrl} alt={goal.title} className="w-16 h-20 object-cover rounded-md border border-zinc-800 shrink-0" />
+                          <img src={goal.coverUrl} alt={goal.title} className="w-16 h-20 object-cover rounded-md border border-stone-200 shrink-0" />
                         ) : null}
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-start">
                             <div className="flex items-center gap-2 min-w-0">
                               {goal.isPinned && <Pin className="w-3.5 h-3.5 text-indigo-400 shrink-0 fill-current" />}
-                              <h3 className="text-base font-bold text-white truncate pr-2">{goal.title}</h3>
+                              <h3 className="text-base font-bold text-zinc-900 truncate pr-2">{goal.title}</h3>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
                               <button 
                                 onClick={() => togglePin(goal.id, !!goal.isPinned)} 
-                                className={cn("p-1 transition-colors", goal.isPinned ? "text-indigo-400" : "text-zinc-500 hover:text-white")}
+                                className={cn("p-1 transition-colors", goal.isPinned ? "text-indigo-400" : "text-zinc-500 hover:text-zinc-900")}
                                 title={goal.isPinned ? "Открепить" : "Закрепить"}
                               >
                                 {goal.isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
                               </button>
-                              <button onClick={() => handleEdit(goal)} className="p-1 text-zinc-500 hover:text-white transition-colors">
+                              <button onClick={() => handleEdit(goal)} className="p-1 text-zinc-500 hover:text-zinc-900 transition-colors">
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button onClick={() => deleteGoal(goal.id)} className="p-1 text-zinc-500 hover:text-red-400 transition-colors">
@@ -610,7 +610,7 @@ export function Goals() {
                               </button>
                             </div>
                           </div>
-                          {goal.author && <p className="text-xs text-zinc-400 mt-0.5">{goal.author}</p>}
+                          {goal.author && <p className="text-xs text-zinc-500 mt-0.5">{goal.author}</p>}
                           {goal.deadline && (
                             <p className="text-[10px] text-zinc-500 mt-1">Дедлайн: {new Date(goal.deadline).toLocaleDateString('ru-RU')}</p>
                           )}
@@ -620,10 +620,10 @@ export function Goals() {
                       {/* Progress Bar */}
                       <div className="mt-4">
                         <div className="flex justify-between text-xs mb-1.5">
-                          <span className="text-zinc-400">Прогресс</span>
-                          <span className="text-white font-medium">{progress}%</span>
+                          <span className="text-zinc-500">Прогресс</span>
+                          <span className="text-zinc-900 font-medium">{progress}%</span>
                         </div>
-                        <div className="h-2 bg-zinc-950 rounded-full overflow-hidden border border-zinc-800/50">
+                        <div className="h-2 bg-stone-50 rounded-full overflow-hidden border border-stone-200/70">
                           <div 
                             className={cn("h-full rounded-full transition-all duration-500", TYPE_CONFIG[goal.type].bg.replace('/10', ''))}
                             style={{ width: `${progress}%` }}
@@ -640,10 +640,10 @@ export function Goals() {
 
                     {/* Expandable Steps Section */}
                     {goal.type !== 'book' && (
-                      <div className="border-t border-zinc-800/50 bg-zinc-950/30">
+                      <div className="border-t border-stone-200/70 bg-stone-50/30">
                         <button
                           onClick={() => setExpandedId(isExpanded ? null : goal.id)}
-                          className="w-full flex items-center justify-between p-3 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+                          className="w-full flex items-center justify-between p-3 text-xs font-medium text-zinc-500 hover:text-zinc-800 transition-colors"
                         >
                           <span>Шаги ({goal.steps?.filter(s => s.completed).length || 0}/{goal.steps?.length || 0})</span>
                           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -681,7 +681,7 @@ export function Goals() {
                                           }
                                         }}
                                         disabled={isDecomposing}
-                                        className="p-1 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-zinc-400 hover:text-white transition-all disabled:opacity-50"
+                                        className="p-1 bg-stone-100/60 border border-stone-300/50 rounded-lg text-zinc-500 hover:text-zinc-900 transition-all disabled:opacity-50"
                                         title="Перегенерировать план"
                                       >
                                         <RefreshCw className="w-3 h-3" />
@@ -690,7 +690,7 @@ export function Goals() {
                                   </div>
                                 </div>
                                 {(!goal.steps || goal.steps.length === 0) && !isDecomposing && (
-                                  <div className="text-center py-4 px-2 border border-dashed border-zinc-800 rounded-xl">
+                                  <div className="text-center py-4 px-2 border border-dashed border-stone-200 rounded-xl">
                                     <p className="text-[10px] text-zinc-500">У этой цели пока нет шагов. Используйте ИИ для декомпозиции или добавьте их вручную.</p>
                                   </div>
                                 )}
@@ -698,7 +698,7 @@ export function Goals() {
                                   <div key={step.id} className="flex items-center gap-2 group">
                                     <button
                                       onClick={() => updateGoalStep(goal.id, step.id, { completed: !step.completed, status: !step.completed ? 'done' : 'todo' })}
-                                      className="shrink-0 text-zinc-500 hover:text-white transition-colors"
+                                      className="shrink-0 text-zinc-500 hover:text-zinc-900 transition-colors"
                                     >
                                       {step.completed ? (
                                         <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -708,7 +708,7 @@ export function Goals() {
                                     </button>
                                     <span className={cn(
                                       "text-xs flex-1 transition-colors",
-                                      step.completed ? "text-zinc-500 line-through" : "text-zinc-300"
+                                      step.completed ? "text-zinc-500 line-through" : "text-zinc-700"
                                     )}>
                                       {step.title}
                                     </span>
@@ -722,7 +722,7 @@ export function Goals() {
                                           completed: newStatus === 'done'
                                         });
                                       }}
-                                      className="bg-transparent border-none text-[10px] text-zinc-500 outline-none focus:ring-0 cursor-pointer hover:text-zinc-300"
+                                      className="bg-transparent border-none text-[10px] text-zinc-500 outline-none focus:ring-0 cursor-pointer hover:text-zinc-700"
                                     >
                                       <option value="todo">To Do</option>
                                       <option value="in_progress">Doing</option>
@@ -754,7 +754,7 @@ export function Goals() {
                                     name="stepTitle"
                                     type="text"
                                     placeholder="Добавить шаг..."
-                                    className="flex-1 bg-transparent border-none text-xs text-white focus:outline-none placeholder:text-zinc-600"
+                                    className="flex-1 bg-transparent border-none text-xs text-zinc-900 focus:outline-none placeholder:text-zinc-400"
                                   />
                                 </form>
                                 
@@ -768,10 +768,10 @@ export function Goals() {
 
                     {/* Expandable Book History Section */}
                     {goal.type === 'book' && (
-                      <div className="border-t border-zinc-800/50 bg-zinc-950/30">
+                      <div className="border-t border-stone-200/70 bg-stone-50/30">
                         <button
                           onClick={() => setExpandedId(isExpanded ? null : goal.id)}
-                          className="w-full flex items-center justify-between p-3 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+                          className="w-full flex items-center justify-between p-3 text-xs font-medium text-zinc-500 hover:text-zinc-800 transition-colors"
                         >
                           <span>История чтения и записи ({goal.progressHistory?.length || 0})</span>
                           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -787,11 +787,11 @@ export function Goals() {
                             >
                               <div className="p-3 pt-0 space-y-2 max-h-40 overflow-y-auto">
                                 {goal.progressHistory?.slice().reverse().map(entry => (
-                                  <div key={entry.id} className="flex justify-between items-center bg-zinc-900 p-2 rounded-lg border border-zinc-800">
-                                    <span className="text-xs text-zinc-400">
+                                  <div key={entry.id} className="flex justify-between items-center bg-white p-2 rounded-lg border border-stone-200">
+                                    <span className="text-xs text-zinc-500">
                                       {new Date(entry.date).toLocaleDateString()} {new Date(entry.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                     </span>
-                                    <span className="text-xs font-medium text-white">{entry.note || `+${entry.value} стр.`}</span>
+                                    <span className="text-xs font-medium text-zinc-900">{entry.note || `+${entry.value} стр.`}</span>
                                   </div>
                                 ))}
                               </div>
@@ -873,12 +873,12 @@ export function GoalProgressUpdate({ goal, updateGoal }: { goal: Goal, updateGoa
         value={inputValue}
         onChange={e => setInputValue(e.target.value)}
         placeholder={isBook ? "Стр." : "%"}
-        className="w-16 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+        className="w-16 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-indigo-500"
       />
-      <button onClick={handleAdd} className="px-2 py-1.5 bg-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-700 transition-colors">
+      <button onClick={handleAdd} className="px-2 py-1.5 bg-stone-100 text-zinc-700 text-xs rounded-lg hover:bg-stone-200 transition-colors">
         + {isBook ? 'Прочел' : 'Добавить'}
       </button>
-      <button onClick={handleSet} className="px-2 py-1.5 bg-zinc-800 text-zinc-300 text-xs rounded-lg hover:bg-zinc-700 transition-colors">
+      <button onClick={handleSet} className="px-2 py-1.5 bg-stone-100 text-zinc-700 text-xs rounded-lg hover:bg-stone-200 transition-colors">
         = {isBook ? 'Я на стр.' : 'Установить'}
       </button>
     </div>

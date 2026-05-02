@@ -17,10 +17,10 @@ export const SpheresHubWidget: React.FC<SpheresHubWidgetProps> = ({
   tasks
 }) => {
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800 flex flex-col h-full">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200 flex flex-col h-full">
       <div className="flex items-center gap-2 mb-4">
         <Target className="w-4 h-4 text-indigo-500" />
-        <h2 className="text-sm font-semibold text-white">Сферы жизни</h2>
+        <h2 className="text-sm font-semibold text-zinc-900">Сферы жизни</h2>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-6">
@@ -81,11 +81,11 @@ export const SpheresHubWidget: React.FC<SpheresHubWidgetProps> = ({
               <div key={sphere.id}>
                 <div className="flex justify-between items-center mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-medium text-white">{sphere.name}</span>
+                    <span className="text-[10px] font-medium text-zinc-900">{sphere.name}</span>
                   </div>
-                  <span className="text-[9px] font-bold text-zinc-400">{Math.round(progress)}%</span>
+                  <span className="text-[9px] font-bold text-zinc-500">{Math.round(progress)}%</span>
                 </div>
-                <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden border border-zinc-800">
+                <div className="w-full bg-stone-50 h-1.5 rounded-full overflow-hidden border border-stone-200">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}

@@ -52,20 +52,20 @@ const SortableSphere = ({ sphere, onDelete, onTogglePin, onClick }: SortableSphe
       ref={setNodeRef}
       style={style}
       className={cn(
-        "bg-zinc-900 p-5 rounded-2xl shadow-sm border border-zinc-800 flex flex-col cursor-pointer hover:border-zinc-600 transition-colors group relative",
+        "bg-white p-5 rounded-2xl shadow-sm border border-stone-200 flex flex-col cursor-pointer hover:border-zinc-600 transition-colors group relative",
         isDragging && "opacity-50 border-white/20"
       )}
       onClick={onClick}
     >
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-zinc-800 rounded-xl text-white">
+          <div className="p-2.5 bg-stone-100 rounded-xl text-zinc-900">
             <Target className="w-5 h-5" />
           </div>
           <div
             {...attributes}
             {...listeners}
-            className="p-1.5 text-zinc-600 hover:text-zinc-400 cursor-grab active:cursor-grabbing transition-colors"
+            className="p-1.5 text-zinc-600 hover:text-zinc-500 cursor-grab active:cursor-grabbing transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
             <GripVertical className="w-4 h-4" />
@@ -79,7 +79,7 @@ const SortableSphere = ({ sphere, onDelete, onTogglePin, onClick }: SortableSphe
             }}
             className={cn(
               "transition-colors p-1.5 rounded-lg",
-              sphere.isPinned ? "text-emerald-500 bg-emerald-500/10" : "text-zinc-500 hover:text-zinc-300"
+              sphere.isPinned ? "text-emerald-500 bg-emerald-500/10" : "text-zinc-500 hover:text-zinc-700"
             )}
           >
             {sphere.isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
@@ -95,11 +95,11 @@ const SortableSphere = ({ sphere, onDelete, onTogglePin, onClick }: SortableSphe
           </button>
         </div>
       </div>
-      <h3 className="text-base font-semibold text-white mb-1 group-hover:text-zinc-300 transition-colors flex items-center gap-2">
+      <h3 className="text-base font-semibold text-zinc-900 mb-1 group-hover:text-zinc-700 transition-colors flex items-center gap-2">
         {sphere.title}
         {sphere.isPinned && <Pin className="w-3 h-3 text-emerald-500 fill-emerald-500" />}
       </h3>
-      {sphere.description && <p className="text-zinc-400 text-xs mb-3 line-clamp-2">{sphere.description}</p>}
+      {sphere.description && <p className="text-zinc-500 text-xs mb-3 line-clamp-2">{sphere.description}</p>}
       
       {sphere.deadline && (
         <div className="flex items-center gap-1.5 text-xs text-zinc-500 mb-3">
@@ -108,9 +108,9 @@ const SortableSphere = ({ sphere, onDelete, onTogglePin, onClick }: SortableSphe
         </div>
       )}
 
-      <div className="mt-auto pt-3 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-500">
+      <div className="mt-auto pt-3 border-t border-stone-200 flex items-center justify-between text-xs text-zinc-500">
         <span>Заметок: {sphere.notesList?.length || 0}</span>
-        <div className="flex items-center gap-1 text-white font-medium">
+        <div className="flex items-center gap-1 text-zinc-900 font-medium">
           Открыть <ChevronRight className="w-3 h-3" />
         </div>
       </div>
@@ -180,8 +180,8 @@ export function Spheres() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white">Сферы развития</h1>
-          <p className="text-sm text-zinc-400 mt-1">Области и темы, в которых вы хотите разобраться и преуспеть.</p>
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900">Сферы развития</h1>
+          <p className="text-sm text-zinc-500 mt-1">Области и темы, в которых вы хотите разобраться и преуспеть.</p>
         </div>
         <button
           onClick={() => setIsAdding(true)}
@@ -196,50 +196,50 @@ export function Spheres() {
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-zinc-900 p-5 rounded-2xl shadow-sm border border-zinc-800"
+          className="bg-white p-5 rounded-2xl shadow-sm border border-stone-200"
         >
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-base font-semibold text-white">Новая сфера</h2>
-            <button onClick={() => setIsAdding(false)} className="text-zinc-500 hover:text-zinc-300">
+            <h2 className="text-base font-semibold text-zinc-900">Новая сфера</h2>
+            <button onClick={() => setIsAdding(false)} className="text-zinc-500 hover:text-zinc-700">
               <X className="w-4 h-4" />
             </button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">Название</label>
+              <label className="block text-xs font-medium text-zinc-700 mb-1">Название</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
                 placeholder="напр., Изучить React, Улучшить финансы"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">Описание</label>
+              <label className="block text-xs font-medium text-zinc-700 mb-1">Описание</label>
               <input
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
                 placeholder="Краткое описание вашей цели"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">Дедлайн (необязательно)</label>
+              <label className="block text-xs font-medium text-zinc-700 mb-1">Дедлайн (необязательно)</label>
               <input
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
               />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setIsAdding(false)}
-                className="px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 rounded-xl font-medium transition-colors"
+                className="px-3 py-1.5 text-xs text-zinc-500 hover:bg-stone-100 rounded-xl font-medium transition-colors"
               >
                 Отмена
               </button>
@@ -285,9 +285,9 @@ export function Spheres() {
             </AnimatePresence>
             
             {spheres.length === 0 && !isAdding && (
-              <div className="col-span-full py-12 text-center text-zinc-500 bg-zinc-900/50 rounded-2xl border border-dashed border-zinc-800">
+              <div className="col-span-full py-12 text-center text-zinc-500 bg-white/60 rounded-2xl border border-dashed border-stone-200">
                 <Target className="w-10 h-10 mx-auto text-zinc-600 mb-3" />
-                <p className="text-base font-medium text-zinc-300">Пока нет сфер</p>
+                <p className="text-base font-medium text-zinc-700">Пока нет сфер</p>
                 <p className="text-sm mt-1">Добавьте вашу первую область развития, чтобы начать.</p>
               </div>
             )}

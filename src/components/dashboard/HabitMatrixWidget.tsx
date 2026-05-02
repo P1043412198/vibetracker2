@@ -13,8 +13,8 @@ export const HabitMatrixWidget: React.FC<HabitMatrixWidgetProps> = ({ habitMatri
   const { hideHabitNames } = useStore();
   
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
-      <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-4">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
+      <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2 mb-4">
         <Activity className="w-4 h-4 text-indigo-500" />
         Матрица привычек
       </h2>
@@ -33,7 +33,7 @@ export const HabitMatrixWidget: React.FC<HabitMatrixWidgetProps> = ({ habitMatri
               <div key={habit.id} className="grid grid-cols-[1fr_repeat(7,24px)] gap-2 items-center">
                 <div className="flex items-center gap-1.5 overflow-hidden">
                   <span className="text-[10px] shrink-0">{habit.icon || '✨'}</span>
-                  <p className="text-[9px] text-zinc-300 truncate">{hideHabitNames ? '***' : habit.title}</p>
+                  <p className="text-[9px] text-zinc-700 truncate">{hideHabitNames ? '***' : habit.title}</p>
                 </div>
                 {habit.logs.map((log: any, i: number) => (
                   <div 
@@ -42,7 +42,7 @@ export const HabitMatrixWidget: React.FC<HabitMatrixWidgetProps> = ({ habitMatri
                       "w-6 h-6 rounded-md border transition-all",
                       log.status === 'done' ? "bg-emerald-500/20 border-emerald-500/30" : 
                       log.status === 'failed' ? "bg-rose-500/20 border-rose-500/30" :
-                      "bg-zinc-950 border-zinc-800"
+                      "bg-stone-50 border-stone-200"
                     )}
                   />
                 ))}

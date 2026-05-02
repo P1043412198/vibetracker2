@@ -51,14 +51,14 @@ export function PinLockScreen() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black flex flex-col items-center justify-center">
+    <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center">
       <div className="flex flex-col items-center max-w-xs w-full px-6">
         <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mb-6">
           <Lock className="w-8 h-8 text-indigo-500" />
         </div>
         
-        <h2 className="text-2xl font-bold text-white mb-2">Введите PIN-код</h2>
-        <p className="text-zinc-400 text-sm mb-8 text-center">
+        <h2 className="text-2xl font-bold text-zinc-900 mb-2">Введите PIN-код</h2>
+        <p className="text-zinc-500 text-sm mb-8 text-center">
           Приложение заблокировано для защиты ваших данных
         </p>
 
@@ -67,7 +67,7 @@ export function PinLockScreen() {
             <div 
               key={i}
               className={`w-4 h-4 rounded-full transition-all duration-300 ${
-                input.length > i ? 'bg-indigo-500' : 'bg-zinc-800'
+                input.length > i ? 'bg-indigo-500' : 'bg-stone-100'
               } ${error ? 'bg-red-500' : ''}`}
             />
           ))}
@@ -78,7 +78,7 @@ export function PinLockScreen() {
             <button
               key={num}
               onClick={() => handleNumberClick(num)}
-              className="h-16 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-2xl font-medium text-white transition-colors flex items-center justify-center"
+              className="h-16 rounded-2xl bg-white hover:bg-stone-100 text-2xl font-medium text-zinc-900 transition-colors flex items-center justify-center"
             >
               {num}
             </button>
@@ -86,13 +86,13 @@ export function PinLockScreen() {
           <div />
           <button
             onClick={() => handleNumberClick(0)}
-            className="h-16 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-2xl font-medium text-white transition-colors flex items-center justify-center"
+            className="h-16 rounded-2xl bg-white hover:bg-stone-100 text-2xl font-medium text-zinc-900 transition-colors flex items-center justify-center"
           >
             0
           </button>
           <button
             onClick={handleDelete}
-            className="h-16 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-white transition-colors flex items-center justify-center"
+            className="h-16 rounded-2xl bg-white hover:bg-stone-100 text-zinc-900 transition-colors flex items-center justify-center"
           >
             <Delete className="w-6 h-6" />
           </button>

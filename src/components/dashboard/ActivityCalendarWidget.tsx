@@ -7,7 +7,7 @@ interface ActivityCalendarWidgetProps {
 
 export const ActivityCalendarWidget: React.FC<ActivityCalendarWidgetProps> = ({ last30Days }) => {
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
       <h2 className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider mb-4 flex items-center gap-2">
         <Calendar className="w-3 h-3" />
         Календарь активности
@@ -26,11 +26,11 @@ export const ActivityCalendarWidget: React.FC<ActivityCalendarWidgetProps> = ({ 
               }}
             >
               {day.weight && (
-                <span className="text-[7px] text-white/90 font-medium leading-none mb-0.5">
+                <span className="text-[7px] text-zinc-900/90 font-medium leading-none mb-0.5">
                   {day.weight}
                 </span>
               )}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-zinc-800 text-white text-[8px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-stone-100 text-zinc-900 text-[8px] rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
                 {day.date}: {day.totalActivity} акт. {day.weight ? `| ${day.weight} кг` : ''}
               </div>
             </div>

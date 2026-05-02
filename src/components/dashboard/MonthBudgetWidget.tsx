@@ -68,26 +68,26 @@ export function MonthBudgetWidget() {
   const fmt = (v: number) => `${Math.round(v).toLocaleString('ru-RU')} ${planCurrency}`;
 
   return (
-    <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 h-full flex flex-col">
+    <div className="bg-white/80 border border-stone-200 rounded-3xl p-5 h-full flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <Wallet className="w-4 h-4 text-emerald-400" />
-          <h3 className="text-sm font-semibold text-white">Бюджет месяца</h3>
+          <h3 className="text-sm font-semibold text-zinc-900">Бюджет месяца</h3>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setMonth(m => subMonths(m, 1))}
-            className="p-1 rounded-lg hover:bg-zinc-800 text-zinc-400"
+            className="p-1 rounded-lg hover:bg-stone-100 text-zinc-500"
             aria-label="Предыдущий месяц"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
           </button>
-          <span className="text-xs text-zinc-300 capitalize min-w-[70px] text-center font-medium">
+          <span className="text-xs text-zinc-700 capitalize min-w-[70px] text-center font-medium">
             {format(month, 'LLL yyyy', { locale: ru })}
           </span>
           <button
             onClick={() => setMonth(m => addMonths(m, 1))}
-            className="p-1 rounded-lg hover:bg-zinc-800 text-zinc-400"
+            className="p-1 rounded-lg hover:bg-stone-100 text-zinc-500"
             aria-label="Следующий месяц"
           >
             <ChevronRight className="w-3.5 h-3.5" />
@@ -99,7 +99,7 @@ export function MonthBudgetWidget() {
         <div className="relative">
           <MiniDonut income={incomeRef} expense={stats.expense} free={free} />
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-[9px] uppercase tracking-wide text-zinc-400 font-bold">Свободно</span>
+            <span className="text-[9px] uppercase tracking-wide text-zinc-500 font-bold">Свободно</span>
             <span className={`text-xs font-black ${free >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
               {fmt(free)}
             </span>
@@ -128,7 +128,7 @@ export function MonthBudgetWidget() {
 function Row({ label, value, accent }: { label: string; value: string; accent: 'emerald' | 'rose' }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-zinc-400">{label}</span>
+      <span className="text-zinc-500">{label}</span>
       <span className={`font-bold tabular-nums ${accent === 'emerald' ? 'text-emerald-300' : 'text-rose-300'}`}>
         {value}
       </span>

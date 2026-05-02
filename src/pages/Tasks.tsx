@@ -81,8 +81,8 @@ function SortableTask({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "bg-zinc-900 rounded-3xl border border-zinc-800 flex flex-col hover:bg-zinc-800/80 transition-colors relative overflow-hidden",
-        isDragging && "shadow-2xl shadow-black/50 border-zinc-700 z-50"
+        "bg-white rounded-3xl border border-stone-200 flex flex-col hover:bg-stone-100/70 transition-colors relative overflow-hidden",
+        isDragging && "shadow-2xl shadow-black/50 border-stone-300 z-50"
       )}
     >
       <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -91,7 +91,7 @@ function SortableTask({
           <div 
             {...attributes} 
             {...listeners}
-            className="cursor-grab active:cursor-grabbing p-1 text-zinc-600 hover:text-zinc-400 transition-colors"
+            className="cursor-grab active:cursor-grabbing p-1 text-zinc-600 hover:text-zinc-500 transition-colors"
           >
             <GripVertical className="w-4 h-4" />
           </div>
@@ -100,7 +100,7 @@ function SortableTask({
               onClick={() => onToggleCompletion(task.id)}
               className={cn(
                 "transition-colors",
-                task.completed ? "text-white" : "text-zinc-600 hover:text-white"
+                task.completed ? "text-zinc-900" : "text-zinc-600 hover:text-zinc-900"
               )}
             >
               {task.completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
@@ -119,7 +119,7 @@ function SortableTask({
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <p className={cn(
-                "text-sm font-medium text-zinc-200",
+                "text-sm font-medium text-zinc-800",
                 task.completed && "text-zinc-500 line-through",
                 task.failed && "text-zinc-700 line-through"
               )}>
@@ -127,7 +127,7 @@ function SortableTask({
                 {task.isPinned && <Pin className="w-3 h-3 text-emerald-500 fill-emerald-500 inline ml-2" />}
               </p>
               {totalSubtasks > 0 && (
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-zinc-800 text-zinc-400">
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-stone-100 text-zinc-500">
                   {completedSubtasks}/{totalSubtasks}
                 </span>
               )}
@@ -135,7 +135,7 @@ function SortableTask({
             <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[10px] text-zinc-500">
               <span>{format(new Date(task.date), 'd MMM yyyy', { locale: ru })}</span>
               {sphere && (
-                <span className="bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded-md font-medium">
+                <span className="bg-stone-100 text-zinc-700 px-1.5 py-0.5 rounded-md font-medium">
                   {sphere.title}
                 </span>
               )}
@@ -148,26 +148,26 @@ function SortableTask({
             onClick={() => onTogglePin(task.id, !!task.isPinned)}
             className={cn(
               "transition-colors p-1.5 rounded-xl",
-              task.isPinned ? "text-emerald-500 bg-emerald-500/10" : "text-zinc-600 hover:text-white"
+              task.isPinned ? "text-emerald-500 bg-emerald-500/10" : "text-zinc-600 hover:text-zinc-900"
             )}
           >
             {task.isPinned ? <PinOff className="w-4 h-4" /> : <Pin className="w-4 h-4" />}
           </button>
           <button
             onClick={() => onToggleExpand(task.id)}
-            className="text-zinc-600 hover:text-white p-1.5 transition-colors"
+            className="text-zinc-600 hover:text-zinc-900 p-1.5 transition-colors"
           >
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
           <button
             onClick={() => onEdit(task)}
-            className="text-zinc-600 hover:text-white p-1.5 transition-colors"
+            className="text-zinc-600 hover:text-zinc-900 p-1.5 transition-colors"
           >
             <Edit2 className="w-4 h-4" />
           </button>
           <button
             onClick={() => onDelete(task.id)}
-            className="text-zinc-600 hover:text-zinc-400 p-1.5 transition-colors"
+            className="text-zinc-600 hover:text-zinc-500 p-1.5 transition-colors"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -180,7 +180,7 @@ function SortableTask({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-zinc-800/50 bg-zinc-900/30"
+            className="border-t border-stone-200/70 bg-white/30"
           >
             <div className="p-4 pl-12 space-y-2">
               {task.subtasks?.map(subtask => (
@@ -196,7 +196,7 @@ function SortableTask({
                   </button>
                   <span className={cn(
                     "flex-1 text-sm transition-colors",
-                    subtask.completed ? "text-zinc-500 line-through" : "text-zinc-300"
+                    subtask.completed ? "text-zinc-500 line-through" : "text-zinc-700"
                   )}>
                     {subtask.title}
                   </span>
@@ -216,7 +216,7 @@ function SortableTask({
                   value={newSubtaskTitle || ''}
                   onChange={(e) => onNewSubtaskTitleChange(task.id, e.target.value)}
                   placeholder="Добавить подзадачу..."
-                  className="flex-1 bg-transparent border-none text-sm text-zinc-300 focus:outline-none focus:ring-0 placeholder:text-zinc-600"
+                  className="flex-1 bg-transparent border-none text-sm text-zinc-700 focus:outline-none focus:ring-0 placeholder:text-zinc-400"
                 />
               </form>
             </div>
@@ -402,8 +402,8 @@ export function Tasks() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white">Задачи</h1>
-          <p className="text-sm text-zinc-400 mt-1">Управляйте своими целями на разных временных отрезках.</p>
+          <h1 className="text-xl font-bold tracking-tight text-zinc-900">Задачи</h1>
+          <p className="text-sm text-zinc-500 mt-1">Управляйте своими целями на разных временных отрезках.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -411,8 +411,8 @@ export function Tasks() {
             className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all text-sm font-medium border",
               activePeriod === 'history'
-                ? "bg-zinc-800 text-white border-zinc-700 shadow-lg"
-                : "bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:bg-zinc-800"
+                ? "bg-stone-100 text-zinc-900 border-stone-300 shadow-lg"
+                : "bg-white text-zinc-500 border-stone-200 hover:text-zinc-800 hover:bg-stone-100"
             )}
           >
             <History className="w-4 h-4" />
@@ -430,7 +430,7 @@ export function Tasks() {
             className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-xl transition-colors text-sm font-medium",
               activePeriod === 'history' 
-                ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" 
+                ? "bg-stone-100 text-zinc-600 cursor-not-allowed" 
                 : "bg-white text-black hover:bg-zinc-200"
             )}
           >
@@ -441,7 +441,7 @@ export function Tasks() {
       </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex flex-wrap gap-1 bg-zinc-900/50 p-1 rounded-2xl w-full sm:w-fit border border-zinc-800">
+          <div className="flex flex-wrap gap-1 bg-white/60 p-1 rounded-2xl w-full sm:w-fit border border-stone-200">
             {periods.map((period) => (
               <button
                 key={period.value}
@@ -449,8 +449,8 @@ export function Tasks() {
                 className={cn(
                   'flex-1 sm:flex-none px-2.5 py-1.5 rounded-xl text-[11px] font-medium transition-all whitespace-nowrap text-center',
                   activePeriod === period.value
-                    ? 'bg-zinc-800 text-white shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                    ? 'bg-stone-100 text-zinc-900 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-800 hover:bg-stone-100/60'
                 )}
               >
                 {period.label}
@@ -459,19 +459,19 @@ export function Tasks() {
           </div>
 
           {activePeriod !== 'history' && (
-            <div className="flex items-center gap-3 bg-zinc-900 p-1.5 rounded-2xl border border-zinc-800 w-fit">
+            <div className="flex items-center gap-3 bg-white p-1.5 rounded-2xl border border-stone-200 w-fit">
               <button 
                 onClick={handlePrev}
-                className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+                className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-xl transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <div className="text-sm font-medium text-white min-w-[120px] text-center capitalize">
+              <div className="text-sm font-medium text-zinc-900 min-w-[120px] text-center capitalize">
                 {getPeriodLabel()}
               </div>
               <button 
                 onClick={handleNext}
-                className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-xl transition-colors"
+                className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-xl transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -480,13 +480,13 @@ export function Tasks() {
         </div>
 
         {activePeriod === 'history' && (
-          <div className="flex flex-wrap items-center gap-3 bg-zinc-900/30 p-3 rounded-2xl border border-zinc-800/50">
+          <div className="flex flex-wrap items-center gap-3 bg-white/30 p-3 rounded-2xl border border-stone-200/70">
             <div className="flex items-center gap-2">
               <span className="text-xs text-zinc-500">Сфера:</span>
               <select
                 value={historyFilter.sphereId}
                 onChange={(e) => setHistoryFilter(prev => ({ ...prev, sphereId: e.target.value }))}
-                className="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-zinc-700"
+                className="bg-stone-50 border border-stone-200 text-xs text-zinc-700 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-stone-300"
               >
                 <option value="">Все</option>
                 {spheres.map(s => (
@@ -496,7 +496,7 @@ export function Tasks() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-zinc-500">Статус:</span>
-              <div className="flex bg-zinc-950 rounded-lg p-0.5 border border-zinc-800">
+              <div className="flex bg-stone-50 rounded-lg p-0.5 border border-stone-200">
                 {(['all', 'completed', 'failed'] as const).map((s) => (
                   <button
                     key={s}
@@ -504,8 +504,8 @@ export function Tasks() {
                     className={cn(
                       "px-2 py-1 rounded-md text-[10px] font-medium transition-all",
                       historyFilter.status === s
-                        ? "bg-zinc-800 text-white"
-                        : "text-zinc-500 hover:text-zinc-300"
+                        ? "bg-stone-100 text-zinc-900"
+                        : "text-zinc-500 hover:text-zinc-700"
                     )}
                   >
                     {s === 'all' ? 'Все' : s === 'completed' ? 'Выполнено' : 'Провалено'}
@@ -517,34 +517,34 @@ export function Tasks() {
         )}
 
       {isAdding && (
-        <div className="bg-zinc-900 p-5 rounded-3xl shadow-sm border border-zinc-800">
+        <div className="bg-white p-5 rounded-3xl shadow-sm border border-stone-200">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-base font-semibold text-white">
+            <h2 className="text-base font-semibold text-zinc-900">
               {editingTaskId ? 'Редактировать задачу' : `Новая задача ${periodLabels[activePeriod]}`}
             </h2>
-            <button onClick={handleCancel} className="text-zinc-500 hover:text-zinc-300">
+            <button onClick={handleCancel} className="text-zinc-500 hover:text-zinc-700">
               <X className="w-4 h-4" />
             </button>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">Название</label>
+              <label className="block text-xs font-medium text-zinc-700 mb-1">Название</label>
               <input
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
                 placeholder="Что нужно сделать?"
                 required
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Сфера (необязательно)</label>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">Сфера (необязательно)</label>
                 <select
                   value={sphereId}
                   onChange={(e) => setSphereId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                  className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
                 >
                   <option value="">Нет</option>
                   {spheres.map(s => (
@@ -553,12 +553,12 @@ export function Tasks() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Дата</label>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">Дата</label>
                 <input
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-zinc-950 border border-zinc-800 text-white rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
+                  className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-200 text-zinc-900 rounded-xl focus:ring-2 focus:ring-zinc-500 focus:border-zinc-500"
                   required
                 />
               </div>
@@ -567,7 +567,7 @@ export function Tasks() {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 rounded-xl font-medium transition-colors"
+                className="px-3 py-1.5 text-xs text-zinc-500 hover:bg-stone-100 rounded-xl font-medium transition-colors"
               >
                 Отмена
               </button>
@@ -584,9 +584,9 @@ export function Tasks() {
 
       <div>
         {sortedTasks.length === 0 ? (
-          <div className="bg-zinc-900 rounded-3xl border border-zinc-800 p-10 text-center text-zinc-500">
+          <div className="bg-white rounded-3xl border border-stone-200 p-10 text-center text-zinc-500">
             <CheckCircle2 className="w-10 h-10 mx-auto text-zinc-700 mb-3" />
-            <p className="text-base font-medium text-zinc-300">Задачи не найдены</p>
+            <p className="text-base font-medium text-zinc-700">Задачи не найдены</p>
             <p className="text-sm mt-1">Добавьте задачу на этот период, чтобы начать.</p>
           </div>
         ) : (

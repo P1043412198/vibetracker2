@@ -158,7 +158,7 @@ export function SmartFinanceAlerts() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+        <h3 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
           <Zap className="w-4 h-4 text-amber-400" />
           Умные уведомления
         </h3>
@@ -196,8 +196,8 @@ export function SmartFinanceAlerts() {
               </div>
 
               <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-bold text-white truncate">{alert.title}</h4>
-                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">{alert.message}</p>
+                <h4 className="text-sm font-bold text-zinc-900 truncate">{alert.title}</h4>
+                <p className="text-xs text-zinc-500 mt-1 leading-relaxed">{alert.message}</p>
                 
                 <button className={cn(
                   "mt-3 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 transition-all",
@@ -212,7 +212,7 @@ export function SmartFinanceAlerts() {
                 </button>
               </div>
 
-              <button className="absolute top-4 right-4 text-zinc-600 hover:text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button className="absolute top-4 right-4 text-zinc-600 hover:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity">
                 <X className="w-4 h-4" />
               </button>
             </motion.div>

@@ -45,13 +45,13 @@ export const SmartGreeting: React.FC<SmartGreetingProps> = ({ currentDate, today
   }, [todaysTasks, exerciseLogs, habits, habitLogs, dateStr]);
 
   return (
-    <div className="bg-zinc-900/50 p-6 rounded-3xl border border-zinc-800/50 mb-6 flex items-start sm:items-center gap-4">
-      <div className={`p-3 rounded-2xl bg-zinc-800/50 ${color}`}>
+    <div className="bg-white/60 p-6 rounded-3xl border border-stone-200/70 mb-6 flex items-start sm:items-center gap-4">
+      <div className={`p-3 rounded-2xl bg-stone-100/60 ${color}`}>
         <Icon className="w-8 h-8" />
       </div>
       <div>
-        <h1 className="text-2xl font-bold text-white mb-1">{greeting}!</h1>
-        <p className="text-sm text-zinc-400">{summary}</p>
+        <h1 className="text-2xl font-bold text-zinc-900 mb-1">{greeting}!</h1>
+        <p className="text-sm text-zinc-500">{summary}</p>
       </div>
     </div>
   );

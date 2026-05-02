@@ -112,7 +112,7 @@ export function MuscleHeatmap({ data }: MuscleHeatmapProps) {
     <div className="relative w-full max-w-[250px] mx-auto flex flex-col items-center">
       <button 
         onClick={() => setIsFront(!isFront)}
-        className="absolute top-0 right-0 p-2 bg-zinc-800 text-zinc-400 hover:text-white rounded-full transition-colors z-10"
+        className="absolute top-0 right-0 p-2 bg-stone-100 text-zinc-500 hover:text-zinc-900 rounded-full transition-colors z-10"
         title="Повернуть"
       >
         <RotateCcw className="w-4 h-4" />
@@ -130,20 +130,20 @@ export function MuscleHeatmap({ data }: MuscleHeatmapProps) {
 
       <AnimatePresence>
         {selectedMuscle && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-white/80">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md border border-zinc-800 shadow-xl"
+              className="bg-white rounded-2xl p-6 w-full max-w-md border border-stone-200 shadow-xl"
             >
               <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-bold text-white">
+                <h3 className="text-xl font-bold text-zinc-900">
                   {muscleInfo?.name || selectedMuscle}
                 </h3>
                 <button
                   onClick={() => setSelectedMuscle(null)}
-                  className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
+                  className="p-2 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-stone-100 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -152,29 +152,29 @@ export function MuscleHeatmap({ data }: MuscleHeatmapProps) {
               {muscleInfo ? (
                 <div className="space-y-4 mb-6">
                   <div>
-                    <h4 className="text-sm font-medium text-zinc-400 mb-1">Описание</h4>
-                    <p className="text-zinc-200 text-sm leading-relaxed">{muscleInfo.description}</p>
+                    <h4 className="text-sm font-medium text-zinc-500 mb-1">Описание</h4>
+                    <p className="text-zinc-800 text-sm leading-relaxed">{muscleInfo.description}</p>
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium text-zinc-400 mb-1">Функции</h4>
-                    <p className="text-zinc-200 text-sm leading-relaxed">{muscleInfo.action}</p>
+                    <h4 className="text-sm font-medium text-zinc-500 mb-1">Функции</h4>
+                    <p className="text-zinc-800 text-sm leading-relaxed">{muscleInfo.action}</p>
                   </div>
                 </div>
               ) : (
-                <p className="text-zinc-400 text-sm mb-6">Информация о данной мышце отсутствует.</p>
+                <p className="text-zinc-500 text-sm mb-6">Информация о данной мышце отсутствует.</p>
               )}
 
               <div className="flex flex-col gap-3">
                 <button
                   onClick={handleCreateWorkout}
-                  className="w-full flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl font-medium transition-colors"
+                  className="w-full flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-zinc-900 py-3 rounded-xl font-medium transition-colors"
                 >
                   <FolderPlus className="w-5 h-5" />
                   Создать программу тренировок
                 </button>
                 <button
                   onClick={handleCreateExercise}
-                  className="w-full flex items-center justify-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white py-3 rounded-xl font-medium transition-colors"
+                  className="w-full flex items-center justify-center gap-2 bg-stone-100 hover:bg-stone-200 text-zinc-900 py-3 rounded-xl font-medium transition-colors"
                 >
                   <Plus className="w-5 h-5" />
                   Добавить упражнение

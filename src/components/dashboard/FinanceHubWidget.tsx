@@ -36,30 +36,30 @@ export const FinanceHubWidget: React.FC<FinanceHubWidgetProps> = ({ financeStats
   const isFull = progress >= 100;
 
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800 flex flex-col h-full">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200 flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
           <Zap className="w-4 h-4 text-emerald-500" />
           Финансовый центр
         </h2>
         <div className="flex items-center gap-2">
           <button 
             onClick={() => setIsScannerOpen(true)}
-            className="p-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
             title="Сканировать чек"
           >
             <QrCode className="w-4 h-4" />
           </button>
-          <Link to="/finance" className="text-[10px] text-zinc-500 hover:text-white transition-colors">Подробнее</Link>
+          <Link to="/finance" className="text-[10px] text-zinc-500 hover:text-zinc-900 transition-colors">Подробнее</Link>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800">
+        <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200">
           <p className="text-[8px] text-zinc-500 uppercase tracking-wider mb-1">Баланс</p>
-          <p className="text-sm font-bold text-white">{financeStats.totalBalance.toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">{baseCurrency}</span></p>
+          <p className="text-sm font-bold text-zinc-900">{financeStats.totalBalance.toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">{baseCurrency}</span></p>
         </div>
-        <div className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800">
+        <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200">
           <p className="text-[8px] text-zinc-500 uppercase tracking-wider mb-1">Расход (мес)</p>
           <p className="text-sm font-bold text-rose-400">-{financeStats.monthExpenses.toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">{baseCurrency}</span></p>
         </div>
@@ -69,9 +69,9 @@ export const FinanceHubWidget: React.FC<FinanceHubWidgetProps> = ({ financeStats
         <div className="mb-6">
           <div className="flex items-center justify-between mb-1.5">
             <p className="text-[8px] text-zinc-500 uppercase tracking-wider">Бюджет</p>
-            <p className="text-[9px] font-bold text-white">{Math.round(financeStats.budgetProgress)}%</p>
+            <p className="text-[9px] font-bold text-zinc-900">{Math.round(financeStats.budgetProgress)}%</p>
           </div>
-          <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden border border-zinc-800">
+          <div className="w-full bg-stone-50 h-1.5 rounded-full overflow-hidden border border-stone-200">
             <motion.div 
               initial={{ width: 0 }}
               animate={{ width: `${Math.min(financeStats.budgetProgress, 100)}%` }}
@@ -85,13 +85,13 @@ export const FinanceHubWidget: React.FC<FinanceHubWidgetProps> = ({ financeStats
       )}
 
       {selectedGoal && (
-        <div className="flex-1 flex flex-col pt-4 border-t border-zinc-800">
+        <div className="flex-1 flex flex-col pt-4 border-t border-stone-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className={cn("p-1.5 rounded-lg", isFull ? "bg-amber-500/10" : "bg-pink-500/10")}>
                 <PiggyBank className={cn("w-3.5 h-3.5", isFull ? "text-amber-500" : "text-pink-500")} />
               </div>
-              <span className="text-xs font-bold text-white">Копилка: {selectedGoal.title}</span>
+              <span className="text-xs font-bold text-zinc-900">Копилка: {selectedGoal.title}</span>
             </div>
             <div className={cn("text-[10px] font-bold uppercase tracking-wider", isFull ? "text-amber-500" : "text-zinc-500")}>
               {progress.toFixed(0)}%
@@ -123,12 +123,12 @@ export const FinanceHubWidget: React.FC<FinanceHubWidgetProps> = ({ financeStats
             </div>
             <div className="flex-1">
               <div className="flex justify-between items-end mb-1">
-                <span className={cn("text-sm font-black", isFull ? "text-amber-500" : "text-white")}>
+                <span className={cn("text-sm font-black", isFull ? "text-amber-500" : "text-zinc-900")}>
                   {selectedGoal.currentAmount.toLocaleString()}
                 </span>
                 <span className="text-[10px] text-zinc-500 uppercase font-bold">из {selectedGoal.targetAmount.toLocaleString()}</span>
               </div>
-              <div className="w-full bg-zinc-950 h-1.5 rounded-full overflow-hidden border border-zinc-800">
+              <div className="w-full bg-stone-50 h-1.5 rounded-full overflow-hidden border border-stone-200">
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
@@ -159,14 +159,14 @@ export const FinanceHubWidget: React.FC<FinanceHubWidgetProps> = ({ financeStats
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder={isWithdraw ? "Снять..." : "Пополнить..."}
-              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-zinc-700"
+              className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-sm text-zinc-900 focus:outline-none focus:border-stone-300"
               min="0"
               step="0.01"
             />
             <button
               type="submit"
               disabled={!amount}
-              className="p-2 bg-zinc-800 text-white rounded-xl hover:bg-zinc-700 transition-colors disabled:opacity-50"
+              className="p-2 bg-stone-100 text-zinc-900 rounded-xl hover:bg-stone-200 transition-colors disabled:opacity-50"
             >
               <ChevronRight className="w-4 h-4" />
             </button>

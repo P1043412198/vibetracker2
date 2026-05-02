@@ -44,15 +44,15 @@ export function SleepRecoveryWidget() {
   };
 
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
           <Moon className="w-4 h-4 text-indigo-500" />
           Сон и Восстановление
         </h2>
         <button
           onClick={() => setIsLogging(!isLogging)}
-          className="p-1.5 bg-zinc-800 text-zinc-400 rounded-xl hover:text-white transition-colors"
+          className="p-1.5 bg-stone-100 text-zinc-500 rounded-xl hover:text-zinc-900 transition-colors"
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -65,7 +65,7 @@ export function SleepRecoveryWidget() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 space-y-4"
+            className="bg-stone-50 p-4 rounded-2xl border border-stone-200 space-y-4"
           >
             <div>
               <label className="text-[10px] text-zinc-500 uppercase font-bold mb-2 block">
@@ -78,7 +78,7 @@ export function SleepRecoveryWidget() {
                 step="0.5"
                 value={newLog.hours}
                 onChange={(e) => setNewLog({ ...newLog, hours: parseFloat(e.target.value) })}
-                className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                className="w-full h-1.5 bg-stone-100 rounded-lg appearance-none cursor-pointer accent-emerald-500"
               />
             </div>
             <div>
@@ -91,8 +91,8 @@ export function SleepRecoveryWidget() {
                     key={q}
                     onClick={() => setNewLog({ ...newLog, quality: q })}
                     className={cn(
-                      "flex-1 py-1.5 rounded-xl border border-zinc-800 transition-all",
-                      newLog.quality === q ? "bg-indigo-500 text-white border-indigo-500" : "bg-zinc-950 text-zinc-500 hover:text-zinc-300"
+                      "flex-1 py-1.5 rounded-xl border border-stone-200 transition-all",
+                      newLog.quality === q ? "bg-indigo-500 text-zinc-900 border-indigo-500" : "bg-stone-50 text-zinc-500 hover:text-zinc-700"
                     )}
                   >
                     {q}
@@ -103,7 +103,7 @@ export function SleepRecoveryWidget() {
             <div className="flex gap-2">
               <button
                 onClick={() => setIsLogging(false)}
-                className="flex-1 py-2 text-xs font-bold text-zinc-500 hover:text-zinc-300"
+                className="flex-1 py-2 text-xs font-bold text-zinc-500 hover:text-zinc-700"
               >
                 Отмена
               </button>
@@ -123,13 +123,13 @@ export function SleepRecoveryWidget() {
             className="space-y-4"
           >
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800">
+              <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200">
                 <div className="flex items-center gap-2 mb-1">
                   <TrendingUp className="w-3 h-3 text-emerald-500" />
                   <span className="text-[10px] text-zinc-500 uppercase font-bold">Готовность</span>
                 </div>
                 <div className="flex items-end gap-2">
-                  <span className="text-xl font-bold text-white">{readinessScore}%</span>
+                  <span className="text-xl font-bold text-zinc-900">{readinessScore}%</span>
                   <span className={cn(
                     "text-[9px] mb-1 font-bold",
                     readinessScore > 80 ? "text-emerald-500" : readinessScore > 60 ? "text-amber-500" : "text-rose-500"
@@ -138,13 +138,13 @@ export function SleepRecoveryWidget() {
                   </span>
                 </div>
               </div>
-              <div className="bg-zinc-950 p-3 rounded-2xl border border-zinc-800">
+              <div className="bg-stone-50 p-3 rounded-2xl border border-stone-200">
                 <div className="flex items-center gap-2 mb-1">
                   <Star className="w-3 h-3 text-amber-500" />
                   <span className="text-[10px] text-zinc-500 uppercase font-bold">Средний сон</span>
                 </div>
                 <div className="flex items-end gap-2">
-                  <span className="text-xl font-bold text-white">{averageHours.toFixed(1)}ч</span>
+                  <span className="text-xl font-bold text-zinc-900">{averageHours.toFixed(1)}ч</span>
                   <span className="text-[9px] mb-1 text-zinc-500">в сутки</span>
                 </div>
               </div>

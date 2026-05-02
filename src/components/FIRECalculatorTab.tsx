@@ -104,14 +104,14 @@ export function FIRECalculatorTab() {
 
   return (
     <div className="space-y-6">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
+      <div className="bg-white border border-stone-200 rounded-3xl p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-3 bg-orange-500/10 rounded-2xl">
             <Flame className="w-6 h-6 text-orange-500" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Калькулятор FIRE</h2>
-            <p className="text-xs text-zinc-400">Financial Independence, Retire Early</p>
+            <h2 className="text-lg font-bold text-zinc-900">Калькулятор FIRE</h2>
+            <p className="text-xs text-zinc-500">Financial Independence, Retire Early</p>
           </div>
         </div>
 
@@ -123,7 +123,7 @@ export function FIRECalculatorTab() {
                 type="number"
                 value={currentCapital}
                 onChange={(e) => setCurrentCapital(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-orange-500/50"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-orange-500/50"
               />
             </div>
             <div className="space-y-2">
@@ -132,7 +132,7 @@ export function FIRECalculatorTab() {
                 type="number"
                 value={monthlyContribution}
                 onChange={(e) => setMonthlyContribution(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-orange-500/50"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-orange-500/50"
               />
             </div>
             <div className="space-y-2">
@@ -141,7 +141,7 @@ export function FIRECalculatorTab() {
                 type="number"
                 value={targetMonthlyIncome}
                 onChange={(e) => setTargetMonthlyIncome(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-orange-500/50"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-orange-500/50"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -151,7 +151,7 @@ export function FIRECalculatorTab() {
                   type="number"
                   value={annualReturn}
                   onChange={(e) => setAnnualReturn(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-orange-500/50"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-orange-500/50"
                 />
               </div>
               <div className="space-y-2">
@@ -160,7 +160,7 @@ export function FIRECalculatorTab() {
                   type="number"
                   value={safeWithdrawalRate}
                   onChange={(e) => setSafeWithdrawalRate(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl py-2 px-4 text-sm text-white focus:outline-none focus:border-orange-500/50"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl py-2 px-4 text-sm text-zinc-900 focus:outline-none focus:border-orange-500/50"
                 />
               </div>
             </div>
@@ -168,13 +168,13 @@ export function FIRECalculatorTab() {
 
           <div className="lg:col-span-2 space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-2xl">
+              <div className="bg-stone-50 border border-stone-200 p-4 rounded-2xl">
                 <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Целевой капитал</p>
-                <p className="text-2xl font-bold text-white">
+                <p className="text-2xl font-bold text-zinc-900">
                   {targetCapital.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} {baseCurrency}
                 </p>
               </div>
-              <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-2xl">
+              <div className="bg-stone-50 border border-stone-200 p-4 rounded-2xl">
                 <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Время до цели</p>
                 <p className={cn("text-2xl font-bold", isAchievable ? "text-orange-400" : "text-red-400")}>
                   {isAchievable ? `${yearsToFIRE.toFixed(1)} лет` : '> 50 лет'}

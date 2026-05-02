@@ -214,8 +214,8 @@ export function CameraTracker({ onClose }: { onClose: () => void }) {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-      <div className="relative w-full max-w-2xl aspect-video bg-zinc-900 rounded-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/90 p-4">
+      <div className="relative w-full max-w-2xl aspect-video bg-white rounded-2xl overflow-hidden">
         {error ? (
           <div className="flex items-center justify-center h-full text-red-400">{error}</div>
         ) : (
@@ -223,22 +223,22 @@ export function CameraTracker({ onClose }: { onClose: () => void }) {
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" />
             <canvas ref={canvasRef} width={640} height={480} className="absolute inset-0 w-full h-full object-cover" />
             <div className="absolute top-4 left-4 flex gap-2">
-              <select value={exercise} onChange={(e) => { setExercise(e.target.value as ExerciseType); setCount(0); }} className="bg-black/50 text-white p-2 rounded-lg">
+              <select value={exercise} onChange={(e) => { setExercise(e.target.value as ExerciseType); setCount(0); }} className="bg-zinc-900/30 text-zinc-900 p-2 rounded-lg">
                 {EXERCISES.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
               </select>
-              <div className="bg-black/50 text-white px-4 py-2 rounded-full text-xl font-bold">
+              <div className="bg-zinc-900/30 text-zinc-900 px-4 py-2 rounded-full text-xl font-bold">
                 {EXERCISES.find(e => e.id === exercise)?.name}: {count}
               </div>
             </div>
             <button
               onClick={isRecording ? stopRecording : startRecording}
-              className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full font-bold ${isRecording ? 'bg-red-500' : 'bg-green-500'} text-white`}
+              className={`absolute bottom-4 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full font-bold ${isRecording ? 'bg-red-500' : 'bg-green-500'} text-zinc-900`}
             >
               {isRecording ? 'Стоп запись' : 'Начать запись'}
             </button>
           </>
         )}
-        <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-black/50 text-white rounded-full hover:bg-black/70"><X className="w-6 h-6" /></button>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 bg-zinc-900/30 text-zinc-900 rounded-full hover:bg-white/70"><X className="w-6 h-6" /></button>
       </div>
     </div>
   );

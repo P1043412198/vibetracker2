@@ -207,7 +207,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <h2 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
           <Target className="w-5 h-5 text-emerald-400" />
           Финансовые цели
         </h2>
@@ -230,10 +230,10 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             onSubmit={editingId ? handleUpdate : handleAdd}
-            className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-4 overflow-hidden"
+            className="bg-white p-4 rounded-2xl border border-stone-200 space-y-4 overflow-hidden"
           >
             <div className="flex justify-between items-center mb-2">
-              <h3 className="text-sm font-medium text-white">
+              <h3 className="text-sm font-medium text-zinc-900">
                 {editingId ? 'Редактировать цель' : 'Новая цель'}
               </h3>
               <button
@@ -242,7 +242,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                   setIsAdding(false);
                   setEditingId(null);
                 }}
-                className="p-1 text-zinc-500 hover:text-white transition-colors"
+                className="p-1 text-zinc-500 hover:text-zinc-900 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -254,7 +254,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                 placeholder="Название цели (например, Машина)"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-emerald-500"
                 required
               />
               <div className="grid grid-cols-2 gap-3">
@@ -263,7 +263,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                   placeholder="Целевая сумма"
                   value={targetAmount}
                   onChange={(e) => setTargetAmount(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-emerald-500"
                   required
                   min="0"
                   step="0.01"
@@ -273,7 +273,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                   placeholder="Уже накоплено"
                   value={currentAmount}
                   onChange={(e) => setCurrentAmount(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-emerald-500"
                   min="0"
                   step="0.01"
                 />
@@ -282,20 +282,20 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-emerald-500"
               />
               <input
                 type="text"
                 placeholder="Заметки (необязательно)"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-500 transition-colors"
+              className="w-full py-2 bg-emerald-600 text-zinc-900 rounded-xl text-sm font-medium hover:bg-emerald-500 transition-colors"
             >
               {editingId ? 'Сохранить изменения' : 'Добавить цель'}
             </button>
@@ -311,7 +311,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
 
       <div className="space-y-4">
         {financialGoals.length === 0 && !isAdding ? (
-          <div className="text-center py-10 bg-zinc-900/50 rounded-2xl border border-zinc-800/50">
+          <div className="text-center py-10 bg-white/60 rounded-2xl border border-stone-200/70">
             <Target className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
             <p className="text-zinc-500 text-sm">У вас пока нет финансовых целей.</p>
             <p className="text-zinc-600 text-xs mt-1">Добавьте цель, чтобы начать копить!</p>
@@ -322,12 +322,12 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
             const remaining = goal.targetAmount - goal.currentAmount;
 
             return (
-              <div key={goal.id} className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-4">
+              <div key={goal.id} className="bg-white p-4 rounded-2xl border border-stone-200 space-y-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-bold text-white text-lg">{goal.title}</h3>
+                    <h3 className="font-bold text-zinc-900 text-lg">{goal.title}</h3>
                     {goal.deadline && (
-                      <div className="flex items-center gap-1 text-xs text-zinc-400 mt-1">
+                      <div className="flex items-center gap-1 text-xs text-zinc-500 mt-1">
                         <Calendar className="w-3 h-3" />
                         <span>Дедлайн: {new Date(goal.deadline).toLocaleDateString('ru-RU')}</span>
                       </div>
@@ -336,7 +336,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                   <div className="flex gap-2">
                     <button
                       onClick={() => startEditing(goal)}
-                      className="p-2 text-zinc-500 hover:text-white transition-colors"
+                      className="p-2 text-zinc-500 hover:text-zinc-900 transition-colors"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
@@ -350,15 +350,15 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+                  <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70">
                     <div className="text-xs text-zinc-500 mb-1">Накоплено</div>
                     <div className="text-lg font-bold text-emerald-400">
                       {goal.currentAmount.toLocaleString('ru-RU')} BYN
                     </div>
                   </div>
-                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800/50">
+                  <div className="bg-stone-50 p-3 rounded-xl border border-stone-200/70">
                     <div className="text-xs text-zinc-500 mb-1">Осталось</div>
-                    <div className="text-lg font-bold text-white">
+                    <div className="text-lg font-bold text-zinc-900">
                       {remaining > 0 ? remaining.toLocaleString('ru-RU') : 0} BYN
                     </div>
                   </div>
@@ -367,9 +367,9 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs">
                     <span className="text-zinc-500">Прогресс</span>
-                    <span className="text-zinc-400">{progress.toFixed(1)}%</span>
+                    <span className="text-zinc-500">{progress.toFixed(1)}%</span>
                   </div>
-                  <div className="h-1.5 bg-zinc-950 rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-stone-50 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                       style={{ width: `${progress}%` }}
@@ -378,8 +378,8 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                 </div>
 
                 {remaining > 0 && (
-                  <div className="bg-zinc-950/50 p-3 rounded-xl border border-zinc-800/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-zinc-400">
+                  <div className="bg-stone-50/50 p-3 rounded-xl border border-stone-200/70 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-zinc-500">
                       <TrendingUp className="w-4 h-4 text-emerald-400" />
                       <span className="text-xs">Прогноз накоплений</span>
                     </div>
@@ -390,7 +390,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                           return <span className="text-xs text-red-400">Нужно больше сбережений</span>;
                         }
                         return (
-                          <div className="text-xs font-medium text-white">
+                          <div className="text-xs font-medium text-zinc-900">
                             ~ {forecast.months} {forecast.months === 1 ? 'месяц' : forecast.months < 5 ? 'месяца' : 'месяцев'}
                           </div>
                         );
@@ -400,7 +400,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                 )}
 
                 {goal.aiPlan ? (
-                  <div className="bg-zinc-950 rounded-xl border border-zinc-800/50 p-4 space-y-4">
+                  <div className="bg-stone-50 rounded-xl border border-stone-200/70 p-4 space-y-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 text-emerald-400">
                         <Sparkles className="w-4 h-4" />
@@ -427,14 +427,14 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                             "flex gap-3 p-3 rounded-xl border transition-colors cursor-pointer",
                             step.completed 
                               ? "bg-emerald-500/5 border-emerald-500/20" 
-                              : "bg-zinc-900 border-zinc-800 hover:border-zinc-700"
+                              : "bg-white border-stone-200 hover:border-stone-300"
                           )}
                           onClick={() => toggleStep(goal.id, step.id)}
                         >
                           <div className={cn(
                             "w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors",
                             step.completed
-                              ? "bg-emerald-500 border-emerald-500 text-white"
+                              ? "bg-emerald-500 border-emerald-500 text-zinc-900"
                               : "border-zinc-600 text-transparent"
                           )}>
                             <Check className="w-3 h-3" />
@@ -442,14 +442,14 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                           <div>
                             <h5 className={cn(
                               "text-sm font-medium transition-colors",
-                              step.completed ? "text-emerald-400 line-through opacity-70" : "text-zinc-200"
+                              step.completed ? "text-emerald-400 line-through opacity-70" : "text-zinc-800"
                             )}>
                               {index + 1}. {step.title}
                             </h5>
                             {step.description && (
                               <p className={cn(
                                 "text-xs mt-1 transition-colors",
-                                step.completed ? "text-zinc-500 line-through opacity-70" : "text-zinc-400"
+                                step.completed ? "text-zinc-500 line-through opacity-70" : "text-zinc-500"
                               )}>
                                 {step.description}
                               </p>
@@ -475,7 +475,7 @@ export function FinancialPlanTab({ onSwitchToAI }: { onSwitchToAI: (prompt: stri
                     </button>
                     <button
                       onClick={() => askAIForPlan(goal)}
-                      className="p-2.5 bg-zinc-800 text-zinc-400 rounded-xl hover:bg-zinc-700 hover:text-white transition-colors"
+                      className="p-2.5 bg-stone-100 text-zinc-500 rounded-xl hover:bg-stone-200 hover:text-zinc-900 transition-colors"
                       title="Спросить в чате"
                     >
                       <Bot className="w-5 h-5" />

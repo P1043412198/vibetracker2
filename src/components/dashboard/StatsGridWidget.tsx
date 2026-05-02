@@ -17,7 +17,7 @@ export const StatsGridWidget: React.FC<StatsGridWidgetProps> = ({
 }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
         <p className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider mb-3">Последняя тренировка</p>
         {recentWorkout ? (
           <div className="flex items-center gap-3">
@@ -25,7 +25,7 @@ export const StatsGridWidget: React.FC<StatsGridWidgetProps> = ({
               <Dumbbell className="w-4 h-4 text-blue-500" />
             </div>
             <div>
-              <p className="text-[10px] font-bold text-white truncate max-w-[120px]">{recentWorkout.exerciseName}</p>
+              <p className="text-[10px] font-bold text-zinc-900 truncate max-w-[120px]">{recentWorkout.exerciseName}</p>
               <p className="text-[8px] text-zinc-500">{format(new Date(recentWorkout.date), 'd MMM', { locale: ru })}</p>
             </div>
           </div>
@@ -33,15 +33,15 @@ export const StatsGridWidget: React.FC<StatsGridWidgetProps> = ({
           <p className="text-[9px] text-zinc-600 italic">Нет записей</p>
         )}
       </div>
-      <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
         <p className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider mb-3">Топ привычек</p>
         <div className="space-y-2">
           {habitStreaks.length > 0 ? habitStreaks.map(s => (
             <div key={s.id} className="flex items-center justify-between">
-              <p className="text-[8px] text-zinc-300 truncate max-w-[100px]">{s.title}</p>
+              <p className="text-[8px] text-zinc-700 truncate max-w-[100px]">{s.title}</p>
               <div className="flex items-center gap-1">
                 <Flame className="w-2 h-2 text-orange-500" />
-                <span className="text-[8px] font-bold text-white">{s.streak}</span>
+                <span className="text-[8px] font-bold text-zinc-900">{s.streak}</span>
               </div>
             </div>
           )) : (
@@ -49,7 +49,7 @@ export const StatsGridWidget: React.FC<StatsGridWidgetProps> = ({
           )}
         </div>
       </div>
-      <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+      <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
         <p className="text-[8px] text-zinc-500 font-semibold uppercase tracking-wider mb-1">Радар баланса</p>
         <div className="h-20">
           <ResponsiveContainer width="100%" height="100%">

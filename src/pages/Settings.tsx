@@ -115,19 +115,19 @@ export function Settings() {
   return (
     <div className="space-y-6 pb-24">
       <header>
-        <h1 className="text-xl font-bold text-white mb-2">Настройки</h1>
-        <p className="text-zinc-400">Управление данными и приложением</p>
+        <h1 className="text-xl font-bold text-zinc-900 mb-2">Настройки</h1>
+        <p className="text-zinc-500">Управление данными и приложением</p>
       </header>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-zinc-800">
+      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+        <div className="p-6 border-b border-stone-200">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
               <LayoutDashboard className="w-5 h-5 text-orange-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Модули приложения</h2>
-              <p className="text-sm text-zinc-400">Включите или отключите разделы, которыми вы не пользуетесь</p>
+              <h2 className="text-lg font-bold text-zinc-900">Модули приложения</h2>
+              <p className="text-sm text-zinc-500">Включите или отключите разделы, которыми вы не пользуетесь</p>
             </div>
           </div>
 
@@ -145,10 +145,10 @@ export function Settings() {
               { id: 'analytics', label: 'Аналитика', icon: BarChart3 },
               { id: 'water', label: 'Вода', icon: Droplets },
             ].map((module) => (
-              <div key={module.id} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
+              <div key={module.id} className="bg-stone-50 p-4 rounded-xl border border-stone-200 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <module.icon className="w-4 h-4 text-zinc-500" />
-                  <span className="text-sm font-medium text-white">{module.label}</span>
+                  <span className="text-sm font-medium text-zinc-900">{module.label}</span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input 
@@ -157,7 +157,7 @@ export function Settings() {
                     checked={enabledModules?.[module.id as keyof typeof enabledModules] ?? true}
                     onChange={(e) => updateModuleSettings({ [module.id]: e.target.checked })}
                   />
-                  <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                  <div className="w-11 h-6 bg-stone-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                 </label>
               </div>
             ))}
@@ -170,8 +170,8 @@ export function Settings() {
               <LayoutDashboard className="w-5 h-5 text-indigo-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Видимость виджетов</h2>
-              <p className="text-sm text-zinc-400">Выберите, какие виджеты отображать на дашборде</p>
+              <h2 className="text-lg font-bold text-zinc-900">Видимость виджетов</h2>
+              <p className="text-sm text-zinc-500">Выберите, какие виджеты отображать на дашборде</p>
             </div>
           </div>
 
@@ -203,8 +203,8 @@ export function Settings() {
               { id: 'shopping_list', label: 'Список покупок' },
               { id: 'piggy_bank', label: 'Копилка' },
             ].map((widget) => (
-              <div key={widget.id} className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
-                <span className="text-sm font-medium text-white">{widget.label}</span>
+              <div key={widget.id} className="bg-stone-50 p-4 rounded-xl border border-stone-200 flex items-center justify-between">
+                <span className="text-sm font-medium text-zinc-900">{widget.label}</span>
                 <div className="flex items-center gap-2">
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input 
@@ -222,7 +222,7 @@ export function Settings() {
                         updateDashboardConfig({ visibleWidgets: newVisibleWidgets });
                       }}
                     />
-                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                    <div className="w-11 h-6 bg-stone-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                   </label>
                 </div>
               </div>
@@ -231,36 +231,36 @@ export function Settings() {
         </div>
       </div>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-zinc-800">
+      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+        <div className="p-6 border-b border-stone-200">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
               <Database className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Резервное копирование</h2>
-              <p className="text-sm text-zinc-400">Экспорт и импорт всех ваших данных</p>
+              <h2 className="text-lg font-bold text-zinc-900">Резервное копирование</h2>
+              <p className="text-sm text-zinc-500">Экспорт и импорт всех ваших данных</p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800">
-              <h3 className="font-medium text-white mb-2">Экспорт данных</h3>
-              <p className="text-sm text-zinc-400 mb-4">
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
+              <h3 className="font-medium text-zinc-900 mb-2">Экспорт данных</h3>
+              <p className="text-sm text-zinc-500 mb-4">
                 Скачайте все ваши данные (сферы, задачи, привычки, тренировки) в один JSON файл.
               </p>
               <button
                 onClick={handleExport}
-                className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors text-sm font-medium"
+                className="flex items-center gap-2 px-4 py-2 bg-stone-100 hover:bg-stone-200 text-zinc-900 rounded-lg transition-colors text-sm font-medium"
               >
                 <Download className="w-4 h-4" />
                 Скачать резервную копию
               </button>
             </div>
 
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800">
-              <h3 className="font-medium text-white mb-2">Импорт данных</h3>
-              <p className="text-sm text-zinc-400 mb-4">
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
+              <h3 className="font-medium text-zinc-900 mb-2">Импорт данных</h3>
+              <p className="text-sm text-zinc-500 mb-4">
                 Восстановите данные из ранее скачанного файла резервной копии.
               </p>
               
@@ -289,7 +289,7 @@ export function Settings() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={confirmImport}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors text-sm font-medium"
+                    className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-zinc-900 rounded-lg transition-colors text-sm font-medium"
                   >
                     <Upload className="w-4 h-4" />
                     Подтвердить импорт
@@ -299,7 +299,7 @@ export function Settings() {
                       setImportFileContent(null);
                       setImportError(null);
                     }}
-                    className="px-4 py-2 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg text-sm font-medium transition-colors"
+                    className="px-4 py-2 bg-stone-100 text-zinc-700 hover:bg-stone-200 rounded-lg text-sm font-medium transition-colors"
                   >
                     Отмена
                   </button>
@@ -318,22 +318,22 @@ export function Settings() {
         </div>
       </div>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-zinc-800">
+      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+        <div className="p-6 border-b border-stone-200">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
               <Bot className="w-5 h-5 text-purple-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">ИИ Ассистенты</h2>
-              <p className="text-sm text-zinc-400">Настройка API ключей для ИИ</p>
+              <h2 className="text-lg font-bold text-zinc-900">ИИ Ассистенты</h2>
+              <p className="text-sm text-zinc-500">Настройка API ключей для ИИ</p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800">
-              <h3 className="font-medium text-white mb-2">Провайдер по умолчанию</h3>
-              <p className="text-sm text-zinc-400 mb-4">
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
+              <h3 className="font-medium text-zinc-900 mb-2">Провайдер по умолчанию</h3>
+              <p className="text-sm text-zinc-500 mb-4">
                 Выберите, какую нейросеть использовать для генерации планов и ответов ассистентов.
               </p>
               <div className="flex gap-2">
@@ -341,8 +341,8 @@ export function Settings() {
                   onClick={() => setPreferredAiProvider('gemini')}
                   className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
                     preferredAiProvider === 'gemini' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                      ? 'bg-blue-600 text-zinc-900' 
+                      : 'bg-stone-100 text-zinc-500 hover:bg-stone-200 hover:text-zinc-900'
                   }`}
                 >
                   Google Gemini
@@ -351,8 +351,8 @@ export function Settings() {
                   onClick={() => setPreferredAiProvider('openai')}
                   className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
                     preferredAiProvider === 'openai' 
-                      ? 'bg-green-600 text-white' 
-                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                      ? 'bg-green-600 text-zinc-900' 
+                      : 'bg-stone-100 text-zinc-500 hover:bg-stone-200 hover:text-zinc-900'
                   }`}
                 >
                   OpenAI (ChatGPT)
@@ -360,12 +360,12 @@ export function Settings() {
               </div>
             </div>
 
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800">
-              <h3 className="font-medium text-white mb-2 flex items-center gap-2">
-                <Key className="w-4 h-4 text-zinc-400" />
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
+              <h3 className="font-medium text-zinc-900 mb-2 flex items-center gap-2">
+                <Key className="w-4 h-4 text-zinc-500" />
                 Ключ Gemini API
               </h3>
-              <p className="text-sm text-zinc-400 mb-4">
+              <p className="text-sm text-zinc-500 mb-4">
                 Если оставить пустым, будет использоваться системный ключ по умолчанию.
               </p>
               <input
@@ -373,16 +373,16 @@ export function Settings() {
                 value={customGeminiKey || ''}
                 onChange={(e) => setCustomGeminiKey(e.target.value || null)}
                 placeholder="AIzaSy..."
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
+                className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
 
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800">
-              <h3 className="font-medium text-white mb-2 flex items-center gap-2">
-                <Key className="w-4 h-4 text-zinc-400" />
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
+              <h3 className="font-medium text-zinc-900 mb-2 flex items-center gap-2">
+                <Key className="w-4 h-4 text-zinc-500" />
                 Ключ OpenAI API
               </h3>
-              <p className="text-sm text-zinc-400 mb-4">
+              <p className="text-sm text-zinc-500 mb-4">
                 Необходим для использования ChatGPT.
               </p>
               <input
@@ -390,34 +390,34 @@ export function Settings() {
                 value={customOpenAIKey || ''}
                 onChange={(e) => setCustomOpenAIKey(e.target.value || null)}
                 placeholder="sk-..."
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-green-500 transition-colors"
+                className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-green-500 transition-colors"
               />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-zinc-800">
+      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+        <div className="p-6 border-b border-stone-200">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
               <Lock className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Безопасность</h2>
-              <p className="text-sm text-zinc-400">Защита приложения PIN-кодом</p>
+              <h2 className="text-lg font-bold text-zinc-900">Безопасность</h2>
+              <p className="text-sm text-zinc-500">Защита приложения PIN-кодом</p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800">
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-medium text-white flex items-center gap-2">
+                  <h3 className="font-medium text-zinc-900 flex items-center gap-2">
                     {pinCode ? <ShieldCheck className="w-4 h-4 text-emerald-400" /> : <ShieldAlert className="w-4 h-4 text-amber-400" />}
                     Блокировка приложения
                   </h3>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-zinc-500">
                     {pinCode ? 'Приложение защищено PIN-кодом' : 'Установите PIN-код для защиты ваших данных'}
                   </p>
                 </div>
@@ -427,13 +427,13 @@ export function Settings() {
                       <>
                         <button
                           onClick={handleRemovePin}
-                          className="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg text-sm font-medium transition-colors"
+                          className="px-4 py-2 bg-red-500 text-zinc-900 hover:bg-red-600 rounded-lg text-sm font-medium transition-colors"
                         >
                           Точно?
                         </button>
                         <button
                           onClick={() => setShowRemovePinConfirm(false)}
-                          className="px-4 py-2 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg text-sm font-medium transition-colors"
+                          className="px-4 py-2 bg-stone-100 text-zinc-700 hover:bg-stone-200 rounded-lg text-sm font-medium transition-colors"
                         >
                           Отмена
                         </button>
@@ -458,27 +458,27 @@ export function Settings() {
               </div>
 
               {isSettingPin && !pinCode && (
-                <div className="mt-4 pt-4 border-t border-zinc-800 space-y-4">
+                <div className="mt-4 pt-4 border-t border-stone-200 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs text-zinc-400">Новый PIN-код (4 цифры)</label>
+                      <label className="text-xs text-zinc-500">Новый PIN-код (4 цифры)</label>
                       <input
                         type="password"
                         maxLength={4}
                         value={newPin}
                         onChange={e => setNewPin(e.target.value.replace(/\D/g, ''))}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-center tracking-[0.5em] font-mono"
+                        className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-emerald-500 text-center tracking-[0.5em] font-mono"
                         placeholder="••••"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs text-zinc-400">Подтвердите PIN-код</label>
+                      <label className="text-xs text-zinc-500">Подтвердите PIN-код</label>
                       <input
                         type="password"
                         maxLength={4}
                         value={confirmPin}
                         onChange={e => setConfirmPin(e.target.value.replace(/\D/g, ''))}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-emerald-500 text-center tracking-[0.5em] font-mono"
+                        className="w-full bg-white border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-emerald-500 text-center tracking-[0.5em] font-mono"
                         placeholder="••••"
                       />
                     </div>
@@ -487,7 +487,7 @@ export function Settings() {
                   <button
                     onClick={handleSavePin}
                     disabled={newPin.length !== 4 || confirmPin.length !== 4}
-                    className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white rounded-lg font-medium transition-colors"
+                    className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 disabled:bg-stone-100 disabled:text-zinc-500 text-zinc-900 rounded-lg font-medium transition-colors"
                   >
                     Сохранить PIN-код
                   </button>
@@ -495,27 +495,27 @@ export function Settings() {
               )}
             </div>
 
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800">
-              <h3 className="font-medium text-white mb-2">Генератор паролей</h3>
-              <p className="text-sm text-zinc-400 mb-4">
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200">
+              <h3 className="font-medium text-zinc-900 mb-2">Генератор паролей</h3>
+              <p className="text-sm text-zinc-500 mb-4">
                 Настройте секретное слово, которое будет добавляться во все генерируемые пароли.
               </p>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-400 mb-1">Секретное слово</label>
+                  <label className="block text-xs font-medium text-zinc-500 mb-1">Секретное слово</label>
                   <input
                     type="text"
                     value={customPasswordWord || ''}
                     onChange={e => setCustomPasswordWord(e.target.value)}
                     placeholder="Например: vyesk"
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                    className="w-full bg-white border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-emerald-500 transition-colors"
                   />
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <h4 className="text-sm font-medium text-white">Разбросать по паролю</h4>
+                    <h4 className="text-sm font-medium text-zinc-900">Разбросать по паролю</h4>
                     <p className="text-xs text-zinc-500">
                       Если выключено, слово будет вставлено целиком в середину пароля.
                     </p>
@@ -527,7 +527,7 @@ export function Settings() {
                       checked={scatterPasswordWord}
                       onChange={(e) => setScatterPasswordWord(e.target.checked)}
                     />
-                    <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    <div className="w-11 h-6 bg-stone-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                   </label>
                 </div>
               </div>
@@ -536,23 +536,23 @@ export function Settings() {
         </div>
       </div>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-zinc-800">
+      <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+        <div className="p-6 border-b border-stone-200">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
               <Bell className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Оповещения</h2>
-              <p className="text-sm text-zinc-400">Настройка уведомлений приложения</p>
+              <h2 className="text-lg font-bold text-zinc-900">Оповещения</h2>
+              <p className="text-sm text-zinc-500">Настройка уведомлений приложения</p>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 flex items-center justify-between">
               <div>
-                <h3 className="font-medium text-white">Задачи</h3>
-                <p className="text-sm text-zinc-400">Напоминания о невыполненных задачах</p>
+                <h3 className="font-medium text-zinc-900">Задачи</h3>
+                <p className="text-sm text-zinc-500">Напоминания о невыполненных задачах</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -561,14 +561,14 @@ export function Settings() {
                   checked={notificationSettings?.tasks ?? true}
                   onChange={(e) => updateNotificationSettings({ tasks: e.target.checked })}
                 />
-                <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-stone-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
               </label>
             </div>
 
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 flex items-center justify-between">
               <div>
-                <h3 className="font-medium text-white">Привычки</h3>
-                <p className="text-sm text-zinc-400">Напоминания об отметке привычек</p>
+                <h3 className="font-medium text-zinc-900">Привычки</h3>
+                <p className="text-sm text-zinc-500">Напоминания об отметке привычек</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -577,14 +577,14 @@ export function Settings() {
                   checked={notificationSettings?.habits ?? true}
                   onChange={(e) => updateNotificationSettings({ habits: e.target.checked })}
                 />
-                <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-stone-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
               </label>
             </div>
 
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 flex items-center justify-between">
+            <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 flex items-center justify-between">
               <div>
-                <h3 className="font-medium text-white">Платежи</h3>
-                <p className="text-sm text-zinc-400">Напоминания о регулярных платежах и кредитах</p>
+                <h3 className="font-medium text-zinc-900">Платежи</h3>
+                <p className="text-sm text-zinc-500">Напоминания о регулярных платежах и кредитах</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
@@ -593,7 +593,7 @@ export function Settings() {
                   checked={notificationSettings?.payments ?? true}
                   onChange={(e) => updateNotificationSettings({ payments: e.target.checked })}
                 />
-                <div className="w-11 h-6 bg-zinc-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-stone-100 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
               </label>
             </div>
           </div>

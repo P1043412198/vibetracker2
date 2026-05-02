@@ -15,22 +15,22 @@ export const TrendsWidget: React.FC<TrendsWidgetProps> = ({
   setEfficiencyTrendDays 
 }) => {
   return (
-    <div className="bg-zinc-900 p-4 rounded-3xl shadow-sm border border-zinc-800">
+    <div className="bg-white p-4 rounded-3xl shadow-sm border border-stone-200">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
           <Activity className="w-4 h-4" />
           Тренд эффективности
         </h2>
-        <div className="flex bg-zinc-950 p-1 rounded-xl border border-zinc-800">
+        <div className="flex bg-stone-50 p-1 rounded-xl border border-stone-200">
           <button 
             onClick={() => setEfficiencyTrendDays(7)}
-            className={cn("px-2 py-1 text-[10px] font-medium rounded-lg transition-all", efficiencyTrendDays === 7 ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
+            className={cn("px-2 py-1 text-[10px] font-medium rounded-lg transition-all", efficiencyTrendDays === 7 ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
           >
             7д
           </button>
           <button 
             onClick={() => setEfficiencyTrendDays(30)}
-            className={cn("px-2 py-1 text-[10px] font-medium rounded-lg transition-all", efficiencyTrendDays === 30 ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300")}
+            className={cn("px-2 py-1 text-[10px] font-medium rounded-lg transition-all", efficiencyTrendDays === 30 ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700")}
           >
             30д
           </button>

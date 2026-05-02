@@ -90,7 +90,7 @@ export function VacationPlanner() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold text-white flex items-center gap-2">
+        <h2 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
           <Plane className="w-5 h-5 text-blue-400" />
           Планировщик отпуска
         </h2>
@@ -109,7 +109,7 @@ export function VacationPlanner() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             onSubmit={handleAddPlan}
-            className="bg-zinc-900 p-4 rounded-2xl border border-zinc-800 space-y-4 overflow-hidden"
+            className="bg-white p-4 rounded-2xl border border-stone-200 space-y-4 overflow-hidden"
           >
             <div className="space-y-3">
               <input
@@ -117,7 +117,7 @@ export function VacationPlanner() {
                 placeholder="Куда едем? (например, Бали)"
                 value={newPlan.destination}
                 onChange={e => setNewPlan({ ...newPlan, destination: e.target.value })}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
                 required
               />
               <div className="grid grid-cols-2 gap-3">
@@ -127,7 +127,7 @@ export function VacationPlanner() {
                     type="date"
                     value={newPlan.startDate}
                     onChange={e => setNewPlan({ ...newPlan, startDate: e.target.value })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
                     required
                   />
                 </div>
@@ -137,7 +137,7 @@ export function VacationPlanner() {
                     type="date"
                     value={newPlan.endDate}
                     onChange={e => setNewPlan({ ...newPlan, endDate: e.target.value })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
                     required
                   />
                 </div>
@@ -149,14 +149,14 @@ export function VacationPlanner() {
                   placeholder="Бюджет"
                   value={newPlan.budget}
                   onChange={e => setNewPlan({ ...newPlan, budget: parseFloat(e.target.value) })}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm text-zinc-900 focus:outline-none focus:border-blue-500"
                   min="0"
                 />
               </div>
             </div>
             <button
               type="submit"
-              className="w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-500 transition-colors"
+              className="w-full py-2 bg-blue-600 text-zinc-900 rounded-xl text-sm font-medium hover:bg-blue-500 transition-colors"
             >
               Создать план
             </button>
@@ -166,7 +166,7 @@ export function VacationPlanner() {
 
       <div className="space-y-4">
         {plans.length === 0 && !isAdding ? (
-          <div className="text-center py-10 bg-zinc-900/50 rounded-2xl border border-zinc-800/50">
+          <div className="text-center py-10 bg-white/60 rounded-2xl border border-stone-200/70">
             <Map className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
             <p className="text-zinc-500 text-sm">У вас пока нет планов на отпуск.</p>
             <p className="text-zinc-600 text-xs mt-1">Спланируйте свое следующее приключение!</p>
@@ -222,15 +222,15 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
   };
 
   return (
-    <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+    <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
       <div 
-        className="p-4 cursor-pointer hover:bg-zinc-800/50 transition-colors"
+        className="p-4 cursor-pointer hover:bg-stone-100/60 transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex justify-between items-start mb-3">
           <div>
-            <h3 className="text-lg font-bold text-white">{plan.destination}</h3>
-            <div className="flex items-center gap-2 text-xs text-zinc-400 mt-1">
+            <h3 className="text-lg font-bold text-zinc-900">{plan.destination}</h3>
+            <div className="flex items-center gap-2 text-xs text-zinc-500 mt-1">
               <Calendar className="w-3 h-3" />
               <span>{new Date(plan.startDate).toLocaleDateString('ru-RU')} - {new Date(plan.endDate).toLocaleDateString('ru-RU')}</span>
             </div>
@@ -253,7 +253,7 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
           <div className="flex justify-between items-end">
             <div className="space-y-1">
               <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Бюджет</div>
-              <div className="text-sm font-bold text-white">{plan.budget.toLocaleString('ru-RU')} BYN</div>
+              <div className="text-sm font-bold text-zinc-900">{plan.budget.toLocaleString('ru-RU')} BYN</div>
             </div>
             <div className="text-right space-y-1">
               <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Расходы</div>
@@ -262,7 +262,7 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
           </div>
 
           <div className="space-y-1">
-            <div className="h-1.5 bg-zinc-950 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-stone-50 rounded-full overflow-hidden">
               <div 
                 className={cn(
                   "h-full rounded-full transition-all duration-500",
@@ -273,7 +273,7 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
             </div>
             <div className="flex justify-between text-[10px]">
               <span className="text-zinc-500">Использовано {progress.toFixed(1)}%</span>
-              <span className={cn(remaining < 0 ? "text-red-400" : "text-zinc-400")}>
+              <span className={cn(remaining < 0 ? "text-red-400" : "text-zinc-500")}>
                 {remaining < 0 ? `Перебор: ${Math.abs(remaining).toLocaleString('ru-RU')} BYN` : `Осталось: ${remaining.toLocaleString('ru-RU')} BYN`}
               </span>
             </div>
@@ -287,11 +287,11 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="border-t border-zinc-800 bg-zinc-950/30"
+            className="border-t border-stone-200 bg-stone-50/30"
           >
             <div className="p-4 space-y-4">
               <div className="flex justify-between items-center">
-                <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Расходы</h4>
+                <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Расходы</h4>
                 <button
                   onClick={() => setIsAddingExpense(!isAddingExpense)}
                   className="text-xs text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1"
@@ -302,12 +302,12 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
               </div>
 
               {isAddingExpense && (
-                <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 space-y-3">
+                <div className="bg-white p-3 rounded-xl border border-stone-200 space-y-3">
                   <div className="grid grid-cols-2 gap-2">
                     <select
                       value={newExp.category}
                       onChange={e => setNewExp({ ...newExp, category: e.target.value as any })}
-                      className="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      className="bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-blue-500"
                     >
                       {Object.entries(categoryLabels).map(([val, label]) => (
                         <option key={val} value={val}>{label}</option>
@@ -318,7 +318,7 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
                       placeholder="Сумма"
                       value={newExp.amount || ''}
                       onChange={e => setNewExp({ ...newExp, amount: parseFloat(e.target.value) || 0 })}
-                      className="bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      className="bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                   <input
@@ -326,7 +326,7 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
                     placeholder="Описание (например, Билеты)"
                     value={newExp.name}
                     onChange={e => setNewExp({ ...newExp, name: e.target.value })}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-blue-500"
                   />
                   <button
                     onClick={() => {
@@ -335,7 +335,7 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
                       setNewExp({ category: 'transport', name: '', amount: 0 });
                       setIsAddingExpense(false);
                     }}
-                    className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-500 transition-colors"
+                    className="w-full py-1.5 bg-blue-600 text-zinc-900 rounded-lg text-xs font-medium hover:bg-blue-500 transition-colors"
                   >
                     Добавить расход
                   </button>
@@ -344,18 +344,18 @@ function PlanItem({ plan, onDelete, onAddExpense, onRemoveExpense }: {
 
               <div className="space-y-2">
                 {plan.expenses.map(exp => (
-                  <div key={exp.id} className="flex items-center justify-between bg-zinc-900/50 p-2 rounded-xl border border-zinc-800/50">
+                  <div key={exp.id} className="flex items-center justify-between bg-white/60 p-2 rounded-xl border border-stone-200/70">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-zinc-800 rounded-lg text-blue-400">
+                      <div className="p-2 bg-stone-100 rounded-lg text-blue-400">
                         {categoryIcons[exp.category]}
                       </div>
                       <div>
-                        <div className="text-xs font-medium text-white">{exp.name}</div>
+                        <div className="text-xs font-medium text-zinc-900">{exp.name}</div>
                         <div className="text-[10px] text-zinc-500">{categoryLabels[exp.category]}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="text-xs font-bold text-white">{exp.amount.toLocaleString('ru-RU')} BYN</div>
+                      <div className="text-xs font-bold text-zinc-900">{exp.amount.toLocaleString('ru-RU')} BYN</div>
                       <button
                         onClick={() => onRemoveExpense(exp.id)}
                         className="text-zinc-600 hover:text-red-400 transition-colors"

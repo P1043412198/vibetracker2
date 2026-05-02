@@ -188,28 +188,28 @@ export function ReceiptScanner({ onClose }: ReceiptScannerProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-zinc-800 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+    <div className="fixed inset-0 bg-white/80 z-50 flex items-center justify-center p-4">
+      <div className="bg-white border border-stone-200 rounded-2xl w-full max-w-md overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-stone-200 flex justify-between items-center">
+          <h3 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
             <Camera className="w-5 h-5 text-emerald-500" />
             Сканер чеков
           </h3>
-          <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800">
+          <button onClick={onClose} className="p-2 text-zinc-500 hover:text-zinc-900 rounded-lg hover:bg-stone-100">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex border-b border-zinc-800">
+        <div className="flex border-b border-stone-200">
           <button
             onClick={() => { setScanMode('qr'); setScanResult(null); setError(null); }}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${scanMode === 'qr' ? 'text-white border-b-2 border-emerald-500' : 'text-zinc-400 hover:text-white'}`}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${scanMode === 'qr' ? 'text-zinc-900 border-b-2 border-emerald-500' : 'text-zinc-500 hover:text-zinc-900'}`}
           >
             QR-код
           </button>
           <button
             onClick={() => { setScanMode('ocr'); setScanResult(null); setError(null); }}
-            className={`flex-1 py-3 text-sm font-medium transition-colors ${scanMode === 'ocr' ? 'text-white border-b-2 border-emerald-500' : 'text-zinc-400 hover:text-white'}`}
+            className={`flex-1 py-3 text-sm font-medium transition-colors ${scanMode === 'ocr' ? 'text-zinc-900 border-b-2 border-emerald-500' : 'text-zinc-500 hover:text-zinc-900'}`}
           >
             Фото (OCR)
           </button>
@@ -220,8 +220,8 @@ export function ReceiptScanner({ onClose }: ReceiptScannerProps) {
             <div className="flex-1 flex flex-col">
               {scanMode === 'qr' ? (
                 <>
-                  <div id="qr-reader" className="w-full bg-black rounded-lg overflow-hidden border border-zinc-800" />
-                  <p className="text-sm text-zinc-400 text-center mt-4">
+                  <div id="qr-reader" className="w-full bg-white rounded-lg overflow-hidden border border-stone-200" />
+                  <p className="text-sm text-zinc-500 text-center mt-4">
                     Наведите камеру на QR-код на чеке
                   </p>
                 </>
@@ -238,20 +238,20 @@ export function ReceiptScanner({ onClose }: ReceiptScannerProps) {
                   {isProcessing ? (
                     <div className="flex flex-col items-center">
                       <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
-                      <p className="text-zinc-400">Распознавание текста...</p>
+                      <p className="text-zinc-500">Распознавание текста...</p>
                     </div>
                   ) : (
                     <>
-                      <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
-                        <FileText className="w-8 h-8 text-zinc-400" />
+                      <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mb-4">
+                        <FileText className="w-8 h-8 text-zinc-500" />
                       </div>
-                      <h4 className="text-lg font-bold text-white mb-2">Распознавание по фото</h4>
-                      <p className="text-zinc-400 mb-6 text-sm">
+                      <h4 className="text-lg font-bold text-zinc-900 mb-2">Распознавание по фото</h4>
+                      <p className="text-zinc-500 mb-6 text-sm">
                         Сфотографируйте чек, и мы попытаемся найти на нем итоговую сумму.
                       </p>
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-500 transition-colors"
+                        className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-zinc-900 rounded-xl font-medium hover:bg-emerald-500 transition-colors"
                       >
                         <Upload className="w-5 h-5" />
                         Загрузить фото
@@ -268,8 +268,8 @@ export function ReceiptScanner({ onClose }: ReceiptScannerProps) {
                   <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
                     <AlertCircle className="w-8 h-8 text-red-500" />
                   </div>
-                  <h4 className="text-lg font-bold text-white mb-2">Ошибка</h4>
-                  <p className="text-zinc-400 mb-6">{error}</p>
+                  <h4 className="text-lg font-bold text-zinc-900 mb-2">Ошибка</h4>
+                  <p className="text-zinc-500 mb-6">{error}</p>
                   <button 
                     onClick={() => {
                       setScanResult(null);
@@ -289,7 +289,7 @@ export function ReceiptScanner({ onClose }: ReceiptScannerProps) {
                         }, 100);
                       }
                     }}
-                    className="px-6 py-2 bg-zinc-800 text-white rounded-xl font-medium hover:bg-zinc-700 transition-colors"
+                    className="px-6 py-2 bg-stone-100 text-zinc-900 rounded-xl font-medium hover:bg-stone-200 transition-colors"
                   >
                     Попробовать снова
                   </button>
@@ -299,29 +299,29 @@ export function ReceiptScanner({ onClose }: ReceiptScannerProps) {
                   <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mb-4">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                   </div>
-                  <h4 className="text-lg font-bold text-white mb-2">Чек обработан!</h4>
-                  <p className="text-zinc-400">Транзакция успешно добавлена.</p>
+                  <h4 className="text-lg font-bold text-zinc-900 mb-2">Чек обработан!</h4>
+                  <p className="text-zinc-500">Транзакция успешно добавлена.</p>
                 </>
               ) : (
                 <>
                   <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mb-4">
                     <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                   </div>
-                  <h4 className="text-lg font-bold text-white mb-2">
+                  <h4 className="text-lg font-bold text-zinc-900 mb-2">
                     {scanMode === 'qr' ? 'QR-код распознан' : 'Сумма распознана'}
                   </h4>
-                  <div className="bg-zinc-950 p-4 rounded-lg border border-zinc-800 mb-6 w-full text-left break-all">
+                  <div className="bg-stone-50 p-4 rounded-lg border border-stone-200 mb-6 w-full text-left break-all">
                     {scanMode === 'qr' ? (
                       <p className="text-xs text-zinc-500 font-mono">{scanResult}</p>
                     ) : (
                       <div className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400 text-sm">Сумма:</span>
-                          <span className="text-white font-bold text-lg">{extractedAmount} {baseCurrency}</span>
+                          <span className="text-zinc-500 text-sm">Сумма:</span>
+                          <span className="text-zinc-900 font-bold text-lg">{extractedAmount} {baseCurrency}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-zinc-400 text-sm">Детали:</span>
-                          <span className="text-zinc-300 text-xs text-right max-w-[60%] truncate">{extractedNotes}</span>
+                          <span className="text-zinc-500 text-sm">Детали:</span>
+                          <span className="text-zinc-700 text-xs text-right max-w-[60%] truncate">{extractedNotes}</span>
                         </div>
                       </div>
                     )}
@@ -329,13 +329,13 @@ export function ReceiptScanner({ onClose }: ReceiptScannerProps) {
                   <div className="flex gap-3 w-full">
                     <button 
                       onClick={() => setScanResult(null)}
-                      className="flex-1 px-4 py-3 bg-zinc-800 text-white rounded-xl font-medium hover:bg-zinc-700 transition-colors"
+                      className="flex-1 px-4 py-3 bg-stone-100 text-zinc-900 rounded-xl font-medium hover:bg-stone-200 transition-colors"
                     >
                       Отмена
                     </button>
                     <button 
                       onClick={processReceipt}
-                      className="flex-1 px-4 py-3 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-500 transition-colors"
+                      className="flex-1 px-4 py-3 bg-emerald-600 text-zinc-900 rounded-xl font-medium hover:bg-emerald-500 transition-colors"
                     >
                       Добавить
                     </button>

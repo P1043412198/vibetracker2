@@ -49,10 +49,10 @@ export const NoteComments: React.FC<NoteCommentsProps> = ({ comments, onUpdateCo
   };
 
   return (
-    <div className="mt-4 border-t border-zinc-800/50 pt-3">
+    <div className="mt-4 border-t border-stone-200/70 pt-3">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors"
+        className="flex items-center gap-2 text-xs font-medium text-zinc-500 hover:text-zinc-800 transition-colors"
       >
         <MessageSquare className="w-3.5 h-3.5" />
         {comments.length} {comments.length === 1 ? 'комментарий' : comments.length > 1 && comments.length < 5 ? 'комментария' : 'комментариев'}
@@ -63,7 +63,7 @@ export const NoteComments: React.FC<NoteCommentsProps> = ({ comments, onUpdateCo
         <div className="mt-4 space-y-4">
           <div className="space-y-3">
             {comments.map((comment) => (
-              <div key={comment.id} className="bg-zinc-950/50 rounded-xl p-3 border border-zinc-800/50 group">
+              <div key={comment.id} className="bg-stone-50/50 rounded-xl p-3 border border-stone-200/70 group">
                 <div className="flex justify-between items-start gap-2 mb-1">
                   <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">
                     {format(new Date(comment.createdAt), 'd MMM yyyy, HH:mm', { locale: ru })}
@@ -89,13 +89,13 @@ export const NoteComments: React.FC<NoteCommentsProps> = ({ comments, onUpdateCo
                     <textarea
                       value={editContent}
                       onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 text-white rounded-lg focus:ring-1 focus:ring-zinc-500 focus:border-zinc-500 min-h-[60px] resize-y text-xs"
+                      className="w-full px-3 py-2 bg-white border border-stone-300 text-zinc-900 rounded-lg focus:ring-1 focus:ring-zinc-500 focus:border-zinc-500 min-h-[60px] resize-y text-xs"
                       autoFocus
                     />
                     <div className="flex justify-end gap-2">
                       <button
                         onClick={() => setEditingId(null)}
-                        className="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+                        className="p-1.5 text-zinc-500 hover:text-zinc-900 hover:bg-stone-100 rounded-lg transition-colors"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -108,7 +108,7 @@ export const NoteComments: React.FC<NoteCommentsProps> = ({ comments, onUpdateCo
                     </div>
                   </div>
                 ) : (
-                  <div className="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                  <div className="text-xs text-zinc-700 whitespace-pre-wrap leading-relaxed">
                     {comment.content}
                   </div>
                 )}
@@ -122,7 +122,7 @@ export const NoteComments: React.FC<NoteCommentsProps> = ({ comments, onUpdateCo
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               placeholder="Добавить комментарий..."
-              className="flex-1 bg-zinc-950 border border-zinc-800 text-white text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+              className="flex-1 bg-stone-50 border border-stone-200 text-zinc-900 text-xs rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-zinc-500"
             />
             <button
               type="submit"

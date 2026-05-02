@@ -128,27 +128,27 @@ export function PredictiveBudgetTab() {
           <BrainCircuit className="w-6 h-6 text-purple-500" />
         </div>
         <div>
-          <h2 className="text-lg font-bold text-white">Предиктивный бюджет</h2>
-          <p className="text-xs text-zinc-400">ИИ-прогноз ваших расходов до конца месяца</p>
+          <h2 className="text-lg font-bold text-zinc-900">Предиктивный бюджет</h2>
+          <p className="text-xs text-zinc-500">ИИ-прогноз ваших расходов до конца месяца</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl">
+        <div className="bg-white border border-stone-200 p-4 rounded-2xl">
           <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Потрачено сейчас</p>
-          <p className="text-2xl font-bold text-white">
+          <p className="text-2xl font-bold text-zinc-900">
             {totalSpentInBase.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} {baseCurrency}
           </p>
           <p className="text-xs text-zinc-500 mt-1">За {currentDay} дней</p>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl">
+        <div className="bg-white border border-stone-200 p-4 rounded-2xl">
           <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Прогноз на конец месяца</p>
           <p className={cn("text-2xl font-bold", isOverBudget ? "text-red-400" : "text-emerald-400")}>
             {predictedTotalSpend.toLocaleString('ru-RU', { maximumFractionDigits: 0 })} {baseCurrency}
           </p>
           <p className="text-xs text-zinc-500 mt-1">При текущем темпе</p>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 p-4 rounded-2xl">
+        <div className="bg-white border border-stone-200 p-4 rounded-2xl">
           <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1">Бюджет</p>
           <p className="text-2xl font-bold text-emerald-400">
             {totalBudgetInBase > 0 ? totalBudgetInBase.toLocaleString('ru-RU', { maximumFractionDigits: 0 }) : 'Не задан'} {baseCurrency}
@@ -177,13 +177,13 @@ export function PredictiveBudgetTab() {
             <h3 className={cn("text-sm font-bold mb-1", isOverBudget ? "text-red-400" : "text-emerald-400")}>
               ИИ-Анализ
             </h3>
-            <p className="text-sm text-zinc-300 leading-relaxed">{aiInsight}</p>
+            <p className="text-sm text-zinc-700 leading-relaxed">{aiInsight}</p>
           </div>
         </motion.div>
       )}
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-        <h3 className="text-sm font-bold text-white mb-6">Траектория расходов</h3>
+      <div className="bg-white border border-stone-200 rounded-3xl p-6">
+        <h3 className="text-sm font-bold text-zinc-900 mb-6">Траектория расходов</h3>
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
