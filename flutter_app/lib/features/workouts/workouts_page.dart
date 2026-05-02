@@ -9,6 +9,7 @@ import '../../models/misc.dart';
 import '../../services/ai_service.dart';
 import '../../state/providers.dart';
 import 'workout_camera_page.dart';
+import 'workout_history_page.dart';
 
 /// Counterpart of `src/pages/Workouts.tsx`. Phase 4 ships four tabs:
 /// programs (tree of folders/exercises), calendar (planned workouts),
@@ -43,6 +44,14 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
       appBar: AppBar(
         title: const Text('Тренировки'),
         actions: [
+          IconButton(
+            tooltip: 'История',
+            icon: const Icon(Icons.history),
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const WorkoutHistoryPage()));
+            },
+          ),
           IconButton(
             tooltip: 'Камера-тренер',
             icon: const Icon(Icons.videocam_outlined),

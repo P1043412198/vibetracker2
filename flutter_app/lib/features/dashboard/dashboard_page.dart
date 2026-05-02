@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../models/enums.dart';
 import '../../state/providers.dart';
 import '../../state/settings_state.dart';
+import 'dashboard_charts.dart';
 
 /// Dashboard / "Главная" — counterpart of `src/pages/Dashboard.tsx`.
 ///
@@ -187,6 +188,12 @@ class DashboardPage extends ConsumerWidget {
             accent: const Color(0xFF8B5CF6),
             onTap: () => context.go('/sleep'),
           );
+        case 'expense_week_chart':
+          return const ExpenseWeekChartWidget();
+        case 'habit_heatmap':
+          return const HabitHeatmapWidget();
+        case 'task_progress_chart':
+          return const TaskWeekProgressWidget();
       }
       return null;
     }

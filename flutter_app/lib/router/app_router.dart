@@ -11,6 +11,7 @@ import '../features/goals/goals_page.dart';
 import '../features/habits/habit_details_page.dart';
 import '../features/habits/habits_page.dart';
 import '../features/inbox/inbox_page.dart';
+import '../features/household/household_notes_page.dart';
 import '../features/household/household_page.dart';
 import '../features/passwords/passwords_page.dart';
 import '../features/security/pin_setup_page.dart';
@@ -24,6 +25,7 @@ import '../features/sleep/sleep_page.dart';
 import '../features/tools/tools_page.dart';
 import '../features/water/water_page.dart';
 import '../features/work_schedule/work_schedule_page.dart';
+import '../features/workouts/workout_history_page.dart';
 import '../features/workouts/workouts_page.dart';
 import '../widgets/app_shell.dart';
 
@@ -100,10 +102,22 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: WorkoutsPage()),
           ),
           GoRoute(
+            path: '/workouts-history',
+            name: 'workouts-history',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: WorkoutHistoryPage()),
+          ),
+          GoRoute(
             path: '/household',
             name: 'household',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: HouseholdPage()),
+          ),
+          GoRoute(
+            path: '/household-notes',
+            name: 'household-notes',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: HouseholdNotesPage()),
           ),
           GoRoute(
             path: '/goals',

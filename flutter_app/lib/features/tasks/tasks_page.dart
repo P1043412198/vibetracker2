@@ -168,6 +168,8 @@ class _TaskList extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [
+        _TasksStatsCard(tasks: tasks),
+        const SizedBox(height: 12),
         if (pending.isNotEmpty) ...[
           Text('Активные (${pending.length})',
               style: Theme.of(context).textTheme.labelLarge),
@@ -790,4 +792,90 @@ class _TaskFormSheetState extends ConsumerState<_TaskFormSheet> {
       ),
     );
   }
+}
+
+class _TasksStatsCard extends StatelessWidget {
+  const _TasksStatsCard({required this.tasks});
+  final List<TaskItem> tasks;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = tasks.length;
+    final done = tasks.where((t) => t.completed).length;
+    final percent = total == 0 ? 0 : (done * 100 / total).round();
+    final byPriority = <TaskPriority, int>{};
+    for (final t in tasks) {
+      if (t.priority == null) continue;
+      byPriority[t.priority!] = (byPriority[t.priority!] ?? 0) + 1;
+    }
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.donut_small, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text('Прогресс периода',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                Text('$done / $total',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: total == 0 ? 0 : done / total,
+                minHeight: 8,
+                backgroundColor: scheme.surfaceContainerHighest,
+                color: const Color(0xFF22C55E),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text('$percent% выполнено',
+                style: Theme.of(context).textTheme.bodySmall),
+            if (byPriority.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  for (final entry in byPriority.entries)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: _priorityColor(entry.key)
+                          .withValues(alpha: 0.15),
+                      side: BorderSide(color: _priorityColor(entry.key)),
+                      label: Text(
+                          '${_priorityLabel(entry.key)} · ${entry.value}',
+                          style: TextStyle(
+                              color: _priorityColor(entry.key),
+                              fontWeight: FontWeight.w600)),
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _priorityColor(TaskPriority p) => switch (p) {
+        TaskPriority.urgent_important => const Color(0xFFEF4444),
+        TaskPriority.important => const Color(0xFFF59E0B),
+        TaskPriority.urgent => const Color(0xFF3B82F6),
+        TaskPriority.later => const Color(0xFF6B7280),
+      };
+  String _priorityLabel(TaskPriority p) => switch (p) {
+        TaskPriority.urgent_important => 'Срочно+важно',
+        TaskPriority.important => 'Важно',
+        TaskPriority.urgent => 'Срочно',
+        TaskPriority.later => 'Потом',
+      };
 }

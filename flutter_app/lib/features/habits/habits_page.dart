@@ -51,10 +51,16 @@ class HabitsPage extends ConsumerWidget {
           ? const _EmptyHabits()
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-              itemCount: habits.length,
+              itemCount: habits.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (context, i) {
-                final h = habits[i];
+                if (i == 0) {
+                  return _HabitsStatsHeader(
+                    habits: habits,
+                    logs: logs,
+                  );
+                }
+                final h = habits[i - 1];
                 final log = logFor(h.id);
                 final stats = computeStreakStats(habit: h, logs: logs);
                 return _HabitCard(
@@ -342,6 +348,129 @@ class _EmptyHabits extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HabitsStatsHeader extends StatelessWidget {
+  const _HabitsStatsHeader({required this.habits, required this.logs});
+  final List<Habit> habits;
+  final List<HabitLog> logs;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final todayIso = _iso(today);
+    final doneToday = logs
+        .where((l) => l.date == todayIso && l.status == HabitLogStatus.done)
+        .map((l) => l.habitId)
+        .toSet()
+        .length;
+    final last30 = List.generate(30, (i) {
+      final d = DateTime(today.year, today.month, today.day - (29 - i));
+      return d;
+    });
+    final completedByDay = <String, int>{};
+    for (final l in logs) {
+      if (l.status == HabitLogStatus.done) {
+        completedByDay[l.date] = (completedByDay[l.date] ?? 0) + 1;
+      }
+    }
+    final habitTotal = habits.length;
+    final monthTotal =
+        last30.fold<int>(0, (s, d) => s + (completedByDay[_iso(d)] ?? 0));
+    final possible = habitTotal * 30;
+    final percent = possible == 0 ? 0 : (monthTotal * 100 / possible).round();
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.spa_outlined, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text('Статистика 30 дней',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const Spacer(),
+                Text('$percent%',
+                    style: TextStyle(
+                        color: scheme.primary, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _HMetric(
+                    label: 'Сегодня',
+                    value: '$doneToday / $habitTotal'),
+                const SizedBox(width: 16),
+                _HMetric(
+                    label: 'За 30 дней',
+                    value: '$monthTotal'),
+                const SizedBox(width: 16),
+                _HMetric(
+                    label: 'Привычек',
+                    value: '$habitTotal'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 40,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (final d in last30)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 1),
+                        child: () {
+                          final v = completedByDay[_iso(d)] ?? 0;
+                          final ratio = habitTotal == 0
+                              ? 0.0
+                              : (v / habitTotal).clamp(0, 1).toDouble();
+                          return Container(
+                            height: ratio == 0 ? 4 : 4 + ratio * 32,
+                            decoration: BoxDecoration(
+                              color: ratio == 0
+                                  ? scheme.surfaceContainerHighest
+                                  : const Color(0xFF22C55E)
+                                      .withValues(alpha: 0.4 + ratio * 0.6),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          );
+                        }(),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _iso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+}
+
+class _HMetric extends StatelessWidget {
+  const _HMetric({required this.label, required this.value});
+  final String label;
+  final String value;
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        Text(value,
+            style:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+      ],
     );
   }
 }

@@ -87,6 +87,27 @@ const List<DashboardWidgetMeta> kDashboardWidgets = [
     icon: 'bedtime',
     route: '/sleep',
   ),
+  DashboardWidgetMeta(
+    id: 'expense_week_chart',
+    title: 'Расход за 7 дней',
+    subtitle: 'Мини-график',
+    icon: 'show_chart',
+    route: '/finance',
+  ),
+  DashboardWidgetMeta(
+    id: 'habit_heatmap',
+    title: 'Привычки за 4 недели',
+    subtitle: 'Heatmap прогресса',
+    icon: 'grid_on',
+    route: '/habits',
+  ),
+  DashboardWidgetMeta(
+    id: 'task_progress_chart',
+    title: 'Задачи за неделю',
+    subtitle: 'Сделано / запланировано',
+    icon: 'bar_chart',
+    route: '/tasks',
+  ),
 ];
 
 class DashboardConfig {

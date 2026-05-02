@@ -43,12 +43,14 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     final prevPlan = plans.cast<MonthlyBudgetPlan?>().firstWhere(
         (p) => p?.monthKey == previousMonthKey(monthKey),
         orElse: () => null);
+    final excluded = (plan?.excludedAccountIds ?? const <String>[]).toSet();
     final facts = computeMonthFacts(
       month: _month,
       transactions: transactions,
       accounts: accounts,
       baseCurrency: baseCurrency,
       convert: convert,
+      excludedAccountIds: excluded,
     );
     final prevFacts = computeMonthFacts(
       month: DateTime(_month.year, _month.month - 1, 1),
@@ -56,6 +58,7 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
       accounts: accounts,
       baseCurrency: baseCurrency,
       convert: convert,
+      excludedAccountIds: excluded,
     );
 
     final totalPlannedExpense = (plan?.categoryPlans ?? const [])
@@ -81,6 +84,12 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
           onNext: () => setState(() {
             _month = DateTime(_month.year, _month.month + 1, 1);
           }),
+        ),
+        const SizedBox(height: 12),
+        _AccountSelectorCard(
+          accounts: accounts,
+          excluded: excluded,
+          onToggle: (id) => _toggleExcludedAccount(plan, monthKey, id),
         ),
         const SizedBox(height: 12),
         _PlanSummaryCard(
@@ -200,6 +209,17 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     await _upsertPlan(plan, monthKey, toggleRollover: true);
   }
 
+  Future<void> _toggleExcludedAccount(
+      MonthlyBudgetPlan? plan, String monthKey, String accountId) async {
+    final current = [...?plan?.excludedAccountIds];
+    if (current.contains(accountId)) {
+      current.remove(accountId);
+    } else {
+      current.add(accountId);
+    }
+    await _upsertPlan(plan, monthKey, excludedAccountIds: current);
+  }
+
   Future<void> _addCategory(MonthlyBudgetPlan? plan, String monthKey) async {
     final result = await showModalBottomSheet<_CatResult>(
       context: context,
@@ -268,6 +288,7 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     num? plannedIncome,
     List<CategoryPlan>? categoryPlans,
     bool toggleRollover = false,
+    List<String>? excludedAccountIds,
   }) async {
     final now = DateTime.now().toIso8601String();
     final next = MonthlyBudgetPlan(
@@ -280,10 +301,75 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
       rollover:
           toggleRollover ? !(plan?.rollover ?? false) : plan?.rollover,
       notes: plan?.notes,
+      excludedAccountIds:
+          excludedAccountIds ?? plan?.excludedAccountIds,
       createdAt: plan?.createdAt ?? now,
       updatedAt: now,
     );
     await ref.read(monthlyBudgetPlansProvider.notifier).upsert(next);
+  }
+}
+
+class _AccountSelectorCard extends StatelessWidget {
+  const _AccountSelectorCard({
+    required this.accounts,
+    required this.excluded,
+    required this.onToggle,
+  });
+
+  final List<Account> accounts;
+  final Set<String> excluded;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (accounts.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                  const SizedBox(width: 8),
+                  Text('Какие счета учитывать в плане',
+                      style: Theme.of(context).textTheme.titleSmall),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'Отключи подушку безопасности или копилку — операции по ним '
+                'не будут влиять на расчёт плана и свободных средств.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final a in accounts)
+                  FilterChip(
+                    selected: !excluded.contains(a.id),
+                    onSelected: (_) => onToggle(a.id),
+                    label: Text('${a.name} (${a.currency})'),
+                    selectedColor: scheme.primaryContainer,
+                    checkmarkColor: scheme.onPrimaryContainer,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

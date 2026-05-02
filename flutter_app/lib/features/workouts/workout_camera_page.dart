@@ -35,6 +35,8 @@ class _WorkoutCameraPageState extends ConsumerState<WorkoutCameraPage>
   CameraDescription? _camDesc;
   PoseDetector? _detector;
   Pose? _pose;
+  Size? _poseImageSize;
+  int _landmarkCount = 0;
   bool _busy = false;
   bool _starting = true;
   String? _error;
@@ -134,10 +136,13 @@ class _WorkoutCameraPageState extends ConsumerState<WorkoutCameraPage>
       if (poses.isNotEmpty) {
         final p = poses.first;
         _pose = p;
+        _poseImageSize = Size(img.width.toDouble(), img.height.toDouble());
+        _landmarkCount = p.landmarks.length;
         _evaluate(p);
         if (mounted) setState(() {});
       } else if (_pose != null) {
         _pose = null;
+        _landmarkCount = 0;
         if (mounted) setState(() {});
       }
     } catch (_) {
@@ -148,22 +153,46 @@ class _WorkoutCameraPageState extends ConsumerState<WorkoutCameraPage>
   }
 
   InputImage? _toInputImage(CameraImage img, CameraDescription desc) {
-    final rotation = InputImageRotationValue.fromRawValue(desc.sensorOrientation);
+    final rotation =
+        InputImageRotationValue.fromRawValue(desc.sensorOrientation);
     final fmt = Platform.isAndroid
         ? InputImageFormat.nv21
         : InputImageFormatValue.fromRawValue(img.format.raw);
     if (rotation == null || fmt == null) return null;
     if (img.planes.isEmpty) return null;
-    final plane = img.planes.first;
+    // ML Kit on Android needs a contiguous NV21 buffer (Y + interleaved VU).
+    // Many devices return separate planes for camera streams, so we
+    // concatenate all plane bytes here. Bug fix for "silhouette doesn't draw,
+    // reps not counted" — on some devices passing only plane[0].bytes makes
+    // the detector silently return zero poses.
+    final bytes = Platform.isAndroid
+        ? _concatPlanes(img.planes)
+        : img.planes.first.bytes;
+    final bytesPerRow = img.planes.first.bytesPerRow;
     return InputImage.fromBytes(
-      bytes: plane.bytes,
+      bytes: bytes,
       metadata: InputImageMetadata(
         size: Size(img.width.toDouble(), img.height.toDouble()),
         rotation: rotation,
         format: fmt,
-        bytesPerRow: plane.bytesPerRow,
+        bytesPerRow: bytesPerRow,
       ),
     );
+  }
+
+  Uint8List _concatPlanes(List<Plane> planes) {
+    if (planes.length == 1) return planes.first.bytes;
+    var total = 0;
+    for (final p in planes) {
+      total += p.bytes.length;
+    }
+    final out = Uint8List(total);
+    var offset = 0;
+    for (final p in planes) {
+      out.setRange(offset, offset + p.bytes.length, p.bytes);
+      offset += p.bytes.length;
+    }
+    return out;
   }
 
   void _evaluate(Pose pose) {
@@ -367,10 +396,18 @@ class _WorkoutCameraPageState extends ConsumerState<WorkoutCameraPage>
     final c = _cam;
     if (c == null || !c.value.isInitialized) return const SizedBox.shrink();
     final pose = _pose;
-    final imgSize = Size(
-      c.value.previewSize?.height ?? 1,
-      c.value.previewSize?.width ?? 1,
-    );
+    // Painter scaling needs the actual frame size (post sensor-rotation) that
+    // ML Kit consumed. We swap width/height because preview is rotated to
+    // portrait while landmark coords come from the unrotated camera frame.
+    final raw = _poseImageSize ??
+        Size(
+          (c.value.previewSize?.width ?? 1).toDouble(),
+          (c.value.previewSize?.height ?? 1).toDouble(),
+        );
+    final rot = _camDesc?.sensorOrientation ?? 0;
+    final imgSize = (rot == 90 || rot == 270)
+        ? Size(raw.height, raw.width)
+        : raw;
     final isFront =
         _camDesc?.lensDirection == CameraLensDirection.front;
     return LayoutBuilder(
@@ -442,6 +479,25 @@ class _WorkoutCameraPageState extends ConsumerState<WorkoutCameraPage>
               Text('Угол: ${_angle.toStringAsFixed(0)}°',
                   style:
                       const TextStyle(color: Colors.white70, fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(
+                _pose != null ? Icons.visibility : Icons.visibility_off,
+                size: 14,
+                color: _pose != null
+                    ? const Color(0xFF34D399)
+                    : Colors.white54,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _pose != null
+                    ? 'Силуэт виден ($_landmarkCount точек)'
+                    : 'Не вижу позу — отойди дальше, в кадр должен попасть весь силуэт',
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
             ],
           ),
         ],

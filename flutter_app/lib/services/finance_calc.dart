@@ -82,10 +82,14 @@ MonthFacts computeMonthFacts({
   required Iterable<Account> accounts,
   required String baseCurrency,
   required CurrencyConvert convert,
+  Set<String>? excludedAccountIds,
 }) {
   final monthKey = monthKeyOf(month);
+  final excluded = excludedAccountIds ?? const <String>{};
   final monthTx = transactions
       .where((t) => t.date.startsWith(monthKey))
+      .where((t) =>
+          !excluded.contains(t.accountId) && !excluded.contains(t.toAccountId))
       .toList(growable: false);
   num income = 0;
   num expense = 0;

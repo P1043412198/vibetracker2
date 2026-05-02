@@ -214,6 +214,7 @@ class MonthlyBudgetPlan {
     this.freeFundsTarget,
     this.rollover,
     this.notes,
+    this.excludedAccountIds,
   });
 
   final String id;
@@ -226,6 +227,10 @@ class MonthlyBudgetPlan {
   final String? notes;
   final String createdAt;
   final String updatedAt;
+  // Phase 12: account ids to ignore when computing plan facts (e.g. emergency
+  // fund / savings buckets that shouldn't be drawn down by month-to-month
+  // budgeting).
+  final List<String>? excludedAccountIds;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -236,6 +241,8 @@ class MonthlyBudgetPlan {
         if (freeFundsTarget != null) 'freeFundsTarget': freeFundsTarget,
         if (rollover != null) 'rollover': rollover,
         if (notes != null) 'notes': notes,
+        if (excludedAccountIds != null && excludedAccountIds!.isNotEmpty)
+          'excludedAccountIds': excludedAccountIds,
         'createdAt': createdAt,
         'updatedAt': updatedAt,
       };
@@ -254,6 +261,9 @@ class MonthlyBudgetPlan {
         freeFundsTarget: json['freeFundsTarget'] as num?,
         rollover: json['rollover'] as bool?,
         notes: json['notes'] as String?,
+        excludedAccountIds: (json['excludedAccountIds'] as List?)
+            ?.map((e) => e.toString())
+            .toList(),
         createdAt: json['createdAt'] as String,
         updatedAt: json['updatedAt'] as String,
       );

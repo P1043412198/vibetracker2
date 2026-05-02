@@ -208,6 +208,22 @@ final inboxProvider =
   return InboxController();
 });
 
+class HouseholdNotesController extends JsonListController<HouseholdNote> {
+  HouseholdNotesController()
+      : super(
+          storageKey: 'householdNotes',
+          fromJson: HouseholdNote.fromJson,
+          toJson: (n) => n.toJson(),
+        );
+
+  @override
+  String idOf(HouseholdNote item) => item.id;
+}
+
+final householdNotesProvider =
+    StateNotifierProvider<HouseholdNotesController, List<HouseholdNote>>(
+        (ref) => HouseholdNotesController());
+
 class SleepLogsController extends JsonListController<SleepLog> {
   SleepLogsController()
       : super(

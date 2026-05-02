@@ -52,6 +52,61 @@ class InboxItem {
       );
 }
 
+/// Phase 12: free-form household notes — bag reminders, water/light shutoff
+/// schedule, food storage tips, seasonal chores, etc. The user organizes
+/// them via the [category] tag.
+class HouseholdNote {
+  HouseholdNote({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.category,
+    required this.createdAt,
+    this.pinned = false,
+  });
+
+  final String id;
+  final String title;
+  final String body;
+  final String category;
+  final String createdAt;
+  final bool pinned;
+
+  HouseholdNote copyWith({
+    String? title,
+    String? body,
+    String? category,
+    bool? pinned,
+  }) =>
+      HouseholdNote(
+        id: id,
+        title: title ?? this.title,
+        body: body ?? this.body,
+        category: category ?? this.category,
+        createdAt: createdAt,
+        pinned: pinned ?? this.pinned,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'body': body,
+        'category': category,
+        'createdAt': createdAt,
+        if (pinned) 'pinned': pinned,
+      };
+
+  factory HouseholdNote.fromJson(Map<String, dynamic> json) => HouseholdNote(
+        id: json['id'] as String,
+        title: (json['title'] ?? '') as String,
+        body: (json['body'] ?? '') as String,
+        category: (json['category'] ?? 'Общее') as String,
+        createdAt: (json['createdAt'] ?? DateTime.now().toIso8601String())
+            as String,
+        pinned: json['pinned'] == true,
+      );
+}
+
 class SleepLog {
   SleepLog({
     required this.id,
