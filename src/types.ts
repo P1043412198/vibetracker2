@@ -38,6 +38,22 @@ export type NotificationSettings = {
   payments: boolean;
 };
 
+/**
+ * Произвольное удержание из зарплаты, сохраняемое как пресет пользователя.
+ * Используется в калькуляторе «Зарплата на руки».
+ */
+export type SalaryDeductionPreset = {
+  id: string;
+  label: string;
+  kind: 'percent' | 'fixed';
+  /** Процент 0..100 либо фиксированная сумма в BYN. */
+  value: number;
+  /** Уменьшает ли налогооблагаемую базу. */
+  taxable?: boolean;
+  /** Активно ли (по умолчанию учитывается в расчёте). */
+  enabled: boolean;
+};
+
 export type NoteComment = {
   id: string;
   content: string;

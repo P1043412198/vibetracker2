@@ -39,15 +39,20 @@ import {
 } from '../lib/finance/byTax';
 import { GLOSSARY } from '../data/glossary';
 import { COURSES, type Course } from '../data/courses';
+import { FINLIT_BY_2026, type FinTipCategory, type FinTip } from '../data/finlitTips';
 import { useStore } from '../store/useStore';
 import { useNavigate } from 'react-router-dom';
+import { Plus, Trash2, BookmarkPlus, Save } from 'lucide-react';
+import type { SalaryDeductionPreset } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 
-type TabId = 'calc' | 'glossary' | 'courses' | 'templates';
+type TabId = 'calc' | 'finlit' | 'glossary' | 'courses' | 'templates';
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<any> }[] = [
   { id: 'calc', label: 'Калькуляторы', icon: Calculator },
+  { id: 'finlit', label: 'Финграмотность 2026', icon: GraduationCap },
   { id: 'glossary', label: 'Глоссарий', icon: BookOpen },
-  { id: 'courses', label: 'Мини-курсы', icon: GraduationCap },
+  { id: 'courses', label: 'Мини-курсы', icon: BookOpen },
   { id: 'templates', label: 'Шаблоны', icon: Sparkles },
 ];
 
@@ -128,6 +133,7 @@ export function Tools() {
       {tab === 'calc' && (
         <CalcsTab calcId={calcId} setCalcId={setCalcId} />
       )}
+      {tab === 'finlit' && <FinLitTab />}
       {tab === 'glossary' && <GlossaryTab />}
       {tab === 'courses' && <CoursesTab />}
       {tab === 'templates' && <TemplatesTab />}
@@ -340,11 +346,52 @@ function CreditCalc() {
   );
 }
 
+const SUGGESTED_DEDUCTIONS: { label: string; kind: 'percent' | 'fixed'; value: number; taxable?: boolean }[] = [
+  { label: 'Профсоюз', kind: 'percent', value: 1, taxable: false },
+  { label: 'ДМС (медстраховка)', kind: 'fixed', value: 50, taxable: true },
+  { label: 'Благотворительность', kind: 'fixed', value: 30, taxable: false },
+  { label: 'Пенсионная программа', kind: 'percent', value: 3, taxable: true },
+  { label: 'Алименты', kind: 'percent', value: 25, taxable: false },
+  { label: 'Кредитное удержание', kind: 'fixed', value: 200, taxable: false },
+];
+
 function SalaryCalc() {
+  const presets = useStore(s => s.salaryDeductionPresets ?? []);
+  const upsertPreset = useStore(s => s.upsertSalaryDeductionPreset);
+  const deletePreset = useStore(s => s.deleteSalaryDeductionPreset);
+  const togglePreset = useStore(s => s.toggleSalaryDeductionPreset);
+
   const [gross, setGross] = useState(2000);
   const [children, setChildren] = useState(0);
   const [dependents, setDependents] = useState(0);
-  const r = calcNetSalary({ gross, children, dependents });
+
+  const enabledPresets = presets.filter(p => p.enabled);
+  const r = calcNetSalary({
+    gross,
+    children,
+    dependents,
+    extraDeductions: enabledPresets.map(p => ({
+      id: p.id,
+      label: p.label,
+      kind: p.kind,
+      value: p.value,
+      taxable: p.taxable,
+    })),
+  });
+
+  const totalKept = r.gross > 0 ? Math.round((r.net / r.gross) * 100) : 0;
+
+  const breakdown = [
+    { label: 'На руки', value: r.net, color: '#10b981' },
+    { label: 'Подоходный', value: r.incomeTax, color: '#ef4444' },
+    { label: 'ФСЗН', value: r.fszn, color: '#f59e0b' },
+    ...r.extraDeductionsApplied.map(line => ({
+      label: line.label,
+      value: line.amount,
+      color: line.taxable ? '#3b82f6' : '#a855f7',
+    })),
+  ].filter(s => s.value > 0);
+
   return (
     <div className="space-y-4">
       <h2 className="text-base font-semibold">Зарплата на руки (РБ)</h2>
@@ -353,12 +400,262 @@ function SalaryCalc() {
         <NumberField label="Детей" value={children} onChange={setChildren} step={1} />
         <NumberField label="Иждивенцев" value={dependents} onChange={setDependents} step={1} />
       </div>
+
+      <SalaryDeductionsEditor
+        presets={presets}
+        onUpsert={upsertPreset}
+        onDelete={deletePreset}
+        onToggle={togglePreset}
+      />
+
+      {/* Visual breakdown */}
+      <div className="bg-stone-50 rounded-2xl p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs uppercase font-bold text-zinc-500 tracking-wide">Куда уходит зарплата</span>
+          <span className="text-[11px] text-zinc-500">
+            {totalKept}% остаётся на руки
+          </span>
+        </div>
+        <SalaryStackedBar parts={breakdown} total={r.gross} />
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+          {breakdown.map(p => (
+            <div key={p.label} className="flex items-center gap-1.5 text-[11px] min-w-0">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: p.color }} />
+              <span className="truncate text-zinc-600">{p.label}</span>
+              <span className="ml-auto font-semibold text-zinc-900 tabular-nums">
+                {formatCurrency(p.value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="bg-stone-50 rounded-2xl p-3">
         <ResultRow label="Подоходный 13%" value={formatCurrency(r.incomeTax)} />
         <ResultRow label="ФСЗН 1%" value={formatCurrency(r.fszn)} />
         <ResultRow label="Налогооблагаемая база" value={formatCurrency(r.taxableBase)} />
-        <ResultRow label="Вычеты" value={formatCurrency(r.deductions)} />
+        <ResultRow label="Стандартные/детские вычеты" value={formatCurrency(r.deductions)} />
+        {r.pretaxDeductions > 0 && (
+          <ResultRow label="Уменьшили базу (pre-tax)" value={formatCurrency(r.pretaxDeductions)} />
+        )}
+        {r.postTaxDeductions > 0 && (
+          <ResultRow label="Удержано после налога" value={formatCurrency(r.postTaxDeductions)} />
+        )}
         <ResultRow label="На руки" value={formatCurrency(r.net)} />
+      </div>
+      <p className="text-[11px] text-zinc-500">
+        Профсоюзные взносы по сложившейся практике не уменьшают подоходный налог — снимай галочку «уменьшает налоговую базу». ДМС/пенсионную программу обычно можно оформить как соц. вычет — тогда галочку оставляй.
+      </p>
+    </div>
+  );
+}
+
+function SalaryStackedBar({ parts, total }: { parts: { label: string; value: number; color: string }[]; total: number }) {
+  if (total <= 0) return null;
+  return (
+    <div className="h-3 rounded-full overflow-hidden bg-stone-200 flex">
+      {parts.map(p => {
+        const pct = (p.value / total) * 100;
+        if (pct <= 0) return null;
+        return (
+          <div
+            key={p.label}
+            className="h-full"
+            style={{ width: `${pct}%`, background: p.color }}
+            title={`${p.label}: ${formatCurrency(p.value)}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function SalaryDeductionsEditor({
+  presets,
+  onUpsert,
+  onDelete,
+  onToggle,
+}: {
+  presets: SalaryDeductionPreset[];
+  onUpsert: (p: SalaryDeductionPreset) => void;
+  onDelete: (id: string) => void;
+  onToggle: (id: string) => void;
+}) {
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const addCustom = () => {
+    onUpsert({
+      id: uuidv4(),
+      label: 'Своё удержание',
+      kind: 'percent',
+      value: 1,
+      taxable: false,
+      enabled: true,
+    });
+  };
+
+  const addSuggestion = (s: typeof SUGGESTED_DEDUCTIONS[number]) => {
+    onUpsert({
+      id: uuidv4(),
+      label: s.label,
+      kind: s.kind,
+      value: s.value,
+      taxable: s.taxable,
+      enabled: true,
+    });
+    setShowSuggestions(false);
+  };
+
+  return (
+    <div className="bg-white border border-stone-200 rounded-2xl p-3 sm:p-4 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-900">Дополнительные удержания</h3>
+          <p className="text-[11px] text-zinc-500">Профсоюз, ДМС, благотворительность, кредитные удержания…</p>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={() => setShowSuggestions(v => !v)}
+            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 text-[11px] font-semibold hover:bg-emerald-100"
+            title="Готовые шаблоны"
+          >
+            <BookmarkPlus className="w-3.5 h-3.5" /> Шаблоны
+          </button>
+          <button
+            onClick={addCustom}
+            className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700"
+          >
+            <Plus className="w-3.5 h-3.5" /> Добавить
+          </button>
+        </div>
+      </div>
+
+      {showSuggestions && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-2 border-t border-stone-100">
+          {SUGGESTED_DEDUCTIONS.map(s => (
+            <button
+              key={s.label}
+              onClick={() => addSuggestion(s)}
+              className="text-left px-3 py-2 rounded-xl bg-stone-50 hover:bg-emerald-50 text-xs flex items-center justify-between gap-2"
+            >
+              <span className="font-medium text-zinc-900 truncate">{s.label}</span>
+              <span className="text-[10px] text-zinc-500 shrink-0">
+                {s.kind === 'percent' ? `${s.value}%` : `${s.value} BYN`}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {presets.length === 0 ? (
+        <p className="text-xs text-zinc-500 text-center py-3">
+          Нет удержаний. Добавь шаблон или своё.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {presets.map(p => (
+            <SalaryDeductionRow
+              key={p.id}
+              preset={p}
+              onUpdate={onUpsert}
+              onDelete={() => onDelete(p.id)}
+              onToggle={() => onToggle(p.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SalaryDeductionRow({
+  preset,
+  onUpdate,
+  onDelete,
+  onToggle,
+}: {
+  preset: SalaryDeductionPreset;
+  onUpdate: (p: SalaryDeductionPreset) => void;
+  onDelete: () => void;
+  onToggle: () => void;
+}) {
+  const [draft, setDraft] = useState(preset);
+  React.useEffect(() => setDraft(preset), [preset.id, preset.enabled]);
+
+  const commit = () => {
+    if (draft.label.trim() === '') return onUpdate({ ...draft, label: 'Удержание' });
+    onUpdate(draft);
+  };
+
+  return (
+    <div className={cn(
+      'rounded-xl border p-2.5 transition-colors',
+      preset.enabled ? 'border-stone-200 bg-white' : 'border-dashed border-stone-300 bg-stone-50/60 opacity-70'
+    )}>
+      <div className="flex items-center gap-2">
+        <label className="relative inline-flex items-center cursor-pointer shrink-0" title="Включить/отключить">
+          <input
+            type="checkbox"
+            className="sr-only peer"
+            checked={preset.enabled}
+            onChange={onToggle}
+          />
+          <div className="w-9 h-5 bg-stone-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500" />
+        </label>
+        <input
+          type="text"
+          value={draft.label}
+          onChange={e => setDraft({ ...draft, label: e.target.value })}
+          onBlur={commit}
+          placeholder="Название"
+          className="flex-1 min-w-0 px-2 py-1 rounded-lg border border-stone-200 bg-white text-xs focus:outline-none focus:border-emerald-500"
+        />
+        <button
+          onClick={onDelete}
+          className="p-1.5 text-rose-500 hover:bg-rose-50 rounded-lg shrink-0"
+          aria-label="Удалить удержание"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <div className="flex items-center gap-1.5 mt-2">
+        <select
+          value={draft.kind}
+          onChange={e => {
+            const next = { ...draft, kind: e.target.value as 'percent' | 'fixed' };
+            setDraft(next);
+            onUpdate(next);
+          }}
+          className="px-2 py-1 rounded-lg border border-stone-200 bg-white text-[11px] focus:outline-none focus:border-emerald-500"
+        >
+          <option value="percent">% от грязной</option>
+          <option value="fixed">BYN (фикс.)</option>
+        </select>
+        <input
+          type="number"
+          inputMode="decimal"
+          value={Number.isFinite(draft.value) ? draft.value : 0}
+          step={draft.kind === 'percent' ? 0.5 : 10}
+          onChange={e => setDraft({ ...draft, value: Number(e.target.value) })}
+          onBlur={commit}
+          className="w-20 px-2 py-1 rounded-lg border border-stone-200 bg-white text-xs text-right focus:outline-none focus:border-emerald-500"
+        />
+        <span className="text-[10px] text-zinc-500 w-8 shrink-0">
+          {draft.kind === 'percent' ? '%' : 'BYN'}
+        </span>
+        <label className="flex items-center gap-1 cursor-pointer text-[10px] text-zinc-700 ml-auto" title="Уменьшает налогооблагаемую базу (как соц. вычет)">
+          <input
+            type="checkbox"
+            checked={Boolean(draft.taxable)}
+            onChange={e => {
+              const next = { ...draft, taxable: e.target.checked };
+              setDraft(next);
+              onUpdate(next);
+            }}
+            className="w-3 h-3 accent-emerald-500"
+          />
+          уменьшает базу
+        </label>
       </div>
     </div>
   );
@@ -810,5 +1107,140 @@ function TemplatesTab() {
         </div>
       </section>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*                      Финграмотность Беларусь 2026                   */
+/* ------------------------------------------------------------------ */
+
+const FINLIT_ACCENT: Record<FinTipCategory['accent'], { bg: string; chip: string; ring: string }> = {
+  emerald: { bg: 'bg-emerald-50',  chip: 'bg-emerald-100 text-emerald-800',  ring: 'border-emerald-200' },
+  blue:    { bg: 'bg-blue-50',     chip: 'bg-blue-100 text-blue-800',        ring: 'border-blue-200' },
+  amber:   { bg: 'bg-amber-50',    chip: 'bg-amber-100 text-amber-800',      ring: 'border-amber-200' },
+  rose:    { bg: 'bg-rose-50',     chip: 'bg-rose-100 text-rose-800',        ring: 'border-rose-200' },
+  indigo:  { bg: 'bg-indigo-50',   chip: 'bg-indigo-100 text-indigo-800',    ring: 'border-indigo-200' },
+  violet:  { bg: 'bg-violet-50',   chip: 'bg-violet-100 text-violet-800',    ring: 'border-violet-200' },
+};
+
+const TIP_BADGE: Record<FinTip['kind'], { label: string; className: string }> = {
+  tip:     { label: '💡 Совет',     className: 'bg-emerald-100 text-emerald-800' },
+  warning: { label: '⚠️ Осторожно', className: 'bg-rose-100 text-rose-800' },
+  rule:    { label: '📜 Правило',   className: 'bg-blue-100 text-blue-800' },
+  fact:    { label: '🧠 Факт',      className: 'bg-amber-100 text-amber-800' },
+};
+
+function FinLitTab() {
+  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
+  const open = openCategoryId
+    ? FINLIT_BY_2026.find((c) => c.id === openCategoryId) ?? null
+    : null;
+
+  if (open) {
+    const accent = FINLIT_ACCENT[open.accent];
+    return (
+      <article className="space-y-3">
+        <button
+          onClick={() => setOpenCategoryId(null)}
+          className="text-xs text-emerald-700 hover:underline"
+        >
+          ← Все темы
+        </button>
+        <header className={cn('rounded-3xl border p-5', accent.bg, accent.ring)}>
+          <div className="flex items-start gap-3">
+            <span className="text-3xl">{open.emoji}</span>
+            <div>
+              <h2 className="text-xl font-bold text-zinc-900">{open.title}</h2>
+              <p className="text-sm text-zinc-700">{open.blurb}</p>
+            </div>
+          </div>
+        </header>
+        <div className="space-y-3">
+          {open.tips.map((tip) => {
+            const badge = TIP_BADGE[tip.kind];
+            return (
+              <article
+                key={tip.id}
+                className="bg-white border border-stone-200 rounded-2xl p-4"
+              >
+                <div className="flex items-start gap-2 mb-2">
+                  <span className={cn('text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full', badge.className)}>
+                    {badge.label}
+                  </span>
+                </div>
+                <h3 className="text-sm font-semibold text-zinc-900 mb-1">{tip.title}</h3>
+                <p className="text-sm text-zinc-700 whitespace-pre-line">{tip.body}</p>
+                {tip.tags && tip.tags.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {tip.tags.map((t) => (
+                      <span
+                        key={t}
+                        className={cn('text-[10px] px-2 py-0.5 rounded-full', accent.chip)}
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </article>
+    );
+  }
+
+  const totalTips = FINLIT_BY_2026.reduce((s, c) => s + c.tips.length, 0);
+
+  return (
+    <section className="space-y-4">
+      <header className="bg-gradient-to-br from-emerald-50 to-blue-50 rounded-3xl border border-emerald-100 p-5">
+        <div className="flex items-start gap-3">
+          <span className="text-3xl">🇧🇾</span>
+          <div className="flex-1">
+            <h2 className="text-base font-bold text-zinc-900 mb-1">
+              Финансовая грамотность · Беларусь 2026
+            </h2>
+            <p className="text-sm text-zinc-700">
+              {FINLIT_BY_2026.length} тем · {totalTips} практических советов и правил.
+              Налоги, ФСЗН, ИРИП, депозиты, кредиты, инвестиции, защита от мошенничества.
+            </p>
+            <p className="text-[10px] text-zinc-500 mt-2">
+              Не является индивидуальной налоговой/инвестиционной консультацией.
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {FINLIT_BY_2026.map((cat) => {
+          const accent = FINLIT_ACCENT[cat.accent];
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setOpenCategoryId(cat.id)}
+              className={cn(
+                'text-left rounded-3xl border p-4 transition-colors hover:brightness-95',
+                accent.bg,
+                accent.ring,
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <span className="text-2xl shrink-0">{cat.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-bold text-zinc-900 mb-0.5">{cat.title}</h3>
+                  <p className="text-xs text-zinc-700">{cat.blurb}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className={cn('text-[10px] font-semibold px-2 py-0.5 rounded-full', accent.chip)}>
+                      {cat.tips.length} советов
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
