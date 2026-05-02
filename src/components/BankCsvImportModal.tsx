@@ -50,8 +50,6 @@ export function BankCsvImportModal({ open, onClose }: Props) {
   const [busy, setBusy] = useState(false);
   const [imported, setImported] = useState<number | null>(null);
 
-  if (!open) return null;
-
   const account = accounts.find((a) => a.id === selectedAccount);
   const accountCurrency = account?.currency ?? baseCurrency;
 
@@ -110,6 +108,8 @@ export function BankCsvImportModal({ open, onClose }: Props) {
     }
     return { income, expense };
   }, [parseResult, selected]);
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-3">
