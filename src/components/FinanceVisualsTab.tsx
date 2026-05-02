@@ -107,6 +107,7 @@ export function FinanceVisualsTab() {
   }, [txInRange, convert, baseCurrency, monthlyBudgetPlans]);
 
   // Net worth time series — last 12 months
+  const accountIds = useMemo(() => new Set(accounts.map((a) => a.id)), [accounts]);
   const netWorthPoints = useMemo<NetWorthPoint[]>(() => {
     const months: NetWorthPoint[] = [];
     const now = new Date();
@@ -130,6 +131,21 @@ export function FinanceVisualsTab() {
         const baseAmount = convert(bal, acc.currency, baseCurrency);
         byCurrency[acc.currency] = (byCurrency[acc.currency] ?? 0) + baseAmount;
       }
+      // Legacy/orphan transactions — those without a matching accountId
+      // (the existing app uses `paymentMethod` instead of `accountId`).
+      // Roll them up into a synthetic baseCurrency bucket so the chart
+      // reflects reality for users who never set up real accounts.
+      const orphanFlows = transactions
+        .filter((t) => parseISO(t.date) <= monthEnd)
+        .filter((t) => !t.accountId || !accountIds.has(t.accountId));
+      let orphanBal = 0;
+      for (const t of orphanFlows) {
+        if (t.type === 'income') orphanBal += t.amount;
+        else if (t.type === 'expense') orphanBal -= t.amount;
+      }
+      if (orphanBal !== 0) {
+        byCurrency[baseCurrency] = (byCurrency[baseCurrency] ?? 0) + orphanBal;
+      }
       const liabilities = loans.reduce((s, loan) => {
         // Approximate remaining principal by subtracting paid-down portion.
         const paid = (loan.payments ?? [])
@@ -145,7 +161,7 @@ export function FinanceVisualsTab() {
       });
     }
     return months;
-  }, [accounts, transactions, loans, convert, baseCurrency]);
+  }, [accounts, accountIds, transactions, loans, convert, baseCurrency]);
 
   const exposure = useMemo(() => {
     const buckets = accounts.map((acc) => ({
@@ -164,8 +180,20 @@ export function FinanceVisualsTab() {
             return s;
           }, 0),
     }));
+    // Roll legacy/orphan transactions into a baseCurrency bucket so the
+    // donut still reflects reality when the user only has paymentMethod txns.
+    const orphan = transactions
+      .filter((t) => !t.accountId || !accountIds.has(t.accountId))
+      .reduce((s, t) => {
+        if (t.type === 'income') return s + t.amount;
+        if (t.type === 'expense') return s - t.amount;
+        return s;
+      }, 0);
+    if (orphan !== 0) {
+      buckets.push({ currency: baseCurrency, amount: orphan });
+    }
     return currencyExposure(buckets, rates, baseCurrency);
-  }, [accounts, transactions, rates, baseCurrency]);
+  }, [accounts, accountIds, transactions, rates, baseCurrency]);
 
   const expensesByDate = useMemo(() => {
     const map: Record<string, number> = {};
