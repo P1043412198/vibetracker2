@@ -47,6 +47,28 @@ class SphereNote {
   final List<NoteComment>? comments;
   final bool? isPinned;
 
+  SphereNote copyWith({
+    String? content,
+    String? youtubeUrl,
+    String? photoUrl,
+    bool? isCheckbox,
+    bool? isChecked,
+    List<NoteComment>? comments,
+    bool? isPinned,
+  }) {
+    return SphereNote(
+      id: id,
+      createdAt: createdAt,
+      content: content ?? this.content,
+      youtubeUrl: youtubeUrl ?? this.youtubeUrl,
+      photoUrl: photoUrl ?? this.photoUrl,
+      isCheckbox: isCheckbox ?? this.isCheckbox,
+      isChecked: isChecked ?? this.isChecked,
+      comments: comments ?? this.comments,
+      isPinned: isPinned ?? this.isPinned,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'content': content,
@@ -114,17 +136,21 @@ class Sphere {
     String? icon,
     bool? isPinned,
     int? order,
+    bool clearDescription = false,
+    bool clearColor = false,
+    bool clearIcon = false,
   }) {
     return Sphere(
       id: id,
       title: title ?? this.title,
-      description: description ?? this.description,
+      description:
+          clearDescription ? null : (description ?? this.description),
       deadline: deadline ?? this.deadline,
       notes: notes ?? this.notes,
       notesList: notesList ?? this.notesList,
       createdAt: createdAt,
-      color: color ?? this.color,
-      icon: icon ?? this.icon,
+      color: clearColor ? null : (color ?? this.color),
+      icon: clearIcon ? null : (icon ?? this.icon),
       isPinned: isPinned ?? this.isPinned,
       order: order ?? this.order,
     );

@@ -81,6 +81,7 @@ class Goal {
     this.progress,
     this.showOnDashboard,
     this.isPinned,
+    this.photoPaths,
   });
 
   final String id;
@@ -102,6 +103,59 @@ class Goal {
   final num? progress;
   final bool? showOnDashboard;
   final bool? isPinned;
+
+  /// Local file paths to photo notes attached to this goal. Stored under
+  /// `app_docs/goal_photos/{goalId}/...` and persisted as absolute paths
+  /// in JSON. Null = no photos.
+  final List<String>? photoPaths;
+
+  Goal copyWith({
+    String? title,
+    String? description,
+    GoalType? type,
+    GoalStatus? status,
+    List<GoalStep>? steps,
+    String? deadline,
+    String? coverUrl,
+    String? icon,
+    String? author,
+    int? totalPages,
+    int? readPages,
+    List<GoalProgressEntry>? progressHistory,
+    num? targetValue,
+    num? currentValue,
+    num? progress,
+    bool? showOnDashboard,
+    bool? isPinned,
+    List<String>? photoPaths,
+    bool clearDescription = false,
+    bool clearDeadline = false,
+    bool clearProgress = false,
+  }) {
+    return Goal(
+      id: id,
+      createdAt: createdAt,
+      title: title ?? this.title,
+      type: type ?? this.type,
+      status: status ?? this.status,
+      steps: steps ?? this.steps,
+      description:
+          clearDescription ? null : (description ?? this.description),
+      deadline: clearDeadline ? null : (deadline ?? this.deadline),
+      coverUrl: coverUrl ?? this.coverUrl,
+      icon: icon ?? this.icon,
+      author: author ?? this.author,
+      totalPages: totalPages ?? this.totalPages,
+      readPages: readPages ?? this.readPages,
+      progressHistory: progressHistory ?? this.progressHistory,
+      targetValue: targetValue ?? this.targetValue,
+      currentValue: currentValue ?? this.currentValue,
+      progress: clearProgress ? null : (progress ?? this.progress),
+      showOnDashboard: showOnDashboard ?? this.showOnDashboard,
+      isPinned: isPinned ?? this.isPinned,
+      photoPaths: photoPaths ?? this.photoPaths,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -125,6 +179,7 @@ class Goal {
         if (progress != null) 'progress': progress,
         if (showOnDashboard != null) 'showOnDashboard': showOnDashboard,
         if (isPinned != null) 'isPinned': isPinned,
+        if (photoPaths != null) 'photoPaths': photoPaths,
       };
 
   factory Goal.fromJson(Map<String, dynamic> json) => Goal(
@@ -157,5 +212,8 @@ class Goal {
         progress: json['progress'] as num?,
         showOnDashboard: json['showOnDashboard'] as bool?,
         isPinned: json['isPinned'] as bool?,
+        photoPaths: (json['photoPaths'] as List?)
+            ?.whereType<String>()
+            .toList(),
       );
 }

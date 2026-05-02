@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../features/analytics/analytics_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/finance/finance_page.dart';
+import '../features/goals/goal_details_page.dart';
 import '../features/goals/goals_page.dart';
 import '../features/habits/habit_details_page.dart';
 import '../features/habits/habits_page.dart';
@@ -97,6 +98,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'goals',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: GoalsPage()),
+            routes: [
+              GoRoute(
+                path: ':id',
+                name: 'goal-details',
+                builder: (context, state) => GoalDetailsPage(
+                  goalId: state.pathParameters['id'] ?? '',
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: '/work-schedule',
