@@ -132,13 +132,6 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             convert: convert,
             carryIn: carryIn,
           );
-    final breakdown = cashflow == null
-        ? null
-        : buildFreeFundsBreakdown(
-            cashflow: cashflow,
-            month: _month,
-            today: DateTime.now(),
-          );
 
     // Phase 19: derived data for new cards.
     final history = computeHistoricalMonths(
@@ -180,8 +173,8 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     );
     final subscriptions = computeSubscriptions(
         plan?.scheduledExpenses ?? const <ScheduledExpense>[]);
-    final dailyAllowanceList =
-        cashflow == null ? const <num>[] : perDayAllowance(cashflow);
+    final incomePeriods =
+        cashflow == null ? const <IncomePeriod>[] : computeIncomePeriods(cashflow);
     final savingsGoals = ref.watch(savingsGoalsProvider);
     final hasPrevPlan = prevPlan != null &&
         ((prevPlan.categoryPlans.isNotEmpty) ||
@@ -295,43 +288,14 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             onEdit: (e) => _editScheduledExpense(plan, monthKey, e),
           ),
         ],
-        if (cashflow != null && cashflow.periods.isNotEmpty) ...[
+        if (incomePeriods.isNotEmpty) ...[
           const SizedBox(height: 12),
-          _CashflowCard(
-            cashflow: cashflow,
-            currency: planCurrency,
-            fmt: fmt,
+          _PeriodBudgetCard(
+            periods: incomePeriods,
             today: DateTime.now(),
             month: _month,
-          ),
-        ],
-        if (cashflow != null && dailyAllowanceList.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _PerDayAllowanceCard(
-            allowances: dailyAllowanceList,
-            cashflow: cashflow,
-            month: _month,
-            today: DateTime.now(),
             currency: planCurrency,
             fmt: fmt,
-          ),
-        ],
-        if (breakdown != null && breakdown.weeks.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _FreeFundsByWeekCard(
-            breakdown: breakdown,
-            currency: planCurrency,
-            fmt: fmt,
-            today: DateTime.now(),
-          ),
-        ],
-        if (breakdown != null && breakdown.days.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _FreeFundsByWeekdayCard(
-            breakdown: breakdown,
-            currency: planCurrency,
-            fmt: fmt,
-            today: DateTime.now(),
           ),
         ],
         const SizedBox(height: 12),
@@ -2053,478 +2017,220 @@ class _ScheduledExpenseFormSheetState
   }
 }
 
-/// Visualises the cashflow timeline for the selected month: a line chart of
-/// the running balance, day-of-month markers for events, and a "free per
-/// day" breakdown by period.
-class _CashflowCard extends StatelessWidget {
-  const _CashflowCard({
-    required this.cashflow,
-    required this.currency,
-    required this.fmt,
+/// "Бюджет до зарплаты" — primary card for daily-spending guidance and the
+/// only one needed for the financial-literacy use case.
+///
+/// Replaces four earlier cards (`_CashflowCard`, `_PerDayAllowanceCard`,
+/// `_FreeFundsByWeekCard`, `_FreeFundsByWeekdayCard`) which split the same
+/// information across four charts and were reported as confusing. This card
+/// shows only what the user actually needs to make a decision today:
+/// current period range, days remaining, free money in the period, the safe
+/// per-day spend, plus a compact list of all upcoming periods.
+class _PeriodBudgetCard extends StatelessWidget {
+  const _PeriodBudgetCard({
+    required this.periods,
     required this.today,
     required this.month,
+    required this.currency,
+    required this.fmt,
   });
 
-  final CashflowResult cashflow;
-  final String currency;
-  final NumberFormat fmt;
+  final List<IncomePeriod> periods;
   final DateTime today;
   final DateTime month;
+  final String currency;
+  final NumberFormat fmt;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isCurrentMonth =
         today.year == month.year && today.month == month.month;
-    final highlightDay =
-        isCurrentMonth ? today.day : (cashflow.timeline.isEmpty ? 1 : 1);
-    final period = cashflow.periods.isEmpty
-        ? null
-        : cashflow.periods.firstWhere(
-            (p) => highlightDay >= p.startDay && highlightDay <= p.endDay,
-            orElse: () => cashflow.periods.first,
-          );
-    final minBal = cashflow.timeline.fold<double>(
-        0, (a, d) => math.min(a, d.balance.toDouble()));
-    final maxBal = cashflow.timeline.fold<double>(
-        0, (a, d) => math.max(a, d.balance.toDouble()));
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final todayDay = isCurrentMonth ? today.day : 1;
+    final current = currentIncomePeriod(periods, todayDay);
+    final daysLeftInPeriod =
+        current == null ? 0 : math.max(0, current.endDay - todayDay + 1);
+    final isInsidePeriod = current != null &&
+        todayDay >= current.startDay &&
+        todayDay <= current.endDay;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              Icon(Icons.timeline, color: scheme.primary),
+              Icon(Icons.payments_outlined, color: scheme.primary),
               const SizedBox(width: 8),
-              Text('Cashflow и периоды',
-                  style: Theme.of(context).textTheme.titleSmall),
+              Expanded(
+                child: Text(
+                  isCurrentMonth
+                      ? 'Бюджет до следующей зарплаты'
+                      : 'Бюджет на ${DateFormat.MMMM('ru_RU').format(month)}',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
             ]),
-            const SizedBox(height: 4),
-            if (period != null)
+            if (current != null) ...[
+              const SizedBox(height: 8),
               Text(
-                isCurrentMonth
-                    ? 'Текущий период: ${period.label} • '
-                        '${fmt.format(period.dailyAllowance)} $currency / день'
-                    : 'Первый период: ${period.label} • '
-                        '${fmt.format(period.dailyAllowance)} $currency / день',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 14),
-              ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 140,
-              child: LineChart(
-                LineChartData(
-                  minX: 1,
-                  maxX: cashflow.timeline.length.toDouble(),
-                  minY: minBal - 50,
-                  maxY: maxBal + 50,
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    getDrawingHorizontalLine: (v) => FlLine(
-                      color: scheme.outlineVariant.withValues(alpha: 0.4),
-                      strokeWidth: 0.5,
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 38,
-                        getTitlesWidget: (v, _) => Text(
-                          v.toInt().toString(),
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        interval: 5,
-                        reservedSize: 22,
-                        getTitlesWidget: (v, _) => Text(v.toInt().toString(),
-                            style: const TextStyle(fontSize: 10)),
-                      ),
-                    ),
-                    topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: [
-                        for (final d in cashflow.timeline)
-                          FlSpot(d.dayOfMonth.toDouble(),
-                              d.balance.toDouble()),
-                      ],
-                      isCurved: true,
-                      barWidth: 2,
+                '${fmt.format(current.dailyBudget)} $currency / день',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: scheme.primary,
-                      dotData: FlDotData(
-                        show: true,
-                        checkToShowDot: (spot, _) =>
-                            spot.x.toInt() == highlightDay,
-                        getDotPainter: (spot, _, __, ___) =>
-                            FlDotCirclePainter(
-                          radius: 4,
-                          color: scheme.primary,
-                          strokeColor: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      ),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: scheme.primary.withValues(alpha: 0.18),
-                      ),
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
-                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 4,
-              children: [
-                for (final p in cashflow.periods)
-                  Chip(
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    backgroundColor: p == period
-                        ? scheme.primaryContainer
-                        : null,
-                    label: Text(
-                      '${p.label}: ${fmt.format(p.dailyAllowance)} $currency / д',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Per-week breakdown card: how much free funds is left in each Mon-Sun
-/// stretch of the month, with a bar chart and a list of weeks.
-class _FreeFundsByWeekCard extends StatelessWidget {
-  const _FreeFundsByWeekCard({
-    required this.breakdown,
-    required this.currency,
-    required this.fmt,
-    required this.today,
-  });
-
-  final FreeFundsBreakdown breakdown;
-  final String currency;
-  final NumberFormat fmt;
-  final DateTime today;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final weeks = breakdown.weeks;
-    final maxAbs = weeks.fold<double>(
-        0, (a, w) => math.max(a, w.weeklyFree.abs().toDouble()));
-    final ySpan = (maxAbs == 0 ? 100 : maxAbs * 1.25).toDouble();
-    final yInterval = _niceInterval(ySpan, 4);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(Icons.view_week_outlined, color: scheme.primary),
-              const SizedBox(width: 8),
-              Text('Свободные средства по неделям',
-                  style: Theme.of(context).textTheme.titleSmall),
-            ]),
-            const SizedBox(height: 4),
-            Text(
-              'Бар = свободно в эту неделю (из остатка до следующей зарплаты)',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 140,
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  minY: 0,
-                  maxY: ySpan,
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    getDrawingHorizontalLine: (v) => FlLine(
-                      color: scheme.outlineVariant.withValues(alpha: 0.4),
-                      strokeWidth: 0.5,
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 44,
-                        interval: yInterval,
-                        getTitlesWidget: (v, _) => Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Text(v.toInt().toString(),
-                              style: const TextStyle(fontSize: 10)),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 22,
-                        getTitlesWidget: (v, _) {
-                          final i = v.toInt();
-                          if (i < 0 || i >= weeks.length) {
-                            return const SizedBox.shrink();
-                          }
-                          return Text('Н${weeks[i].index}',
-                              style: const TextStyle(fontSize: 10));
-                        },
-                      ),
-                    ),
-                    topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  barGroups: [
-                    for (var i = 0; i < weeks.length; i++)
-                      BarChartGroupData(
-                        x: i,
-                        barRods: [
-                          BarChartRodData(
-                            toY: math.max(0, weeks[i].weeklyFree.toDouble()),
-                            color: scheme.primary,
-                            width: 18,
-                            borderRadius:
-                                const BorderRadius.all(Radius.circular(4)),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
+              const SizedBox(height: 2),
+              Text(
+                isInsidePeriod
+                    ? 'Период «${current.label}» · осталось $daysLeftInPeriod из ${current.daysInclusive} дн.'
+                    : 'Первый период «${current.label}» · ${current.daysInclusive} дн.',
+                style: Theme.of(context).textTheme.bodySmall,
               ),
+              const SizedBox(height: 6),
+              Text(
+                'Свободно в периоде: ${fmt.format(current.free)} $currency '
+                '(после обязательных ${fmt.format(current.committed)})',
+                style: const TextStyle(fontSize: 12),
+              ),
+              if (isInsidePeriod && daysLeftInPeriod > 0)
+                _DailyBudgetProgress(
+                  daysPassed: current.daysInclusive - daysLeftInPeriod,
+                  daysTotal: current.daysInclusive,
+                  scheme: scheme,
+                ),
+            ],
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(children: [
+                Icon(Icons.lightbulb_outline,
+                    size: 16, color: scheme.tertiary),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'Это сумма, которую можно тратить в день, чтобы дотянуть '
+                    'до следующей зарплаты после оплаты обязательных расходов '
+                    '(аренда, кредиты, подписки).',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                ),
+              ]),
             ),
-            const SizedBox(height: 8),
-            for (final w in weeks)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
+            if (periods.length > 1) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+              Text('Все периоды месяца',
+                  style: Theme.of(context).textTheme.labelMedium),
+              const SizedBox(height: 4),
+              for (final p in periods)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: identical(p, current)
+                            ? scheme.primary
+                            : scheme.outlineVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     SizedBox(
-                      width: 90,
+                      width: 86,
                       child: Text(
-                        'Нед. ${w.index} (${DateFormat('d').format(w.startDate)}–${DateFormat('d').format(w.endDate)})',
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '${w.daysInclusive} дн. · ${fmt.format(w.dailyAllowance)} $currency/день · остаток ${fmt.format(w.endBalance)} $currency',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    ),
-                    Text(
-                      '${fmt.format(w.weeklyFree)} $currency',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: w.weeklyFree > 0
-                              ? const Color(0xFF22C55E)
-                              : const Color(0xFF6B7280)),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Per-day-of-week card: shows Mon-Sun of the current week with the
-/// suggested daily allowance and end-of-day running balance.
-class _FreeFundsByWeekdayCard extends StatelessWidget {
-  const _FreeFundsByWeekdayCard({
-    required this.breakdown,
-    required this.currency,
-    required this.fmt,
-    required this.today,
-  });
-
-  final FreeFundsBreakdown breakdown;
-  final String currency;
-  final NumberFormat fmt;
-  final DateTime today;
-
-  static const _names = [
-    'Пн',
-    'Вт',
-    'Ср',
-    'Чт',
-    'Пт',
-    'Сб',
-    'Вс',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final days = breakdown.days;
-    final todayKey = DateFormat('yyyy-MM-dd').format(today);
-    final maxAllowance = days.fold<double>(
-        0, (a, d) => math.max(a, d.allowance.abs().toDouble()));
-    final yMax = (maxAllowance == 0 ? 50 : maxAllowance * 1.25).toDouble();
-    final yInterval = _niceInterval(yMax, 4);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(Icons.calendar_view_week_outlined, color: scheme.primary),
-              const SizedBox(width: 8),
-              Text('Свободные средства по дням недели',
-                  style: Theme.of(context).textTheme.titleSmall),
-            ]),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 130,
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  minY: 0,
-                  maxY: yMax,
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    getDrawingHorizontalLine: (v) => FlLine(
-                      color: scheme.outlineVariant.withValues(alpha: 0.4),
-                      strokeWidth: 0.5,
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 44,
-                        interval: yInterval,
-                        getTitlesWidget: (v, _) => Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Text(v.toInt().toString(),
-                              style: const TextStyle(fontSize: 10)),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 22,
-                        getTitlesWidget: (v, _) {
-                          final i = v.toInt();
-                          if (i < 0 || i >= _names.length) {
-                            return const SizedBox.shrink();
-                          }
-                          return Text(_names[i],
-                              style: const TextStyle(fontSize: 10));
-                        },
-                      ),
-                    ),
-                    topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  barGroups: [
-                    for (var i = 0; i < days.length; i++)
-                      BarChartGroupData(
-                        x: i,
-                        barRods: [
-                          BarChartRodData(
-                            toY: math.max(0, days[i].allowance.toDouble()),
-                            color: DateFormat('yyyy-MM-dd')
-                                        .format(days[i].date) ==
-                                    todayKey
-                                ? scheme.tertiary
-                                : scheme.primary,
-                            width: 14,
-                            borderRadius:
-                                const BorderRadius.all(Radius.circular(4)),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Бар = сколько можно тратить в этот день (остаток равномерно до следующей зп)',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            for (var i = 0; i < days.length; i++)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 70,
-                      child: Text(
-                        '${_names[i]} ${DateFormat('d.MM').format(days[i].date)}',
+                        _periodDateLabel(p, month),
                         style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: DateFormat('yyyy-MM-dd')
-                                      .format(days[i].date) ==
-                                  todayKey
-                              ? scheme.tertiary
-                              : null,
+                          fontSize: 12,
+                          fontWeight: identical(p, current)
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
                       ),
                     ),
                     Expanded(
                       child: Text(
-                        () {
-                          final parts = <String>[];
-                          if (days[i].income > 0) {
-                            parts.add('+${fmt.format(days[i].income)}');
-                          }
-                          if (days[i].expense > 0) {
-                            parts.add('-${fmt.format(days[i].expense)}');
-                          }
-                          parts.add(
-                              'остаток ${fmt.format(days[i].endBalance)}');
-                          return parts.join(' · ');
-                        }(),
+                        '${p.daysInclusive} ${_dayWord(p.daysInclusive)}',
                         style: const TextStyle(fontSize: 11),
                       ),
                     ),
                     Text(
-                      '${fmt.format(days[i].allowance)} $currency',
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w700),
+                      '${fmt.format(p.dailyBudget)} $currency / д',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: identical(p, current) ? scheme.primary : null,
+                      ),
                     ),
-                  ],
+                  ]),
                 ),
-              ),
+              if (current != null && daysInMonth > 0) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Если в этом периоде потратить больше, на следующий период '
+                  'останется меньше — будет «съеден» бюджет следующей зарплаты.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ],
           ],
+        ),
+      ),
+    );
+  }
+
+  static String _periodDateLabel(IncomePeriod p, DateTime month) {
+    final start = DateTime(month.year, month.month, p.startDay);
+    final end = DateTime(month.year, month.month, p.endDay);
+    final df = DateFormat('d MMM', 'ru_RU');
+    if (p.startDay == p.endDay) return df.format(start);
+    return '${df.format(start)}–${df.format(end)}';
+  }
+
+  static String _dayWord(int n) {
+    final lastTwo = n % 100;
+    if (lastTwo >= 11 && lastTwo <= 14) return 'дней';
+    final last = n % 10;
+    if (last == 1) return 'день';
+    if (last >= 2 && last <= 4) return 'дня';
+    return 'дней';
+  }
+}
+
+/// Tiny progress bar showing how far through the current income period the
+/// user is — purely visual context for the daily-budget number above it.
+class _DailyBudgetProgress extends StatelessWidget {
+  const _DailyBudgetProgress({
+    required this.daysPassed,
+    required this.daysTotal,
+    required this.scheme,
+  });
+
+  final int daysPassed;
+  final int daysTotal;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = daysTotal == 0 ? 0.0 : daysPassed / daysTotal;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: LinearProgressIndicator(
+          value: ratio.clamp(0.0, 1.0),
+          minHeight: 6,
+          backgroundColor: scheme.surfaceContainerHighest,
+          color: scheme.primary,
         ),
       ),
     );
@@ -3484,200 +3190,6 @@ class _SubscriptionsCard extends StatelessWidget {
   }
 }
 
-/// Per-day allowance bars across the whole month — на каждый день видно,
-/// сколько можно безопасно тратить, не залезая в обязательные платежи.
-class _PerDayAllowanceCard extends StatelessWidget {
-  const _PerDayAllowanceCard({
-    required this.allowances,
-    required this.cashflow,
-    required this.month,
-    required this.today,
-    required this.currency,
-    required this.fmt,
-  });
-
-  final List<num> allowances;
-  final CashflowResult cashflow;
-  final DateTime month;
-  final DateTime today;
-  final String currency;
-  final NumberFormat fmt;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final isCurrentMonth =
-        today.year == month.year && today.month == month.month;
-    final maxA = allowances.fold<double>(
-        0, (a, x) => math.max(a, x.toDouble()));
-    final niceMax = maxA <= 0 ? 1.0 : maxA * 1.2;
-    final daysInMonth = allowances.length;
-    final periods = cashflow.periods;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Icon(Icons.bar_chart_rounded, color: scheme.primary),
-              const SizedBox(width: 8),
-              Text('Можно тратить — каждый день',
-                  style: Theme.of(context).textTheme.titleSmall),
-              const Spacer(),
-              if (isCurrentMonth && today.day - 1 < allowances.length)
-                Text(
-                    'Сегодня ${fmt.format(allowances[today.day - 1])} $currency',
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-            ]),
-            const SizedBox(height: 4),
-            Text(
-              'Внутри периода между событиями (зарплата, авансы, обязательные расходы) сумма «можно тратить в день» постоянна '
-              'и совпадает со строкой ниже. На графике показан тот же дневной бюджет периода.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 140,
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceBetween,
-                  maxY: niceMax,
-                  minY: 0,
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    getDrawingHorizontalLine: (v) => FlLine(
-                      color: scheme.outlineVariant.withValues(alpha: 0.4),
-                      strokeWidth: 0.5,
-                    ),
-                  ),
-                  titlesData: FlTitlesData(
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 38,
-                        interval: _niceInterval(niceMax, 4),
-                        getTitlesWidget: (v, _) => Text(
-                          v >= 1000
-                              ? '${(v / 1000).toStringAsFixed(0)}к'
-                              : v.toInt().toString(),
-                          style: const TextStyle(fontSize: 10),
-                        ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        interval: 5,
-                        reservedSize: 22,
-                        getTitlesWidget: (v, _) {
-                          final d = v.toInt() + 1;
-                          if (d < 1 || d > daysInMonth) {
-                            return const SizedBox.shrink();
-                          }
-                          if (d == 1 || d % 5 == 0 || d == daysInMonth) {
-                            return Text('$d',
-                                style: const TextStyle(fontSize: 10));
-                          }
-                          return const SizedBox.shrink();
-                        },
-                      ),
-                    ),
-                    topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
-                  ),
-                  barTouchData: BarTouchData(
-                    touchTooltipData: BarTouchTooltipData(
-                      getTooltipItem: (group, gIdx, rod, rIdx) {
-                        final d = group.x + 1;
-                        return BarTooltipItem(
-                          'День $d\n${fmt.format(rod.toY)} $currency',
-                          const TextStyle(
-                              color: Colors.white, fontSize: 12),
-                        );
-                      },
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  barGroups: [
-                    for (var i = 0; i < daysInMonth; i++)
-                      BarChartGroupData(
-                        x: i,
-                        barRods: [
-                          BarChartRodData(
-                            toY: allowances[i].toDouble(),
-                            width: 7,
-                            color: _allowanceColor(
-                                allowances[i].toDouble(), maxA, scheme),
-                            borderRadius:
-                                BorderRadius.circular(2),
-                          ),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (periods.isNotEmpty) ...[
-              Text('По периодам',
-                  style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 6),
-              for (final p in periods)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: scheme.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(p.label,
-                          style: TextStyle(
-                              color: scheme.primary,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11)),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${fmt.format(p.dailyAllowance)} $currency / день · '
-                        '${p.daysInclusive} ${_dayWord(p.daysInclusive)}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ]),
-                ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _allowanceColor(double v, double max, ColorScheme scheme) {
-    if (max <= 0) return scheme.primary;
-    if (v <= 0) return const Color(0xFFEF4444);
-    final r = v / max;
-    if (r < 0.33) return const Color(0xFFF59E0B);
-    if (r < 0.66) return const Color(0xFF6366F1);
-    return const Color(0xFF10B981);
-  }
-
-  static String _dayWord(int n) {
-    final lastTwo = n % 100;
-    if (lastTwo >= 11 && lastTwo <= 14) return 'дней';
-    final last = n % 10;
-    if (last == 1) return 'день';
-    if (last >= 2 && last <= 4) return 'дня';
-    return 'дней';
-  }
-}
 
 /// Savings goals card — list of goals with progress + ETA forecast based on
 /// current weekly allowance.

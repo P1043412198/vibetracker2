@@ -436,6 +436,86 @@ void main() {
     });
   });
 
+  group('Wave 2 — income periods', () {
+    test('sample plan splits into 3 income-aligned periods with correct '
+        'daily budgets', () {
+      final cf = buildCashflow(
+        month: DateTime(2025, 5, 1),
+        plan: samplePlan(),
+        planCurrency: 'BYN',
+        convert: identity,
+      );
+      final periods = computeIncomePeriods(cf);
+      expect(periods.length, 3);
+
+      // Period 1: days 1–15, only the rent on day 1; no income → 0/day.
+      expect(periods[0].startDay, 1);
+      expect(periods[0].endDay, 15);
+      expect(periods[0].daysInclusive, 15);
+      expect(periods[0].income, 0);
+      expect(periods[0].committed, 1000);
+      expect(periods[0].dailyBudget, 0);
+
+      // Period 2: days 16–29, salary 1500, JKH 200 → 1300/14 ≈ 92.86 / day.
+      expect(periods[1].startDay, 16);
+      expect(periods[1].endDay, 29);
+      expect(periods[1].daysInclusive, 14);
+      expect(periods[1].income, 1500);
+      expect(periods[1].committed, 200);
+      expect(periods[1].dailyBudget, closeTo(1300 / 14, 0.001));
+
+      // Period 3: days 30–31, advance 800 → 800/2 = 400 / day.
+      expect(periods[2].startDay, 30);
+      expect(periods[2].endDay, 31);
+      expect(periods[2].daysInclusive, 2);
+      expect(periods[2].income, 800);
+      expect(periods[2].committed, 0);
+      expect(periods[2].dailyBudget, 400);
+    });
+
+    test('currentIncomePeriod picks the period containing today', () {
+      final cf = buildCashflow(
+        month: DateTime(2025, 5, 1),
+        plan: samplePlan(),
+        planCurrency: 'BYN',
+        convert: identity,
+      );
+      final periods = computeIncomePeriods(cf);
+
+      expect(currentIncomePeriod(periods, 1)!.startDay, 1);
+      expect(currentIncomePeriod(periods, 15)!.startDay, 1);
+      expect(currentIncomePeriod(periods, 16)!.startDay, 16);
+      expect(currentIncomePeriod(periods, 29)!.startDay, 16);
+      expect(currentIncomePeriod(periods, 30)!.startDay, 30);
+      expect(currentIncomePeriod(periods, 31)!.startDay, 30);
+    });
+
+    test('plan without scheduled income emits a single full-month period',
+        () {
+      final plan = MonthlyBudgetPlan(
+        id: 'p',
+        monthKey: '2025-06',
+        plannedIncome: 0,
+        categoryPlans: [],
+        incomes: [],
+        scheduledExpenses: [],
+        createdAt: '',
+        updatedAt: '',
+      );
+      final cf = buildCashflow(
+        month: DateTime(2025, 6, 1),
+        plan: plan,
+        planCurrency: 'BYN',
+        convert: identity,
+      );
+      final periods = computeIncomePeriods(cf);
+      expect(periods.length, 1);
+      expect(periods.first.startDay, 1);
+      expect(periods.first.endDay, 30);
+      expect(periods.first.dailyBudget, 0);
+    });
+  });
+
   group('Phase 19 — recurEvery serialization', () {
     test('IncomeEntry round-trips recurEvery', () {
       final e = IncomeEntry(

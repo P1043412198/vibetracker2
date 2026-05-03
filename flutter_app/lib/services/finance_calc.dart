@@ -716,6 +716,119 @@ CashflowResult buildCashflow({
 }
 
 /// =============================================================
+/// Income periods — "what can I spend per day until the next paycheck"
+/// =============================================================
+
+/// One income-aligned period: a stretch from one income event (or month
+/// start) through the day before the next income event (or month end).
+///
+/// Within an income period the user has a fixed amount of free money —
+/// `inflow - committed`. The daily budget is that money divided by the
+/// number of days, which answers the "how much can I spend per day until
+/// my next paycheck without going broke?" question that Wave 1 cards
+/// (Cashflow / per-day / per-week) tried to answer indirectly.
+class IncomePeriod {
+  IncomePeriod({
+    required this.startDay,
+    required this.endDay,
+    required this.daysInclusive,
+    required this.income,
+    required this.committed,
+    required this.startBalance,
+    required this.endBalance,
+    required this.dailyBudget,
+    required this.label,
+  });
+
+  final int startDay;
+  final int endDay;
+  final int daysInclusive;
+  /// Income arriving on `startDay` (or carried into the first period).
+  final num income;
+  /// Committed/scheduled expenses falling inside this period.
+  final num committed;
+  /// Running balance at the start of the period (before income).
+  final num startBalance;
+  /// Running balance at the end of the period.
+  final num endBalance;
+  /// `(income − committed) / days`, clamped to 0 when negative — the safe
+  /// per-day spending number until the next paycheck.
+  final num dailyBudget;
+  final String label;
+
+  /// Free money available across the whole period (= `dailyBudget × days`,
+  /// pre-clamp). Useful for callers that want to render a "X BYN free in
+  /// this period" line.
+  num get free {
+    final raw = income - committed;
+    return raw > 0 ? raw : 0;
+  }
+}
+
+/// Aligns [cashflow] to income events: each period starts on an income day
+/// (or day 1) and runs through the day before the next income event (or to
+/// month end).
+///
+/// Example (income on the 16th and 30th, rent on the 1st, JKH on the 16th):
+/// → 3 periods: 1–15 (no income, only rent), 16–29 (1500 income, JKH),
+///   30–31 (800 advance).
+List<IncomePeriod> computeIncomePeriods(CashflowResult cashflow) {
+  final timeline = cashflow.timeline;
+  if (timeline.isEmpty) return const [];
+  final daysInMonth = timeline.length;
+
+  final boundarySet = <int>{1};
+  for (var i = 0; i < daysInMonth; i++) {
+    if (timeline[i].income > 0 && (i + 1) != 1) boundarySet.add(i + 1);
+  }
+  final boundaries = boundarySet.toList()..sort();
+  boundaries.add(daysInMonth + 1);
+
+  final periods = <IncomePeriod>[];
+  for (var i = 0; i < boundaries.length - 1; i++) {
+    final start = boundaries[i];
+    final end = boundaries[i + 1] - 1;
+    if (end < start) continue;
+    num inc = 0;
+    num exp = 0;
+    for (var d = start; d <= end; d++) {
+      inc += timeline[d - 1].income;
+      exp += timeline[d - 1].expense;
+    }
+    final startBal =
+        start == 1 ? (timeline[0].balance - timeline[0].income + timeline[0].expense) : timeline[start - 2].balance;
+    final endBal = timeline[end - 1].balance;
+    final days = end - start + 1;
+    final freeRaw = inc - exp;
+    final dailyBudget = days > 0 && freeRaw > 0 ? freeRaw / days : 0;
+    periods.add(IncomePeriod(
+      startDay: start,
+      endDay: end,
+      daysInclusive: days,
+      income: inc,
+      committed: exp,
+      startBalance: startBal,
+      endBalance: endBal,
+      dailyBudget: dailyBudget,
+      label: start == end ? 'День $start' : 'Дни $start–$end',
+    ));
+  }
+  return periods;
+}
+
+/// Pick the income period that contains [todayDay] (1..daysInMonth). Returns
+/// the first period if [todayDay] is before the month and the last period if
+/// it's after. Returns null when [periods] is empty.
+IncomePeriod? currentIncomePeriod(
+    List<IncomePeriod> periods, int todayDay) {
+  if (periods.isEmpty) return null;
+  for (final p in periods) {
+    if (todayDay >= p.startDay && todayDay <= p.endDay) return p;
+  }
+  return todayDay < periods.first.startDay ? periods.first : periods.last;
+}
+
+/// =============================================================
 /// Loan amortization
 /// =============================================================
 
