@@ -877,3 +877,414 @@ num monthlyLoanBurden({
   }
   return total;
 }
+
+/// =============================================================
+/// Phase 19: emergency fund / health-check / forecast / history
+/// =============================================================
+
+/// Income / expense for a single historical month — used for the 6-/12-month
+/// trend chart on the planning tab.
+class HistoricalMonth {
+  HistoricalMonth({
+    required this.month,
+    required this.monthKey,
+    required this.income,
+    required this.expense,
+  });
+  final DateTime month;
+  final String monthKey;
+  final num income;
+  final num expense;
+
+  num get net => income - expense;
+}
+
+/// Compute [count] months of history (oldest first), ending with [endMonth].
+/// Always includes [endMonth] itself.
+List<HistoricalMonth> computeHistoricalMonths({
+  required DateTime endMonth,
+  required int count,
+  required Iterable<Transaction> transactions,
+  required Iterable<Account> accounts,
+  required String baseCurrency,
+  required CurrencyConvert convert,
+  Set<String>? excludedAccountIds,
+}) {
+  final out = <HistoricalMonth>[];
+  for (var i = count - 1; i >= 0; i--) {
+    final m = DateTime(endMonth.year, endMonth.month - i, 1);
+    final f = computeMonthFacts(
+      month: m,
+      transactions: transactions,
+      accounts: accounts,
+      baseCurrency: baseCurrency,
+      convert: convert,
+      excludedAccountIds: excludedAccountIds,
+    );
+    out.add(HistoricalMonth(
+      month: m,
+      monthKey: monthKeyOf(m),
+      income: f.income,
+      expense: f.expense,
+    ));
+  }
+  return out;
+}
+
+/// Emergency-fund metric. `months` = total non-excluded liquid assets divided
+/// by the average monthly expense over [history]. `severity` is a 0..3
+/// indicator (0=red <1mo, 1=orange 1..3, 2=blue 3..6, 3=green ≥6).
+class EmergencyFund {
+  EmergencyFund({
+    required this.totalLiquid,
+    required this.avgMonthlyExpense,
+    required this.months,
+    required this.severity,
+  });
+  final num totalLiquid;
+  final num avgMonthlyExpense;
+  final num months;
+  final int severity;
+}
+
+EmergencyFund computeEmergencyFund({
+  required num totalLiquid,
+  required List<HistoricalMonth> history,
+}) {
+  // Use only months with non-zero expense, otherwise average is meaningless.
+  final used = history.where((m) => m.expense > 0).toList();
+  if (used.isEmpty) {
+    return EmergencyFund(
+        totalLiquid: totalLiquid,
+        avgMonthlyExpense: 0,
+        months: 0,
+        severity: 0);
+  }
+  final avg =
+      used.fold<num>(0, (s, m) => s + m.expense) / used.length;
+  if (avg <= 0) {
+    return EmergencyFund(
+        totalLiquid: totalLiquid,
+        avgMonthlyExpense: 0,
+        months: 0,
+        severity: 0);
+  }
+  final months = totalLiquid / avg;
+  final severity = months < 1
+      ? 0
+      : months < 3
+          ? 1
+          : months < 6
+              ? 2
+              : 3;
+  return EmergencyFund(
+    totalLiquid: totalLiquid,
+    avgMonthlyExpense: avg,
+    months: months,
+    severity: severity,
+  );
+}
+
+/// 50/30/20-style health-check of the plan. We classify category plans into:
+/// * **needs**: rent, JKH, food, transport, health, family, education, kids
+/// * **wants**: cafe, entertainment, clothes, beauty, travel, hobbies, gifts
+/// * **savings**: explicit "savings" category names; if absent, free funds
+///   are treated as savings.
+class HealthCheck {
+  HealthCheck({
+    required this.needsShare,
+    required this.wantsShare,
+    required this.savingsShare,
+    required this.expenseToIncome,
+    required this.savingsRate,
+    required this.severity,
+    required this.message,
+  });
+  final double needsShare;
+  final double wantsShare;
+  final double savingsShare;
+  /// expense ÷ income, e.g. 0.92 means расходы 92% дохода.
+  final double expenseToIncome;
+  /// Free funds ÷ income (≈ savings rate), 0..1.
+  final double savingsRate;
+  /// 0=red, 1=orange, 2=green.
+  final int severity;
+  final String message;
+}
+
+const Set<String> _needsCategories = {
+  'Аренда',
+  'Жильё',
+  'ЖКХ',
+  'Коммуналка',
+  'Еда',
+  'Продукты',
+  'Транспорт',
+  'Здоровье',
+  'Лекарства',
+  'Семья',
+  'Дети',
+  'Образование',
+  'Дом и быт',
+  'Связь и интернет',
+};
+
+const Set<String> _wantsCategories = {
+  'Кафе и рестораны',
+  'Развлечения',
+  'Одежда',
+  'Красота',
+  'Путешествия',
+  'Хобби',
+  'Подарки',
+  'Подарки и праздники',
+  'Электроника',
+};
+
+const Set<String> _savingsCategories = {
+  'Накопления',
+  'Инвестиции',
+  'Подушка',
+  'Подушка безопасности',
+  'Сбережения',
+};
+
+bool isNeed(String category) => _needsCategories.contains(category);
+bool isWant(String category) => _wantsCategories.contains(category);
+bool isSavings(String category) => _savingsCategories.contains(category);
+
+HealthCheck computeHealthCheck({
+  required num plannedIncomeRef,
+  required List<CategoryPlan> categoryPlans,
+  required List<ScheduledExpense> scheduledExpenses,
+  required num loansMonthlyPayments,
+  required num committedTotal,
+  required num freeFunds,
+}) {
+  num needs = 0;
+  num wants = 0;
+  num savings = 0;
+  for (final cp in categoryPlans) {
+    if (isNeed(cp.category)) {
+      needs += cp.planned;
+    } else if (isWant(cp.category)) {
+      wants += cp.planned;
+    } else if (isSavings(cp.category)) {
+      savings += cp.planned;
+    } else {
+      // Unknown → treat as wants for the 50/30/20 lens.
+      wants += cp.planned;
+    }
+  }
+  // Loan payments and dated bills are needs by default; a subscription or
+  // entertainment scheduled-expense can opt into wants by setting category.
+  needs += loansMonthlyPayments;
+  for (final s in scheduledExpenses) {
+    if (s.category != null && isWant(s.category!)) {
+      wants += s.amount;
+    } else if (s.category != null && isSavings(s.category!)) {
+      savings += s.amount;
+    } else {
+      needs += s.amount;
+    }
+  }
+  // Free funds also count as "savings potential" if no explicit savings
+  // category is configured.
+  if (savings <= 0 && freeFunds > 0) savings = freeFunds;
+
+  final ref = plannedIncomeRef > 0 ? plannedIncomeRef.toDouble() : 0;
+  double share(num x) => ref <= 0 ? 0 : (x / ref).clamp(0, 1).toDouble();
+  final exprat = ref <= 0
+      ? 0.0
+      : (committedTotal / ref).toDouble();
+  final saveRate = ref <= 0
+      ? 0.0
+      : (freeFunds > 0 ? freeFunds / ref : 0).toDouble();
+
+  int severity;
+  String message;
+  if (ref <= 0) {
+    severity = 1;
+    message = 'Добавь плановый доход или планы по дням, чтобы посчитать.';
+  } else if (exprat >= 1.0) {
+    severity = 0;
+    message = 'Расходы покрывают весь доход — нет запаса. Подрежь хотелки.';
+  } else if (exprat >= 0.85) {
+    severity = 0;
+    message =
+        'Расходы ${(exprat * 100).round()}% от дохода — слишком впритык.';
+  } else if (exprat >= 0.7) {
+    severity = 1;
+    message =
+        'Расходы ${(exprat * 100).round()}% от дохода — есть запас, но небольшой.';
+  } else {
+    severity = 2;
+    message =
+        'Расходы ${(exprat * 100).round()}% от дохода — здоровый запас.';
+  }
+  return HealthCheck(
+    needsShare: share(needs),
+    wantsShare: share(wants),
+    savingsShare: share(savings),
+    expenseToIncome: exprat,
+    savingsRate: saveRate,
+    severity: severity,
+    message: message,
+  );
+}
+
+/// Linear forecast of the running balance N months ahead, given the average
+/// monthly net (`avgIncome - avgExpense`) over [history]. Returns the
+/// projected total balance after [monthsAhead] full months.
+class BalanceForecast {
+  BalanceForecast({
+    required this.startBalance,
+    required this.avgMonthlyNet,
+    required this.monthsAhead,
+    required this.projected,
+    required this.bestCase,
+    required this.worstCase,
+  });
+  final num startBalance;
+  final num avgMonthlyNet;
+  final int monthsAhead;
+  final num projected;
+  final num bestCase;
+  final num worstCase;
+}
+
+BalanceForecast forecastBalance({
+  required num startBalance,
+  required List<HistoricalMonth> history,
+  required int monthsAhead,
+}) {
+  if (history.isEmpty) {
+    return BalanceForecast(
+        startBalance: startBalance,
+        avgMonthlyNet: 0,
+        monthsAhead: monthsAhead,
+        projected: startBalance,
+        bestCase: startBalance,
+        worstCase: startBalance);
+  }
+  final nets =
+      history.map((m) => m.net).toList()..sort();
+  final avg = nets.fold<num>(0, (s, x) => s + x) / nets.length;
+  final best = nets.last;
+  final worst = nets.first;
+  return BalanceForecast(
+    startBalance: startBalance,
+    avgMonthlyNet: avg,
+    monthsAhead: monthsAhead,
+    projected: startBalance + avg * monthsAhead,
+    bestCase: startBalance + best * monthsAhead,
+    worstCase: startBalance + worst * monthsAhead,
+  );
+}
+
+/// Returns the per-day "сколько можно безопасно тратить" allowance for
+/// every day in the month. The value at index `i` is the allowance computed
+/// as if today were day `i+1`: `max(0, balance(d) - upcomingCommits) /
+/// daysToNextIncome`. This drives the per-day infographic that shows the
+/// allowance evolving across the whole month.
+List<num> perDayAllowance(CashflowResult cashflow) {
+  final timeline = cashflow.timeline;
+  if (timeline.isEmpty) return const [];
+  final daysInMonth = timeline.length;
+
+  int nextIncomeDay(int d) {
+    for (var x = d + 1; x <= daysInMonth; x++) {
+      if (timeline[x - 1].income > 0) return x;
+    }
+    return daysInMonth + 1;
+  }
+
+  final out = <num>[];
+  for (var d = 1; d <= daysInMonth; d++) {
+    final endBal = timeline[d - 1].balance;
+    final nextInc = nextIncomeDay(d);
+    final upper = nextInc <= daysInMonth ? nextInc - 1 : daysInMonth;
+    var commits = 0.0;
+    for (var x = d + 1; x <= upper; x++) {
+      commits += timeline[x - 1].expense.toDouble();
+    }
+    final daysAhead = math.max(1, upper - d + 1);
+    final available = endBal.toDouble() - commits;
+    out.add(available > 0 ? available / daysAhead : 0);
+  }
+  return out;
+}
+
+/// Subscription detection: items flagged as `isSubscription==true`, or items
+/// with `recurEvery != null && recurEvery > 0` whose name matches a known
+/// service (Netflix, Spotify, …). Returns the filtered list **plus** total
+/// monthly cost (annualised: cost ÷ recurEvery × 1).
+class SubscriptionsSummary {
+  SubscriptionsSummary({
+    required this.items,
+    required this.monthlyTotal,
+    required this.annualTotal,
+  });
+  final List<ScheduledExpense> items;
+  final num monthlyTotal;
+  final num annualTotal;
+}
+
+const List<String> _kSubscriptionKeywords = [
+  'netflix',
+  'spotify',
+  'youtube',
+  'apple',
+  'icloud',
+  'google one',
+  'one drive',
+  'onedrive',
+  'megogo',
+  'kinopoisk',
+  'okko',
+  'wink',
+  'ivi',
+  'amazon prime',
+  'office 365',
+  'microsoft 365',
+  'adobe',
+  'dropbox',
+  'patreon',
+  'duolingo',
+  'tinder',
+  'chatgpt',
+  'github',
+  'figma',
+  'notion',
+  'slack',
+  'zoom',
+  'kaspersky',
+  'nordvpn',
+  'expressvpn',
+  'подписка',
+  'subscription',
+  'тариф',
+];
+
+bool looksLikeSubscription(ScheduledExpense e) {
+  if (e.isSubscription == true) return true;
+  if (e.isSubscription == false) return false;
+  if ((e.recurEvery ?? 0) <= 0) return false;
+  final name = e.name.toLowerCase();
+  for (final kw in _kSubscriptionKeywords) {
+    if (name.contains(kw)) return true;
+  }
+  return false;
+}
+
+SubscriptionsSummary computeSubscriptions(
+    Iterable<ScheduledExpense> scheduledExpenses) {
+  final items = scheduledExpenses.where(looksLikeSubscription).toList();
+  num monthly = 0;
+  for (final s in items) {
+    final every = s.recurEvery ?? 1;
+    monthly += s.amount / (every <= 0 ? 1 : every);
+  }
+  return SubscriptionsSummary(
+      items: items, monthlyTotal: monthly, annualTotal: monthly * 12);
+}

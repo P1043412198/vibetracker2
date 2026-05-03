@@ -279,4 +279,162 @@ void main() {
       expect(leftover, 0);
     });
   });
+
+  group('Phase 19 — perDayAllowance', () {
+    test('non-zero on every day, decreases between income spikes', () {
+      final cf = buildCashflow(
+        month: DateTime(2025, 5, 1),
+        plan: samplePlan(),
+        planCurrency: 'BYN',
+        convert: identity,
+      );
+      final allow = perDayAllowance(cf);
+      expect(allow.length, 31);
+      // Day 1 starts in the red (rent due), allowance = 0.
+      expect(allow[0], 0);
+      // After the salary on day 16 there are 14 days till the advance and
+      // the running balance is 300 → ~21.43/day.
+      expect(allow[15], closeTo(300 / 14, 0.5));
+      // Last day of month: balance 1100 over the remaining day → 1100.
+      expect(allow.last, 1100);
+    });
+  });
+
+  group('Phase 19 — subscriptions', () {
+    test('detects recurring expenses via keyword match', () {
+      final items = [
+        ScheduledExpense(
+            id: 'a',
+            name: 'Netflix',
+            amount: 15,
+            day: 5,
+            recurEvery: 1),
+        ScheduledExpense(
+            id: 'b',
+            name: 'Аренда квартиры',
+            amount: 1000,
+            day: 1,
+            recurEvery: 1),
+        ScheduledExpense(
+            id: 'c', name: 'Spotify', amount: 6, day: 10, recurEvery: 1),
+        ScheduledExpense(
+            id: 'd',
+            name: 'GitHub Pro',
+            amount: 4,
+            day: 20,
+            recurEvery: 12),
+        ScheduledExpense(
+            id: 'e',
+            name: 'Подписка на тренировки',
+            amount: 50,
+            day: 4,
+            isSubscription: true),
+        ScheduledExpense(
+            id: 'f',
+            name: 'Подарок',
+            amount: 30,
+            day: 8,
+            isSubscription: false,
+            recurEvery: 1),
+      ];
+      final s = computeSubscriptions(items);
+      expect(s.items.map((e) => e.id).toSet(),
+          {'a', 'c', 'd', 'e'});
+      // Netflix 15 + Spotify 6 + GitHub 4/12 + custom 50 = 71.333…
+      expect(s.monthlyTotal,
+          closeTo(15 + 6 + 4 / 12 + 50, 0.001));
+      expect(s.annualTotal, closeTo(s.monthlyTotal * 12, 0.001));
+    });
+  });
+
+  group('Phase 19 — health-check 50/30/20', () {
+    test('classifies categories and computes ratios', () {
+      final h = computeHealthCheck(
+        plannedIncomeRef: 2000,
+        categoryPlans: [
+          CategoryPlan(category: 'Аренда', planned: 800),
+          CategoryPlan(category: 'Еда', planned: 400),
+          CategoryPlan(category: 'Кафе и рестораны', planned: 200),
+          CategoryPlan(category: 'Накопления', planned: 200),
+        ],
+        scheduledExpenses: const [],
+        loansMonthlyPayments: 0,
+        committedTotal: 1600,
+        freeFunds: 400,
+      );
+      // needs = 800 + 400 = 1200; wants = 200; savings = 200; ref = 2000.
+      expect(h.needsShare, closeTo(0.6, 0.001));
+      expect(h.wantsShare, closeTo(0.1, 0.001));
+      expect(h.savingsShare, closeTo(0.1, 0.001));
+      expect(h.expenseToIncome, closeTo(0.8, 0.001));
+      expect(h.savingsRate, closeTo(0.2, 0.001));
+      // 80% expense ratio falls in 0.7..0.85 bucket → severity 1 (orange).
+      expect(h.severity, 1);
+    });
+
+    test('healthy plan with low expense ratio scores green', () {
+      final h = computeHealthCheck(
+        plannedIncomeRef: 3000,
+        categoryPlans: [
+          CategoryPlan(category: 'Аренда', planned: 600),
+          CategoryPlan(category: 'Еда', planned: 400),
+          CategoryPlan(category: 'Накопления', planned: 600),
+        ],
+        scheduledExpenses: const [],
+        loansMonthlyPayments: 0,
+        committedTotal: 1500,
+        freeFunds: 1500,
+      );
+      expect(h.expenseToIncome, closeTo(0.5, 0.001));
+      expect(h.severity, 2);
+    });
+  });
+
+  group('Phase 19 — emergency fund', () {
+    test('months coverage and severity bucket', () {
+      final history = [
+        for (var i = 5; i >= 0; i--)
+          HistoricalMonth(
+              month: DateTime(2025, 5 - i, 1),
+              monthKey: '2025-${(5 - i).toString().padLeft(2, '0')}',
+              income: 2300,
+              expense: 2000),
+      ];
+      final ef =
+          computeEmergencyFund(totalLiquid: 5000, history: history);
+      expect(ef.avgMonthlyExpense, 2000);
+      expect(ef.months, 2.5);
+      expect(ef.severity, 1); // 1..3 months
+    });
+
+    test('zero history -> 0 months / red', () {
+      final ef = computeEmergencyFund(
+          totalLiquid: 1000, history: const <HistoricalMonth>[]);
+      expect(ef.months, 0);
+      expect(ef.severity, 0);
+    });
+  });
+
+  group('Phase 19 — recurEvery serialization', () {
+    test('IncomeEntry round-trips recurEvery', () {
+      final e = IncomeEntry(
+          id: 'x', name: 'ЗП', amount: 1000, day: 5, recurEvery: 3);
+      final back = IncomeEntry.fromJson(e.toJson());
+      expect(back.recurEvery, 3);
+    });
+
+    test('ScheduledExpense round-trips recurEvery + isSubscription', () {
+      final e = ScheduledExpense(
+        id: 'x',
+        name: 'Netflix',
+        amount: 15,
+        day: 5,
+        recurEvery: 1,
+        isSubscription: true,
+      );
+      final back = ScheduledExpense.fromJson(e.toJson());
+      expect(back.recurEvery, 1);
+      expect(back.isSubscription, true);
+    });
+  });
 }

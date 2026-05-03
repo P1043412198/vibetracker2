@@ -238,6 +238,7 @@ class IncomeEntry {
     required this.name,
     required this.amount,
     required this.day,
+    this.recurEvery,
   });
 
   final String id;
@@ -247,11 +248,25 @@ class IncomeEntry {
   /// Day-of-month (1..31). Day > daysInMonth is clamped to the last day.
   final int day;
 
-  IncomeEntry copyWith({String? name, num? amount, int? day}) => IncomeEntry(
+  /// Phase 19: recur every N months (1=каждый месяц, 2=раз в 2 мес,
+  /// 3=раз в квартал, 6=раз в полгода, 12=раз в год).
+  /// `null` or 0 means one-off.
+  final int? recurEvery;
+
+  IncomeEntry copyWith({
+    String? name,
+    num? amount,
+    int? day,
+    Object? recurEvery = _incomeSentinel,
+  }) =>
+      IncomeEntry(
         id: id,
         name: name ?? this.name,
         amount: amount ?? this.amount,
         day: day ?? this.day,
+        recurEvery: identical(recurEvery, _incomeSentinel)
+            ? this.recurEvery
+            : recurEvery as int?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -259,6 +274,7 @@ class IncomeEntry {
         'name': name,
         'amount': amount,
         'day': day,
+        if (recurEvery != null) 'recurEvery': recurEvery,
       };
 
   factory IncomeEntry.fromJson(Map<String, dynamic> json) => IncomeEntry(
@@ -266,8 +282,11 @@ class IncomeEntry {
         name: (json['name'] ?? '') as String,
         amount: (json['amount'] ?? 0) as num,
         day: (json['day'] as num?)?.toInt() ?? 1,
+        recurEvery: (json['recurEvery'] as num?)?.toInt(),
       );
 }
+
+const Object _incomeSentinel = Object();
 
 /// Phase 17: a single one-off planned expense bound to a date.
 /// Sits alongside `CategoryPlan` (which is monthly limit per category) and
@@ -279,6 +298,8 @@ class ScheduledExpense {
     required this.amount,
     required this.day,
     this.category,
+    this.recurEvery,
+    this.isSubscription,
   });
 
   final String id;
@@ -289,14 +310,36 @@ class ScheduledExpense {
   final int day;
   final String? category;
 
-  ScheduledExpense copyWith(
-          {String? name, num? amount, int? day, String? category}) =>
+  /// Phase 19: recur every N months (1=каждый месяц, 3=раз в квартал, …).
+  /// `null` or 0 means one-off.
+  final int? recurEvery;
+
+  /// Phase 19: explicitly marked as a subscription (Netflix, Spotify, …).
+  /// Surfaces in the dedicated subscriptions card. When `null`, items with
+  /// `recurEvery != null` and a name matching a known subscription pattern
+  /// are auto-counted as subscriptions.
+  final bool? isSubscription;
+
+  ScheduledExpense copyWith({
+    String? name,
+    num? amount,
+    int? day,
+    String? category,
+    Object? recurEvery = _expenseSentinel,
+    Object? isSubscription = _expenseSentinel,
+  }) =>
       ScheduledExpense(
         id: id,
         name: name ?? this.name,
         amount: amount ?? this.amount,
         day: day ?? this.day,
         category: category ?? this.category,
+        recurEvery: identical(recurEvery, _expenseSentinel)
+            ? this.recurEvery
+            : recurEvery as int?,
+        isSubscription: identical(isSubscription, _expenseSentinel)
+            ? this.isSubscription
+            : isSubscription as bool?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -305,6 +348,8 @@ class ScheduledExpense {
         'amount': amount,
         'day': day,
         if (category != null) 'category': category,
+        if (recurEvery != null) 'recurEvery': recurEvery,
+        if (isSubscription != null) 'isSubscription': isSubscription,
       };
 
   factory ScheduledExpense.fromJson(Map<String, dynamic> json) =>
@@ -314,8 +359,12 @@ class ScheduledExpense {
         amount: (json['amount'] ?? 0) as num,
         day: (json['day'] as num?)?.toInt() ?? 1,
         category: json['category'] as String?,
+        recurEvery: (json['recurEvery'] as num?)?.toInt(),
+        isSubscription: json['isSubscription'] as bool?,
       );
 }
+
+const Object _expenseSentinel = Object();
 
 class MonthlyBudgetPlan {
   MonthlyBudgetPlan({

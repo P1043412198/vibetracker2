@@ -4,6 +4,7 @@ import '../models/finance.dart';
 import '../models/goal.dart';
 import '../models/habit.dart';
 import '../models/misc.dart';
+import '../models/savings_goal.dart';
 import '../models/sphere.dart';
 import '../models/task.dart';
 import '../services/storage.dart';
@@ -173,6 +174,22 @@ final monthlyBudgetPlansProvider = StateNotifierProvider<
     MonthlyBudgetPlansController, List<MonthlyBudgetPlan>>((ref) {
   return MonthlyBudgetPlansController();
 });
+
+class SavingsGoalsController extends JsonListController<SavingsGoal> {
+  SavingsGoalsController()
+      : super(
+          storageKey: 'savingsGoals',
+          fromJson: SavingsGoal.fromJson,
+          toJson: (g) => g.toJson(),
+        );
+
+  @override
+  String idOf(SavingsGoal item) => item.id;
+}
+
+final savingsGoalsProvider =
+    StateNotifierProvider<SavingsGoalsController, List<SavingsGoal>>(
+        (ref) => SavingsGoalsController());
 
 class LoansController extends JsonListController<Loan> {
   LoansController()

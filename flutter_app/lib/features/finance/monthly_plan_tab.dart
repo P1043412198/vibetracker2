@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/finance.dart';
+import '../../models/savings_goal.dart';
 import '../../services/finance_calc.dart';
 import '../../state/currency_state.dart';
 import '../../state/providers.dart';
@@ -139,6 +140,59 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             today: DateTime.now(),
           );
 
+    // Phase 19: derived data for new cards.
+    final history = computeHistoricalMonths(
+      endMonth: _month,
+      count: 6,
+      transactions: transactions,
+      accounts: accounts,
+      baseCurrency: baseCurrency,
+      convert: convert,
+      excludedAccountIds: excluded,
+    );
+    num totalLiquid = 0;
+    for (final a in accounts) {
+      if (excluded.contains(a.id)) continue;
+      totalLiquid += convert(
+          accountBalance(
+            account: a,
+            transactions: transactions,
+            accounts: accounts,
+            convert: convert,
+          ),
+          a.currency,
+          planCurrency);
+    }
+    final emergency = computeEmergencyFund(
+      totalLiquid: totalLiquid,
+      history: history,
+    );
+    final health = computeHealthCheck(
+      plannedIncomeRef: (plan?.plannedIncome ?? 0) > scheduledIncomeTotal
+          ? (plan?.plannedIncome ?? 0)
+          : scheduledIncomeTotal,
+      categoryPlans: plan?.categoryPlans ?? const [],
+      scheduledExpenses:
+          plan?.scheduledExpenses ?? const <ScheduledExpense>[],
+      loansMonthlyPayments: loansMonthlyPayments,
+      committedTotal: committed.total,
+      freeFunds: freeFunds.free,
+    );
+    final subscriptions = computeSubscriptions(
+        plan?.scheduledExpenses ?? const <ScheduledExpense>[]);
+    final dailyAllowanceList =
+        cashflow == null ? const <num>[] : perDayAllowance(cashflow);
+    final savingsGoals = ref.watch(savingsGoalsProvider);
+    final hasPrevPlan = prevPlan != null &&
+        ((prevPlan.categoryPlans.isNotEmpty) ||
+            ((prevPlan.incomes ?? const []).isNotEmpty) ||
+            ((prevPlan.scheduledExpenses ?? const []).isNotEmpty));
+    final isCurrentMonthEmpty = plan == null ||
+        (plan.categoryPlans.isEmpty &&
+            (plan.incomes ?? const []).isEmpty &&
+            (plan.scheduledExpenses ?? const []).isEmpty &&
+            plan.plannedIncome == 0);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: [
@@ -151,6 +205,17 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             _month = DateTime(_month.year, _month.month + 1, 1);
           }),
         ),
+        if (hasPrevPlan) ...[
+          const SizedBox(height: 8),
+          _CopyPrevMonthBanner(
+            previousMonthLabel:
+                _previousMonthLabel(_month),
+            isCurrentMonthEmpty: isCurrentMonthEmpty,
+            onCopy: () => _copyPrevMonth(plan, monthKey, prevPlan),
+            onAddRecurring: () =>
+                _carryRecurring(plan, monthKey, prevPlan),
+          ),
+        ],
         const SizedBox(height: 12),
         _AccountSelectorCard(
           accounts: accounts,
@@ -181,6 +246,20 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
               _toggleFreeFundsCarryover(plan, monthKey),
         ),
         const SizedBox(height: 12),
+        _HealthCheckCard(
+          health: health,
+          currency: planCurrency,
+          fmt: fmt,
+        ),
+        if (history.any((m) => m.expense > 0)) ...[
+          const SizedBox(height: 12),
+          _EmergencyFundCard(
+            emergency: emergency,
+            currency: planCurrency,
+            fmt: fmt,
+          ),
+        ],
+        const SizedBox(height: 12),
         _IncomeScheduleCard(
           incomes: plan?.incomes ?? const [],
           currency: planCurrency,
@@ -189,6 +268,15 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
           onEdit: (e) => _editIncomeEntry(plan, monthKey, e),
           onDelete: (id) => _removeIncomeEntry(plan, monthKey, id),
         ),
+        if ((plan?.incomes ?? const <IncomeEntry>[]).isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _IncomeBreakdownCard(
+            incomes: plan!.incomes!,
+            history: history,
+            currency: planCurrency,
+            fmt: fmt,
+          ),
+        ],
         const SizedBox(height: 12),
         _ScheduledExpenseCard(
           items: plan?.scheduledExpenses ?? const [],
@@ -198,6 +286,15 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
           onEdit: (e) => _editScheduledExpense(plan, monthKey, e),
           onDelete: (id) => _removeScheduledExpense(plan, monthKey, id),
         ),
+        if (subscriptions.items.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _SubscriptionsCard(
+            summary: subscriptions,
+            currency: planCurrency,
+            fmt: fmt,
+            onEdit: (e) => _editScheduledExpense(plan, monthKey, e),
+          ),
+        ],
         if (cashflow != null && cashflow.periods.isNotEmpty) ...[
           const SizedBox(height: 12),
           _CashflowCard(
@@ -206,6 +303,17 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             fmt: fmt,
             today: DateTime.now(),
             month: _month,
+          ),
+        ],
+        if (cashflow != null && dailyAllowanceList.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _PerDayAllowanceCard(
+            allowances: dailyAllowanceList,
+            cashflow: cashflow,
+            month: _month,
+            today: DateTime.now(),
+            currency: planCurrency,
+            fmt: fmt,
           ),
         ],
         if (breakdown != null && breakdown.weeks.isNotEmpty) ...[
@@ -226,6 +334,20 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             today: DateTime.now(),
           ),
         ],
+        const SizedBox(height: 12),
+        _SavingsGoalsCard(
+          goals: savingsGoals,
+          currency: planCurrency,
+          fmt: fmt,
+          weeklyAllowance: weekly,
+          freeFunds: freeFunds.free,
+          onAdd: () => _addSavingsGoal(planCurrency),
+          onEdit: (g) => _editSavingsGoal(g),
+          onDelete: (id) => ref
+              .read(savingsGoalsProvider.notifier)
+              .remove(id),
+          onTopUp: (g) => _topUpSavingsGoal(g),
+        ),
         if (plan != null && plan.categoryPlans.isNotEmpty) ...[
           const SizedBox(height: 12),
           _PlanVsFactCard(
@@ -626,6 +748,215 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
       updatedAt: now,
     );
     await ref.read(monthlyBudgetPlansProvider.notifier).upsert(next);
+  }
+
+  // ---------------------------------------------------------------
+  // Phase 19: copy from previous month + savings goals helpers.
+  // ---------------------------------------------------------------
+
+  String _previousMonthLabel(DateTime current) {
+    final prev = DateTime(current.year, current.month - 1, 1);
+    return DateFormat.yMMMM('ru_RU').format(prev);
+  }
+
+  /// Replace the current month's plan with a clone of [prev]. New IDs are
+  /// generated for incomes/expenses so editing one doesn't ripple back.
+  Future<void> _copyPrevMonth(
+    MonthlyBudgetPlan? current,
+    String monthKey,
+    MonthlyBudgetPlan? prev,
+  ) async {
+    if (prev == null) return;
+    if (current != null && (current.categoryPlans.isNotEmpty ||
+        (current.incomes ?? const []).isNotEmpty ||
+        (current.scheduledExpenses ?? const []).isNotEmpty)) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Перезаписать план?'),
+          content: const Text(
+              'В текущем месяце уже есть план. Скопировать с прошлого месяца, заменив всё?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Перезаписать'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    final uuid = const Uuid();
+    final newIncomes = (prev.incomes ?? const <IncomeEntry>[])
+        .map((e) => IncomeEntry(
+              id: uuid.v4(),
+              name: e.name,
+              amount: e.amount,
+              day: e.day,
+              recurEvery: e.recurEvery,
+            ))
+        .toList();
+    final newExpenses = (prev.scheduledExpenses ?? const <ScheduledExpense>[])
+        .map((e) => ScheduledExpense(
+              id: uuid.v4(),
+              name: e.name,
+              amount: e.amount,
+              day: e.day,
+              category: e.category,
+              recurEvery: e.recurEvery,
+              isSubscription: e.isSubscription,
+            ))
+        .toList();
+    final newCategories = prev.categoryPlans
+        .map((c) => CategoryPlan(
+              category: c.category,
+              planned: c.planned,
+              dueDay: c.dueDay,
+            ))
+        .toList();
+    final now = DateTime.now().toIso8601String();
+    final next = MonthlyBudgetPlan(
+      id: current?.id ?? const Uuid().v4(),
+      monthKey: monthKey,
+      plannedIncome: prev.plannedIncome,
+      currency: prev.currency ?? current?.currency,
+      categoryPlans: newCategories,
+      freeFundsTarget: prev.freeFundsTarget,
+      rollover: current?.rollover ?? prev.rollover,
+      freeFundsCarryover:
+          current?.freeFundsCarryover ?? prev.freeFundsCarryover,
+      notes: current?.notes,
+      excludedAccountIds:
+          current?.excludedAccountIds ?? prev.excludedAccountIds,
+      incomes: newIncomes,
+      scheduledExpenses: newExpenses,
+      createdAt: current?.createdAt ?? now,
+      updatedAt: now,
+    );
+    await ref.read(monthlyBudgetPlansProvider.notifier).upsert(next);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('План скопирован с прошлого месяца')));
+    }
+  }
+
+  /// Add only the recurring entries (recurEvery>0) from [prev] that don't
+  /// already exist in the current plan (matched by name+day).
+  Future<void> _carryRecurring(
+    MonthlyBudgetPlan? current,
+    String monthKey,
+    MonthlyBudgetPlan? prev,
+  ) async {
+    if (prev == null) return;
+    final uuid = const Uuid();
+    final curIncomes = [...(current?.incomes ?? const <IncomeEntry>[])];
+    final curExpenses =
+        [...(current?.scheduledExpenses ?? const <ScheduledExpense>[])];
+    var added = 0;
+    for (final e in (prev.incomes ?? const <IncomeEntry>[])) {
+      if ((e.recurEvery ?? 0) <= 0) continue;
+      final dup = curIncomes.any((c) =>
+          c.name.toLowerCase() == e.name.toLowerCase() && c.day == e.day);
+      if (dup) continue;
+      curIncomes.add(IncomeEntry(
+        id: uuid.v4(),
+        name: e.name,
+        amount: e.amount,
+        day: e.day,
+        recurEvery: e.recurEvery,
+      ));
+      added++;
+    }
+    for (final e in (prev.scheduledExpenses ?? const <ScheduledExpense>[])) {
+      if ((e.recurEvery ?? 0) <= 0) continue;
+      final dup = curExpenses.any((c) =>
+          c.name.toLowerCase() == e.name.toLowerCase() && c.day == e.day);
+      if (dup) continue;
+      curExpenses.add(ScheduledExpense(
+        id: uuid.v4(),
+        name: e.name,
+        amount: e.amount,
+        day: e.day,
+        category: e.category,
+        recurEvery: e.recurEvery,
+        isSubscription: e.isSubscription,
+      ));
+      added++;
+    }
+    if (added == 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Все повторяющиеся записи уже есть в этом месяце.')));
+      }
+      return;
+    }
+    await _upsertPlan(current, monthKey,
+        incomes: curIncomes, scheduledExpenses: curExpenses);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Добавлено повторяющихся: $added')));
+    }
+  }
+
+  Future<void> _addSavingsGoal(String currency) async {
+    final result = await showModalBottomSheet<SavingsGoal?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => _SavingsGoalSheet(currency: currency),
+    );
+    if (result == null) return;
+    await ref.read(savingsGoalsProvider.notifier).add(result);
+  }
+
+  Future<void> _editSavingsGoal(SavingsGoal goal) async {
+    final result = await showModalBottomSheet<SavingsGoal?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => _SavingsGoalSheet(currency: goal.currency, initial: goal),
+    );
+    if (result == null) return;
+    await ref.read(savingsGoalsProvider.notifier).upsert(result);
+  }
+
+  Future<void> _topUpSavingsGoal(SavingsGoal goal) async {
+    final ctl = TextEditingController();
+    final next = await showDialog<num?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Пополнить «${goal.title}»'),
+        content: TextField(
+          controller: ctl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration:
+              const InputDecoration(hintText: 'Сумма пополнения'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () {
+              final v =
+                  double.tryParse(ctl.text.trim().replaceAll(',', '.')) ?? 0;
+              Navigator.of(ctx).pop(v);
+            },
+            child: const Text('Добавить'),
+          ),
+        ],
+      ),
+    );
+    if (next == null || next <= 0) return;
+    await ref.read(savingsGoalsProvider.notifier).upsert(
+          goal.copyWith(currentAmount: goal.currentAmount + next),
+        );
   }
 }
 
@@ -1215,7 +1546,13 @@ class _IncomeScheduleCard extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                                 fontSize: 12)),
                       ),
-                      title: Text(e.name),
+                      title: Row(children: [
+                        Flexible(child: Text(e.name)),
+                        if ((e.recurEvery ?? 0) > 0) ...[
+                          const SizedBox(width: 6),
+                          _RecurChip(every: e.recurEvery!),
+                        ],
+                      ]),
                       subtitle:
                           Text('${fmt.format(e.amount)} $currency'),
                       trailing: Wrap(
@@ -1243,6 +1580,51 @@ class _IncomeScheduleCard extends StatelessWidget {
   }
 }
 
+/// Tiny chip showing a recurrence period (e.g. "1м", "Кв", "Год") next to
+/// scheduled income/expense rows.
+class _RecurChip extends StatelessWidget {
+  const _RecurChip({required this.every});
+  final int every;
+
+  static String labelFor(int every) {
+    switch (every) {
+      case 1:
+        return '1 мес';
+      case 2:
+        return '2 мес';
+      case 3:
+        return 'Квартал';
+      case 6:
+        return 'Полгода';
+      case 12:
+        return 'Год';
+      default:
+        return '$every мес';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.repeat, size: 11, color: scheme.primary),
+        const SizedBox(width: 3),
+        Text(labelFor(every),
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: scheme.primary)),
+      ]),
+    );
+  }
+}
+
 class _IncomeFormSheet extends StatefulWidget {
   const _IncomeFormSheet({this.initial});
   final IncomeEntry? initial;
@@ -1258,6 +1640,7 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
       text: widget.initial == null ? '' : widget.initial!.amount.toString());
   late final TextEditingController _day = TextEditingController(
       text: widget.initial == null ? '5' : widget.initial!.day.toString());
+  late int _recur = widget.initial?.recurEvery ?? 1;
 
   @override
   void dispose() {
@@ -1282,54 +1665,111 @@ class _IncomeFormSheetState extends State<_IncomeFormSheet> {
       name: name,
       amount: amount,
       day: day,
+      recurEvery: _recur > 0 ? _recur : null,
     ));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 8,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(widget.initial == null ? 'Новый доход' : 'Изменить доход',
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _name,
-            decoration: const InputDecoration(
-                labelText: 'Название (Зарплата, Премия, …)'),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _amount,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Сумма'),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _day,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'День месяца (1–31)',
-              helperText:
-                  'Если число превышает количество дней — будет последний день',
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 8,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.initial == null ? 'Новый доход' : 'Изменить доход',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(
+                  labelText: 'Название (Зарплата, Премия, …)'),
             ),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _submit,
-            child: const Text('Сохранить'),
-          ),
-        ],
+            const SizedBox(height: 8),
+            TextField(
+              controller: _amount,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Сумма'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _day,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'День месяца (1–31)',
+                helperText:
+                    'Если число превышает количество дней — будет последний день',
+              ),
+            ),
+            const SizedBox(height: 12),
+            _RecurrenceSelector(
+              value: _recur,
+              onChanged: (v) => setState(() => _recur = v),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _submit,
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+/// Phase 19: shared "Повторять" picker used by income & expense sheets.
+/// `value=0` means one-off; >0 means "every N months".
+class _RecurrenceSelector extends StatelessWidget {
+  const _RecurrenceSelector({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final options = <(int, String)>[
+      (0, 'Один раз'),
+      (1, 'Каждый месяц'),
+      (2, 'Раз в 2 мес'),
+      (3, 'Квартал'),
+      (6, 'Полугодие'),
+      (12, 'Год'),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 6),
+          child: Row(children: [
+            Icon(Icons.repeat, size: 16, color: scheme.primary),
+            const SizedBox(width: 6),
+            Text('Повторять',
+                style: Theme.of(context).textTheme.labelMedium),
+          ]),
+        ),
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            for (final (v, label) in options)
+              ChoiceChip(
+                label: Text(label),
+                selected: value == v,
+                onSelected: (_) => onChanged(v),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -1408,7 +1848,37 @@ class _ScheduledExpenseCard extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                                 fontSize: 12)),
                       ),
-                      title: Text(e.name),
+                      title: Row(children: [
+                        Flexible(child: Text(e.name)),
+                        if ((e.recurEvery ?? 0) > 0) ...[
+                          const SizedBox(width: 6),
+                          _RecurChip(every: e.recurEvery!),
+                        ],
+                        if (e.isSubscription == true) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444)
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.subscriptions_outlined,
+                                      size: 11, color: Color(0xFFEF4444)),
+                                  SizedBox(width: 3),
+                                  Text('Подписка',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFFEF4444))),
+                                ]),
+                          ),
+                        ],
+                      ]),
                       subtitle: Text(
                           '−${fmt.format(e.amount)} $currency${e.category != null ? ' · ${e.category}' : ''}'),
                       trailing: Wrap(
@@ -1455,6 +1925,8 @@ class _ScheduledExpenseFormSheetState
   late final TextEditingController _day = TextEditingController(
       text: widget.initial == null ? '1' : widget.initial!.day.toString());
   String? _category;
+  late int _recur = widget.initial?.recurEvery ?? 1;
+  late bool? _isSubscription = widget.initial?.isSubscription;
 
   @override
   void initState() {
@@ -1486,6 +1958,8 @@ class _ScheduledExpenseFormSheetState
       amount: amount,
       day: day,
       category: _category,
+      recurEvery: _recur > 0 ? _recur : null,
+      isSubscription: _isSubscription,
     ));
   }
 
@@ -1552,7 +2026,22 @@ class _ScheduledExpenseFormSheetState
                   ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            _RecurrenceSelector(
+              value: _recur,
+              onChanged: (v) => setState(() => _recur = v),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Это подписка'),
+              subtitle: const Text(
+                  'Помечу в карточке «Подписки», где видно общую сумму в месяц/год'),
+              value: _isSubscription == true,
+              onChanged: (v) =>
+                  setState(() => _isSubscription = v ? true : null),
+            ),
+            const SizedBox(height: 12),
             FilledButton(
               onPressed: _submit,
               child: const Text('Сохранить'),
@@ -2344,4 +2833,1167 @@ double _niceInterval(double range, int divisions) {
     if (candidate >= raw) return candidate;
   }
   return raw;
+}
+
+// =====================================================================
+// Phase 19 widgets
+// =====================================================================
+
+/// Copy-from-previous-month banner. Shown only when the previous month has a
+/// plan. Two actions:
+/// * Скопировать всё — replace this month with last month (with confirm).
+/// * Только повторяющиеся — append entries with recurEvery>0.
+class _CopyPrevMonthBanner extends StatelessWidget {
+  const _CopyPrevMonthBanner({
+    required this.previousMonthLabel,
+    required this.isCurrentMonthEmpty,
+    required this.onCopy,
+    required this.onAddRecurring,
+  });
+
+  final String previousMonthLabel;
+  final bool isCurrentMonthEmpty;
+  final VoidCallback onCopy;
+  final VoidCallback onAddRecurring;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      color: scheme.primaryContainer.withValues(alpha: 0.55),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.content_copy_outlined,
+                  size: 18, color: scheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  isCurrentMonthEmpty
+                      ? 'План пуст. Перенести из «$previousMonthLabel»?'
+                      : 'Из «$previousMonthLabel» можно перенести записи.',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                FilledButton.icon(
+                  icon: const Icon(Icons.copy_all_outlined, size: 16),
+                  label: const Text('Скопировать всё'),
+                  onPressed: onCopy,
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.repeat, size: 16),
+                  label: const Text('Только повторяющиеся'),
+                  onPressed: onAddRecurring,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Health-check (50/30/20 + expense/income ratio + traffic light).
+class _HealthCheckCard extends StatelessWidget {
+  const _HealthCheckCard({
+    required this.health,
+    required this.currency,
+    required this.fmt,
+  });
+
+  final HealthCheck health;
+  final String currency;
+  final NumberFormat fmt;
+
+  Color _color(int sev) {
+    switch (sev) {
+      case 0:
+        return const Color(0xFFEF4444);
+      case 1:
+        return const Color(0xFFF59E0B);
+      case 2:
+      default:
+        return const Color(0xFF10B981);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final c = _color(health.severity);
+    final pct = (health.expenseToIncome * 100).clamp(0, 200).toDouble();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.health_and_safety_outlined, color: c),
+              const SizedBox(width: 8),
+              Text('Здоровье плана',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: c.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  health.severity == 2
+                      ? 'OK'
+                      : health.severity == 1
+                          ? 'Можно лучше'
+                          : 'Внимание',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: c, fontSize: 12),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: (pct / 100).clamp(0, 1).toDouble(),
+                minHeight: 10,
+                backgroundColor: scheme.surfaceContainerHighest,
+                color: c,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(health.message,
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            Text('Структура 50/30/20',
+                style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 6),
+            _StackedShareBar(
+              segments: [
+                _StackSegment(
+                  label: 'Обязательное',
+                  share: health.needsShare,
+                  color: const Color(0xFFEF4444),
+                ),
+                _StackSegment(
+                  label: 'Хотелки',
+                  share: health.wantsShare,
+                  color: const Color(0xFFF59E0B),
+                ),
+                _StackSegment(
+                  label: 'Накопления',
+                  share: health.savingsShare,
+                  color: const Color(0xFF10B981),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(spacing: 12, runSpacing: 4, children: [
+              _ShareLegend(
+                color: const Color(0xFFEF4444),
+                label: 'Обязательное',
+                value: health.needsShare,
+              ),
+              _ShareLegend(
+                color: const Color(0xFFF59E0B),
+                label: 'Хотелки',
+                value: health.wantsShare,
+              ),
+              _ShareLegend(
+                color: const Color(0xFF10B981),
+                label: 'Накопления',
+                value: health.savingsShare,
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+              'Расходы: ${fmt.format(health.expenseToIncome * 100)}% от дохода. '
+              'Накопления: ${fmt.format(health.savingsRate * 100)}%.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StackSegment {
+  _StackSegment(
+      {required this.label, required this.share, required this.color});
+  final String label;
+  final double share;
+  final Color color;
+}
+
+class _StackedShareBar extends StatelessWidget {
+  const _StackedShareBar({required this.segments});
+  final List<_StackSegment> segments;
+
+  @override
+  Widget build(BuildContext context) {
+    final shown = segments.where((s) => s.share > 0).toList();
+    if (shown.isEmpty) {
+      return Container(
+        height: 12,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(6),
+        ),
+      );
+    }
+    final total = shown.fold<double>(0, (s, x) => s + x.share);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: SizedBox(
+        height: 12,
+        child: Row(
+          children: [
+            for (final s in shown)
+              Expanded(
+                flex: ((s.share / total) * 1000).round(),
+                child: Container(color: s.color),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareLegend extends StatelessWidget {
+  const _ShareLegend(
+      {required this.color, required this.label, required this.value});
+  final Color color;
+  final String label;
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 4),
+      Text('$label · ${(value * 100).toStringAsFixed(0)}%',
+          style: const TextStyle(fontSize: 12)),
+    ]);
+  }
+}
+
+/// Emergency-fund indicator: «у тебя X месяцев расходов отложено».
+class _EmergencyFundCard extends StatelessWidget {
+  const _EmergencyFundCard({
+    required this.emergency,
+    required this.currency,
+    required this.fmt,
+  });
+
+  final EmergencyFund emergency;
+  final String currency;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = switch (emergency.severity) {
+      0 => const Color(0xFFEF4444),
+      1 => const Color(0xFFF59E0B),
+      2 => const Color(0xFF6366F1),
+      _ => const Color(0xFF10B981),
+    };
+    final months = emergency.months.toDouble();
+    final ratio = (months / 6).clamp(0, 1).toDouble();
+    final label = emergency.severity == 0
+        ? 'Подушки нет'
+        : emergency.severity == 1
+            ? 'Маловато'
+            : emergency.severity == 2
+                ? 'Норм'
+                : 'Отлично';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.savings_outlined, color: c),
+              const SizedBox(width: 8),
+              Text('Подушка безопасности',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                    color: c.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8)),
+                child: Text(label,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: c,
+                        fontSize: 12)),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text(
+                emergency.months <= 0
+                    ? '0 мес'
+                    : '${emergency.months.toStringAsFixed(1)} мес',
+                style: const TextStyle(
+                    fontSize: 30, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '/ цель 6 мес',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: ratio,
+                minHeight: 10,
+                color: c,
+                backgroundColor:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Доступно: ${fmt.format(emergency.totalLiquid)} $currency · '
+              'средний расход: ${fmt.format(emergency.avgMonthlyExpense)} $currency / мес',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Income-sources pie chart + 6-month income/expense trend line.
+class _IncomeBreakdownCard extends StatelessWidget {
+  const _IncomeBreakdownCard({
+    required this.incomes,
+    required this.history,
+    required this.currency,
+    required this.fmt,
+  });
+
+  final List<IncomeEntry> incomes;
+  final List<HistoricalMonth> history;
+  final String currency;
+  final NumberFormat fmt;
+
+  static const _palette = <Color>[
+    Color(0xFF22C55E),
+    Color(0xFF6366F1),
+    Color(0xFFF59E0B),
+    Color(0xFF06B6D4),
+    Color(0xFFEC4899),
+    Color(0xFF8B5CF6),
+    Color(0xFFF97316),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final total = incomes.fold<num>(0, (s, e) => s + e.amount);
+    final hasHistory =
+        history.any((m) => m.income > 0 || m.expense > 0);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.donut_large_outlined, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Доходы — структура и тренд',
+                  style: Theme.of(context).textTheme.titleSmall),
+            ]),
+            const SizedBox(height: 8),
+            if (incomes.isEmpty || total <= 0)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                    'Добавь доход в «Доходы по датам», чтобы увидеть круговую диаграмму.',
+                    style: Theme.of(context).textTheme.bodySmall),
+              )
+            else ...[
+              SizedBox(
+                height: 160,
+                child: Row(children: [
+                  Expanded(
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 32,
+                        sections: [
+                          for (var i = 0; i < incomes.length; i++)
+                            PieChartSectionData(
+                              value: incomes[i].amount.toDouble(),
+                              color: _palette[i % _palette.length],
+                              title:
+                                  '${((incomes[i].amount / total) * 100).round()}%',
+                              radius: 44,
+                              titleStyle: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var i = 0; i < incomes.length; i++)
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 2),
+                            child: Row(children: [
+                              Container(
+                                width: 10,
+                                height: 10,
+                                decoration: BoxDecoration(
+                                  color: _palette[i % _palette.length],
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  '${incomes[i].name}: ${fmt.format(incomes[i].amount)} $currency',
+                                  style: const TextStyle(fontSize: 12),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ]),
+                          ),
+                        const SizedBox(height: 4),
+                        Text('Итого: ${fmt.format(total)} $currency',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+                  ),
+                ]),
+              ),
+            ],
+            if (hasHistory) ...[
+              const SizedBox(height: 8),
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+              Text('Доход / расход — 6 мес',
+                  style: Theme.of(context).textTheme.labelMedium),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 140,
+                child: _HistoryLineChart(history: history, fmt: fmt),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryLineChart extends StatelessWidget {
+  const _HistoryLineChart({required this.history, required this.fmt});
+  final List<HistoricalMonth> history;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    if (history.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final maxY = history.fold<double>(
+        0,
+        (a, m) => math.max(
+            a,
+            math.max(m.income.toDouble(),
+                m.expense.toDouble())));
+    final niceMaxY = maxY <= 0 ? 100.0 : maxY * 1.15;
+    final interval = _niceInterval(niceMaxY, 4);
+    return LineChart(
+      LineChartData(
+        minX: 0,
+        maxX: (history.length - 1).toDouble(),
+        minY: 0,
+        maxY: niceMaxY,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          horizontalInterval: interval,
+          getDrawingHorizontalLine: (v) => FlLine(
+            color: scheme.outlineVariant.withValues(alpha: 0.4),
+            strokeWidth: 0.5,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 38,
+              interval: interval,
+              getTitlesWidget: (v, _) => Text(
+                v >= 1000
+                    ? '${(v / 1000).toStringAsFixed(0)}к'
+                    : v.toInt().toString(),
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              interval: 1,
+              reservedSize: 22,
+              getTitlesWidget: (v, _) {
+                final idx = v.toInt();
+                if (idx < 0 || idx >= history.length) {
+                  return const SizedBox.shrink();
+                }
+                final m = history[idx].month;
+                return Text(
+                    DateFormat('LLL', 'ru_RU').format(m).replaceAll('.', ''),
+                    style: const TextStyle(fontSize: 10));
+              },
+            ),
+          ),
+          topTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false)),
+          rightTitles: const AxisTitles(
+              sideTitles: SideTitles(showTitles: false)),
+        ),
+        borderData: FlBorderData(show: false),
+        lineBarsData: [
+          LineChartBarData(
+            isCurved: true,
+            color: const Color(0xFF22C55E),
+            barWidth: 2,
+            dotData: const FlDotData(show: true),
+            spots: [
+              for (var i = 0; i < history.length; i++)
+                FlSpot(i.toDouble(), history[i].income.toDouble()),
+            ],
+          ),
+          LineChartBarData(
+            isCurved: true,
+            color: const Color(0xFFEF4444),
+            barWidth: 2,
+            dotData: const FlDotData(show: true),
+            spots: [
+              for (var i = 0; i < history.length; i++)
+                FlSpot(i.toDouble(), history[i].expense.toDouble()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Card listing the auto-detected subscriptions plus monthly/annual totals.
+class _SubscriptionsCard extends StatelessWidget {
+  const _SubscriptionsCard({
+    required this.summary,
+    required this.currency,
+    required this.fmt,
+    required this.onEdit,
+  });
+
+  final SubscriptionsSummary summary;
+  final String currency;
+  final NumberFormat fmt;
+  final ValueChanged<ScheduledExpense> onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.subscriptions_outlined, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Подписки',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              Text('${summary.items.length} шт',
+                  style: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 6),
+            Text(
+                'В месяц: ${fmt.format(summary.monthlyTotal)} $currency · '
+                'в год: ${fmt.format(summary.annualTotal)} $currency',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            for (final s in summary.items)
+              ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.repeat,
+                    color: Color(0xFFEF4444), size: 20),
+                title: Text(s.name),
+                subtitle: Text(
+                  '−${fmt.format(s.amount)} $currency · ${_RecurChip.labelFor(s.recurEvery ?? 1)}'
+                  '${s.day == 0 ? '' : ' · ${s.day}-го'}',
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.edit_outlined, size: 20),
+                  onPressed: () => onEdit(s),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Per-day allowance bars across the whole month — на каждый день видно,
+/// сколько можно безопасно тратить, не залезая в обязательные платежи.
+class _PerDayAllowanceCard extends StatelessWidget {
+  const _PerDayAllowanceCard({
+    required this.allowances,
+    required this.cashflow,
+    required this.month,
+    required this.today,
+    required this.currency,
+    required this.fmt,
+  });
+
+  final List<num> allowances;
+  final CashflowResult cashflow;
+  final DateTime month;
+  final DateTime today;
+  final String currency;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isCurrentMonth =
+        today.year == month.year && today.month == month.month;
+    final maxA = allowances.fold<double>(
+        0, (a, x) => math.max(a, x.toDouble()));
+    final niceMax = maxA <= 0 ? 1.0 : maxA * 1.2;
+    final daysInMonth = allowances.length;
+    final periods = cashflow.periods;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.bar_chart_rounded, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Можно тратить — каждый день',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              if (isCurrentMonth && today.day - 1 < allowances.length)
+                Text(
+                    'Сегодня ${fmt.format(allowances[today.day - 1])} $currency',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 4),
+            Text(
+              'Безопасный дневной расход: считаем остаток до следующего дохода или конца месяца, '
+              'вычитаем будущие обязательные платежи и делим на оставшиеся дни.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 140,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceBetween,
+                  maxY: niceMax,
+                  minY: 0,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (v) => FlLine(
+                      color: scheme.outlineVariant.withValues(alpha: 0.4),
+                      strokeWidth: 0.5,
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 38,
+                        interval: _niceInterval(niceMax, 4),
+                        getTitlesWidget: (v, _) => Text(
+                          v >= 1000
+                              ? '${(v / 1000).toStringAsFixed(0)}к'
+                              : v.toInt().toString(),
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        interval: 5,
+                        reservedSize: 22,
+                        getTitlesWidget: (v, _) {
+                          final d = v.toInt() + 1;
+                          if (d < 1 || d > daysInMonth) {
+                            return const SizedBox.shrink();
+                          }
+                          if (d == 1 || d % 5 == 0 || d == daysInMonth) {
+                            return Text('$d',
+                                style: const TextStyle(fontSize: 10));
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  barTouchData: BarTouchData(
+                    touchTooltipData: BarTouchTooltipData(
+                      getTooltipItem: (group, gIdx, rod, rIdx) {
+                        final d = group.x + 1;
+                        return BarTooltipItem(
+                          'День $d\n${fmt.format(rod.toY)} $currency',
+                          const TextStyle(
+                              color: Colors.white, fontSize: 12),
+                        );
+                      },
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  barGroups: [
+                    for (var i = 0; i < daysInMonth; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barRods: [
+                          BarChartRodData(
+                            toY: allowances[i].toDouble(),
+                            width: 7,
+                            color: _allowanceColor(
+                                allowances[i].toDouble(), maxA, scheme),
+                            borderRadius:
+                                BorderRadius.circular(2),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (periods.isNotEmpty) ...[
+              Text('По периодам',
+                  style: Theme.of(context).textTheme.labelMedium),
+              const SizedBox(height: 6),
+              for (final p in periods)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: scheme.primary.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(p.label,
+                          style: TextStyle(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11)),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${fmt.format(p.dailyAllowance)} $currency / день · '
+                        '${p.daysInclusive} ${_dayWord(p.daysInclusive)}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ]),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _allowanceColor(double v, double max, ColorScheme scheme) {
+    if (max <= 0) return scheme.primary;
+    if (v <= 0) return const Color(0xFFEF4444);
+    final r = v / max;
+    if (r < 0.33) return const Color(0xFFF59E0B);
+    if (r < 0.66) return const Color(0xFF6366F1);
+    return const Color(0xFF10B981);
+  }
+
+  static String _dayWord(int n) {
+    final lastTwo = n % 100;
+    if (lastTwo >= 11 && lastTwo <= 14) return 'дней';
+    final last = n % 10;
+    if (last == 1) return 'день';
+    if (last >= 2 && last <= 4) return 'дня';
+    return 'дней';
+  }
+}
+
+/// Savings goals card — list of goals with progress + ETA forecast based on
+/// current weekly allowance.
+class _SavingsGoalsCard extends StatelessWidget {
+  const _SavingsGoalsCard({
+    required this.goals,
+    required this.currency,
+    required this.fmt,
+    required this.weeklyAllowance,
+    required this.freeFunds,
+    required this.onAdd,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onTopUp,
+  });
+
+  final List<SavingsGoal> goals;
+  final String currency;
+  final NumberFormat fmt;
+  final num weeklyAllowance;
+  final num freeFunds;
+  final VoidCallback onAdd;
+  final ValueChanged<SavingsGoal> onEdit;
+  final ValueChanged<String> onDelete;
+  final ValueChanged<SavingsGoal> onTopUp;
+
+  String? _eta(SavingsGoal g) {
+    if (g.isCompleted) return 'Цель достигнута';
+    if (weeklyAllowance <= 0) return null;
+    final weeks = (g.remaining / weeklyAllowance).ceil();
+    if (weeks <= 0) return null;
+    final eta = DateTime.now().add(Duration(days: weeks * 7));
+    final monthFmt = DateFormat.yMMMM('ru_RU');
+    return 'При откладывании ${fmt.format(weeklyAllowance)} $currency / нед — '
+        '$weeks нед, к ${monthFmt.format(eta)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.flag_outlined, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Цели и накопления',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              IconButton(
+                onPressed: onAdd,
+                icon: const Icon(Icons.add),
+                tooltip: 'Добавить цель',
+              ),
+            ]),
+            if (goals.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 4, 0, 8),
+                child: Text(
+                  'Поставь цель: например «Отпуск 2000 BYN к августу» — '
+                  'я подскажу, сколько откладывать в неделю.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              )
+            else
+              for (final g in goals)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: _SavingsGoalRow(
+                    goal: g,
+                    currency: currency,
+                    fmt: fmt,
+                    eta: _eta(g),
+                    onEdit: () => onEdit(g),
+                    onDelete: () => onDelete(g.id),
+                    onTopUp: () => onTopUp(g),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SavingsGoalRow extends StatelessWidget {
+  const _SavingsGoalRow({
+    required this.goal,
+    required this.currency,
+    required this.fmt,
+    required this.eta,
+    required this.onEdit,
+    required this.onDelete,
+    required this.onTopUp,
+  });
+
+  final SavingsGoal goal;
+  final String currency;
+  final NumberFormat fmt;
+  final String? eta;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback onTopUp;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = goal.isCompleted
+        ? const Color(0xFF10B981)
+        : scheme.primary;
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(
+              child: Text(goal.title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 14)),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline, size: 20),
+              tooltip: 'Пополнить',
+              onPressed: onTopUp,
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 20),
+              onPressed: onEdit,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              onPressed: onDelete,
+            ),
+          ]),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: goal.progress,
+              minHeight: 8,
+              color: color,
+              backgroundColor: scheme.surfaceContainerHighest,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${fmt.format(goal.currentAmount)} / ${fmt.format(goal.targetAmount)} ${goal.currency} · '
+            '${(goal.progress * 100).toStringAsFixed(0)}%',
+            style: const TextStyle(fontSize: 12),
+          ),
+          if (goal.deadline != null)
+            Text(
+                'Дедлайн: ${DateFormat.yMMMd('ru_RU').format(DateTime.parse(goal.deadline!))}',
+                style: Theme.of(context).textTheme.bodySmall),
+          if (eta != null) ...[
+            const SizedBox(height: 2),
+            Text(eta!,
+                style: TextStyle(fontSize: 12, color: color.withValues(alpha: 0.9))),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SavingsGoalSheet extends StatefulWidget {
+  const _SavingsGoalSheet({required this.currency, this.initial});
+  final String currency;
+  final SavingsGoal? initial;
+
+  @override
+  State<_SavingsGoalSheet> createState() => _SavingsGoalSheetState();
+}
+
+class _SavingsGoalSheetState extends State<_SavingsGoalSheet> {
+  late final TextEditingController _title =
+      TextEditingController(text: widget.initial?.title ?? '');
+  late final TextEditingController _target = TextEditingController(
+      text: widget.initial == null
+          ? ''
+          : widget.initial!.targetAmount.toString());
+  late final TextEditingController _current = TextEditingController(
+      text: widget.initial == null
+          ? '0'
+          : widget.initial!.currentAmount.toString());
+  DateTime? _deadline;
+
+  @override
+  void initState() {
+    super.initState();
+    final raw = widget.initial?.deadline;
+    if (raw != null && raw.isNotEmpty) {
+      _deadline = DateTime.tryParse(raw);
+    }
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _target.dispose();
+    _current.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final title = _title.text.trim();
+    final target =
+        double.tryParse(_target.text.trim().replaceAll(',', '.')) ?? 0;
+    final current =
+        double.tryParse(_current.text.trim().replaceAll(',', '.')) ?? 0;
+    if (title.isEmpty || target <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Заполни название и сумму цели')));
+      return;
+    }
+    final now = DateTime.now().toIso8601String();
+    Navigator.of(context).pop(
+      widget.initial == null
+          ? SavingsGoal(
+              id: const Uuid().v4(),
+              title: title,
+              targetAmount: target,
+              currentAmount: current,
+              currency: widget.currency,
+              createdAt: now,
+              deadline: _deadline?.toIso8601String().substring(0, 10),
+            )
+          : widget.initial!.copyWith(
+              title: title,
+              targetAmount: target,
+              currentAmount: current,
+              deadline: _deadline?.toIso8601String().substring(0, 10),
+            ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 8,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(widget.initial == null ? 'Новая цель' : 'Изменить цель',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _title,
+              decoration: const InputDecoration(
+                  labelText: 'Название (Отпуск, Машина, …)'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _target,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration:
+                  InputDecoration(labelText: 'Сумма цели (${widget.currency})'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _current,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                  labelText: 'Уже отложено (${widget.currency})'),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              leading: const Icon(Icons.event_outlined),
+              title: Text(_deadline == null
+                  ? 'Дедлайн (опционально)'
+                  : 'К ${DateFormat.yMMMd('ru_RU').format(_deadline!)}'),
+              trailing: _deadline == null
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => setState(() => _deadline = null),
+                    ),
+              onTap: () async {
+                final now = DateTime.now();
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _deadline ?? now,
+                  firstDate: now,
+                  lastDate: DateTime(now.year + 10),
+                );
+                if (picked != null) setState(() => _deadline = picked);
+              },
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: _submit,
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
