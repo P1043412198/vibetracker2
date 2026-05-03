@@ -725,3 +725,196 @@ class PriceHistoryEntry {
         store: json['store'] as String?,
       );
 }
+
+/// Phase 15: streak-style challenges — "30 days without sugar", "21 day
+/// meditation". Stored alongside daily check-ins with a status and an
+/// optional feeling/note.
+class Challenge {
+  Challenge({
+    required this.id,
+    required this.title,
+    required this.kind,
+    required this.durationDays,
+    required this.startDate,
+    this.description,
+    this.target,
+    this.icon,
+    this.color,
+    this.archived = false,
+  });
+
+  final String id;
+  final String title;
+
+  /// `'avoid'` for "30 days without X", `'do'` for "do X for N days".
+  final String kind;
+  final int durationDays;
+
+  /// `YYYY-MM-DD`.
+  final String startDate;
+  final String? description;
+  final String? target;
+  final String? icon;
+  final int? color;
+  final bool archived;
+
+  Challenge copyWith({
+    String? title,
+    String? kind,
+    int? durationDays,
+    String? startDate,
+    String? description,
+    String? target,
+    String? icon,
+    int? color,
+    bool? archived,
+  }) =>
+      Challenge(
+        id: id,
+        title: title ?? this.title,
+        kind: kind ?? this.kind,
+        durationDays: durationDays ?? this.durationDays,
+        startDate: startDate ?? this.startDate,
+        description: description ?? this.description,
+        target: target ?? this.target,
+        icon: icon ?? this.icon,
+        color: color ?? this.color,
+        archived: archived ?? this.archived,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'kind': kind,
+        'durationDays': durationDays,
+        'startDate': startDate,
+        if (description != null) 'description': description,
+        if (target != null) 'target': target,
+        if (icon != null) 'icon': icon,
+        if (color != null) 'color': color,
+        'archived': archived,
+      };
+
+  factory Challenge.fromJson(Map<String, dynamic> json) => Challenge(
+        id: json['id'] as String,
+        title: (json['title'] ?? '') as String,
+        kind: (json['kind'] ?? 'avoid') as String,
+        durationDays: (json['durationDays'] as num?)?.toInt() ?? 30,
+        startDate: (json['startDate'] ?? '') as String,
+        description: json['description'] as String?,
+        target: json['target'] as String?,
+        icon: json['icon'] as String?,
+        color: (json['color'] as num?)?.toInt(),
+        archived: (json['archived'] ?? false) as bool,
+      );
+}
+
+/// One day inside a [Challenge]. `status` is one of `done`, `failed`, `skip`.
+class ChallengeCheckIn {
+  ChallengeCheckIn({
+    required this.id,
+    required this.challengeId,
+    required this.date,
+    required this.status,
+    this.feeling,
+    this.note,
+    this.mood,
+  });
+
+  final String id;
+  final String challengeId;
+  final String date; // YYYY-MM-DD
+  final String status;
+  final String? feeling;
+  final String? note;
+  final int? mood; // 1..5
+
+  ChallengeCheckIn copyWith({
+    String? status,
+    String? feeling,
+    String? note,
+    int? mood,
+  }) =>
+      ChallengeCheckIn(
+        id: id,
+        challengeId: challengeId,
+        date: date,
+        status: status ?? this.status,
+        feeling: feeling ?? this.feeling,
+        note: note ?? this.note,
+        mood: mood ?? this.mood,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'challengeId': challengeId,
+        'date': date,
+        'status': status,
+        if (feeling != null) 'feeling': feeling,
+        if (note != null) 'note': note,
+        if (mood != null) 'mood': mood,
+      };
+
+  factory ChallengeCheckIn.fromJson(Map<String, dynamic> json) =>
+      ChallengeCheckIn(
+        id: json['id'] as String,
+        challengeId: (json['challengeId'] ?? '') as String,
+        date: (json['date'] ?? '') as String,
+        status: (json['status'] ?? 'done') as String,
+        feeling: json['feeling'] as String?,
+        note: json['note'] as String?,
+        mood: (json['mood'] as num?)?.toInt(),
+      );
+}
+
+/// Phase 15: progress-photos for the body tab. Photos are stored on disk
+/// (see `PhotoStorage`); we only persist the path + label/date.
+class BodyPhoto {
+  BodyPhoto({
+    required this.id,
+    required this.path,
+    required this.takenAt,
+    this.label,
+    this.weight,
+    this.note,
+  });
+
+  final String id;
+  final String path;
+  final String takenAt; // YYYY-MM-DD
+  final String? label;
+  final num? weight;
+  final String? note;
+
+  BodyPhoto copyWith({
+    String? label,
+    num? weight,
+    String? note,
+  }) =>
+      BodyPhoto(
+        id: id,
+        path: path,
+        takenAt: takenAt,
+        label: label ?? this.label,
+        weight: weight ?? this.weight,
+        note: note ?? this.note,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'path': path,
+        'takenAt': takenAt,
+        if (label != null) 'label': label,
+        if (weight != null) 'weight': weight,
+        if (note != null) 'note': note,
+      };
+
+  factory BodyPhoto.fromJson(Map<String, dynamic> json) => BodyPhoto(
+        id: json['id'] as String,
+        path: (json['path'] ?? '') as String,
+        takenAt: (json['takenAt'] ?? '') as String,
+        label: json['label'] as String?,
+        weight: json['weight'] as num?,
+        note: json['note'] as String?,
+      );
+}

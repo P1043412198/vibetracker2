@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/analytics/analytics_page.dart';
+import '../features/challenges/challenge_details_page.dart';
+import '../features/challenges/challenges_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/dashboard/dashboard_settings_page.dart';
 import '../features/finance/finance_page.dart';
@@ -146,6 +148,21 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'work-schedule',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: WorkSchedulePage()),
+          ),
+          GoRoute(
+            path: '/challenges',
+            name: 'challenges',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: ChallengesPage()),
+            routes: [
+              GoRoute(
+                path: ':id',
+                name: 'challenge-details',
+                builder: (context, state) => ChallengeDetailsPage(
+                  challengeId: state.pathParameters['id'] ?? '',
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: '/analytics',

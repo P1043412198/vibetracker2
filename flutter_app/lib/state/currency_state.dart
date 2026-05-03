@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/nbrb_service.dart';
 import '../services/storage.dart';
 
 /// Persisted FX rates expressed as: 1 unit of [currency] equals
@@ -21,6 +22,24 @@ class CurrencyRatesController extends StateNotifier<Map<String, num>> {
         state = _defaults;
       }
     }
+    // Phase 18: auto-refresh from NBRB when rates are missing or stale
+    // (older than 12h) so users don't have to tap the refresh button on a
+    // fresh install. Failures are swallowed silently — the persisted /
+    // default rates remain in state.
+    _maybeAutoRefresh();
+  }
+
+  Future<void> _maybeAutoRefresh() async {
+    try {
+      final lastIso = AppStorage.readString(_updatedAtKey);
+      final lastTs = lastIso == null ? null : DateTime.tryParse(lastIso);
+      final stale = lastTs == null ||
+          DateTime.now().difference(lastTs) > const Duration(hours: 12);
+      if (!stale) return;
+      await refreshFromNbrb();
+    } catch (_) {
+      // Network failure / parse error — keep persisted/default rates.
+    }
   }
 
   static const _key = 'fxRates';
@@ -36,7 +55,23 @@ class CurrencyRatesController extends StateNotifier<Map<String, num>> {
   Future<void> set(Map<String, num> rates) async {
     state = Map.unmodifiable({...state, ...rates});
     await AppStorage.writeString(_key, json.encode(state));
+    await AppStorage.writeString(
+        _updatedAtKey, DateTime.now().toIso8601String());
   }
+
+  /// Pulls fresh USD-anchored rates from NBRB and merges them into state.
+  /// Returns the number of currency codes that were updated. Throws on
+  /// failure so the caller can show an error toast.
+  Future<int> refreshFromNbrb() async {
+    final fresh = await NbrbService.fetchUsdAnchoredRates();
+    await set(fresh);
+    return fresh.length;
+  }
+
+  /// ISO timestamp of the last successful refresh, or null if never.
+  String? get lastUpdatedIso => AppStorage.readString(_updatedAtKey);
+
+  static const _updatedAtKey = 'fxRatesUpdatedAt';
 }
 
 final currencyRatesProvider =

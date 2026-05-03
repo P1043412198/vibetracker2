@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,9 +35,12 @@ class GoalsPage extends ConsumerWidget {
           ? const _Empty()
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-              itemCount: goals.length,
+              itemCount: goals.length + 1,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, i) => _GoalCard(goal: goals[i]),
+              itemBuilder: (context, i) {
+                if (i == 0) return _GoalsStatsHeader(goals: goals);
+                return _GoalCard(goal: goals[i - 1]);
+              },
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addGoal(context, ref),
@@ -364,6 +368,158 @@ class _Empty extends StatelessWidget {
             Text(
               'Жми «+ Цель», чтобы добавить первую',
               style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GoalsStatsHeader extends StatelessWidget {
+  const _GoalsStatsHeader({required this.goals});
+  final List<Goal> goals;
+
+  double _progressOf(Goal g) {
+    if (g.progress != null) return (g.progress! / 100).clamp(0.0, 1.0).toDouble();
+    if ((g.targetValue ?? 0) > 0) {
+      final v = (g.currentValue ?? 0) / g.targetValue!;
+      return v.clamp(0.0, 1.0).toDouble();
+    }
+    if ((g.totalPages ?? 0) > 0) {
+      final v = (g.readPages ?? 0) / g.totalPages!;
+      return v.clamp(0.0, 1.0).toDouble();
+    }
+    if (g.steps.isNotEmpty) {
+      final done = g.steps
+          .where((s) => s.status == GoalStepStatus.done)
+          .length;
+      return (done / g.steps.length).clamp(0.0, 1.0).toDouble();
+    }
+    return 0.0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (goals.isEmpty) return const SizedBox.shrink();
+    final byStatus = <GoalStatus, int>{};
+    for (final g in goals) {
+      byStatus[g.status] = (byStatus[g.status] ?? 0) + 1;
+    }
+    final avg = goals.isEmpty
+        ? 0.0
+        : goals.fold<double>(0.0, (a, g) => a + _progressOf(g)) / goals.length;
+    final scheme = Theme.of(context).colorScheme;
+    Color colorFor(GoalStatus s) {
+      switch (s) {
+        case GoalStatus.completed:
+          return const Color(0xFF22C55E);
+        case GoalStatus.in_progress:
+          return const Color(0xFF6D5CFF);
+        case GoalStatus.not_started:
+          return const Color(0xFF94A3B8);
+      }
+    }
+
+    String labelFor(GoalStatus s) {
+      switch (s) {
+        case GoalStatus.completed:
+          return 'Сделано';
+        case GoalStatus.in_progress:
+          return 'В работе';
+        case GoalStatus.not_started:
+          return 'Не начато';
+      }
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.flag_outlined, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Обзор целей',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              Text('${(avg * 100).round()}%',
+                  style: TextStyle(
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w800)),
+            ]),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                SizedBox(
+                  width: 110,
+                  height: 110,
+                  child: PieChart(
+                    PieChartData(
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 28,
+                      sections: [
+                        for (final s in GoalStatus.values)
+                          if ((byStatus[s] ?? 0) > 0)
+                            PieChartSectionData(
+                              value: byStatus[s]!.toDouble(),
+                              color: colorFor(s),
+                              title: byStatus[s].toString(),
+                              radius: 28,
+                              titleStyle: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11),
+                            ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final s in GoalStatus.values)
+                        Padding(
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(children: [
+                            Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                color: colorFor(s),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(labelFor(s))),
+                            Text('${byStatus[s] ?? 0}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                          ]),
+                        ),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: avg,
+                          minHeight: 8,
+                          color: const Color(0xFF6D5CFF),
+                          backgroundColor:
+                              scheme.surfaceContainerHighest,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text('Средний прогресс по всем целям',
+                          style: Theme.of(context).textTheme.labelSmall),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

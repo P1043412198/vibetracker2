@@ -4,6 +4,7 @@ import '../models/finance.dart';
 import '../models/goal.dart';
 import '../models/habit.dart';
 import '../models/misc.dart';
+import '../models/savings_goal.dart';
 import '../models/sphere.dart';
 import '../models/task.dart';
 import '../services/storage.dart';
@@ -173,6 +174,22 @@ final monthlyBudgetPlansProvider = StateNotifierProvider<
     MonthlyBudgetPlansController, List<MonthlyBudgetPlan>>((ref) {
   return MonthlyBudgetPlansController();
 });
+
+class SavingsGoalsController extends JsonListController<SavingsGoal> {
+  SavingsGoalsController()
+      : super(
+          storageKey: 'savingsGoals',
+          fromJson: SavingsGoal.fromJson,
+          toJson: (g) => g.toJson(),
+        );
+
+  @override
+  String idOf(SavingsGoal item) => item.id;
+}
+
+final savingsGoalsProvider =
+    StateNotifierProvider<SavingsGoalsController, List<SavingsGoal>>(
+        (ref) => SavingsGoalsController());
 
 class LoansController extends JsonListController<Loan> {
   LoansController()
@@ -552,3 +569,52 @@ final workScheduleProvider =
     StateNotifierProvider<WorkScheduleController, WorkScheduleData?>((ref) {
   return WorkScheduleController();
 });
+
+class ChallengesController extends JsonListController<Challenge> {
+  ChallengesController()
+      : super(
+          storageKey: 'challenges',
+          fromJson: Challenge.fromJson,
+          toJson: (c) => c.toJson(),
+        );
+
+  @override
+  String idOf(Challenge item) => item.id;
+}
+
+final challengesProvider =
+    StateNotifierProvider<ChallengesController, List<Challenge>>(
+        (ref) => ChallengesController());
+
+class ChallengeCheckInsController
+    extends JsonListController<ChallengeCheckIn> {
+  ChallengeCheckInsController()
+      : super(
+          storageKey: 'challengeCheckIns',
+          fromJson: ChallengeCheckIn.fromJson,
+          toJson: (c) => c.toJson(),
+        );
+
+  @override
+  String idOf(ChallengeCheckIn item) => item.id;
+}
+
+final challengeCheckInsProvider = StateNotifierProvider<
+    ChallengeCheckInsController, List<ChallengeCheckIn>>(
+        (ref) => ChallengeCheckInsController());
+
+class BodyPhotosController extends JsonListController<BodyPhoto> {
+  BodyPhotosController()
+      : super(
+          storageKey: 'bodyPhotos',
+          fromJson: BodyPhoto.fromJson,
+          toJson: (p) => p.toJson(),
+        );
+
+  @override
+  String idOf(BodyPhoto item) => item.id;
+}
+
+final bodyPhotosProvider =
+    StateNotifierProvider<BodyPhotosController, List<BodyPhoto>>(
+        (ref) => BodyPhotosController());

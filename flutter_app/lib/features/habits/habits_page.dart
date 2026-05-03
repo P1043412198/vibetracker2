@@ -45,6 +45,52 @@ class HabitsPage extends ConsumerWidget {
       await controller.upsert(entry);
     }
 
+    Future<void> editTodayNote(Habit h) async {
+      final existing = logFor(h.id);
+      final controller = TextEditingController(text: existing?.notes ?? '');
+      final result = await showDialog<String?>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Заметка — ${h.title}'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Как прошло, что чувствовал…',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(ctx).pop(controller.text.trim()),
+              child: const Text('Сохранить'),
+            ),
+          ],
+        ),
+      );
+      if (result == null) return;
+      final logs0 = ref.read(habitLogsProvider);
+      final cur = logs0.cast<HabitLog?>().firstWhere(
+            (l) => l?.habitId == h.id && l?.date == today,
+            orElse: () => null,
+          );
+      final entry = HabitLog(
+        id: cur?.id ?? const Uuid().v4(),
+        habitId: h.id,
+        date: today,
+        status: cur?.status ?? HabitLogStatus.done,
+        notes: result,
+        feelings: cur?.feelings ?? '',
+        value: cur?.value,
+      );
+      await ref.read(habitLogsProvider.notifier).upsert(entry);
+    }
+
     return Scaffold(
       appBar: AppBar(title: const Text('Привычки')),
       body: habits.isEmpty
@@ -66,9 +112,11 @@ class HabitsPage extends ConsumerWidget {
                 return _HabitCard(
                   habit: h,
                   todaysStatus: log?.status,
+                  todaysNote: log?.notes ?? '',
                   streak: stats.current,
                   best: stats.best,
                   onMark: (s) => markStatus(h, s),
+                  onEditNote: () => editTodayNote(h),
                   onDelete: () =>
                       ref.read(habitsProvider.notifier).remove(h.id),
                   onTap: () => context.push('/habits/${h.id}'),
@@ -85,6 +133,7 @@ class HabitsPage extends ConsumerWidget {
 
   Future<void> _addHabit(BuildContext context, WidgetRef ref) async {
     final titleController = TextEditingController();
+    final descriptionController = TextEditingController();
     var type = HabitTypeKind.good;
     await showModalBottomSheet<void>(
       context: context,
@@ -114,6 +163,16 @@ class HabitsPage extends ConsumerWidget {
                     decoration:
                         const InputDecoration(labelText: 'Название'),
                   ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descriptionController,
+                    minLines: 1,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: 'Заметка / описание (необязательно)',
+                      hintText: 'Зачем эта привычка, как её отмечать…',
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   SegmentedButton<HabitTypeKind>(
                     segments: const [
@@ -137,11 +196,13 @@ class HabitsPage extends ConsumerWidget {
                     onPressed: () async {
                       final title = titleController.text.trim();
                       if (title.isEmpty) return;
+                      final desc = descriptionController.text.trim();
                       await ref.read(habitsProvider.notifier).add(
                             Habit(
                               id: const Uuid().v4(),
                               title: title,
                               type: type,
+                              description: desc.isEmpty ? null : desc,
                               createdAt: DateTime.now().toIso8601String(),
                             ),
                           );
@@ -165,18 +226,22 @@ class _HabitCard extends StatelessWidget {
   const _HabitCard({
     required this.habit,
     required this.todaysStatus,
+    required this.todaysNote,
     required this.streak,
     required this.best,
     required this.onMark,
+    required this.onEditNote,
     required this.onDelete,
     required this.onTap,
   });
 
   final Habit habit;
   final HabitLogStatus? todaysStatus;
+  final String todaysNote;
   final int streak;
   final int best;
   final ValueChanged<HabitLogStatus> onMark;
+  final VoidCallback onEditNote;
   final VoidCallback onDelete;
   final VoidCallback onTap;
 
@@ -274,12 +339,57 @@ class _HabitCard extends StatelessWidget {
                     ),
                   ),
                   IconButton(
+                    tooltip: todaysNote.isEmpty
+                        ? 'Добавить заметку за сегодня'
+                        : 'Изменить заметку',
+                    icon: Icon(
+                      todaysNote.isEmpty
+                          ? Icons.sticky_note_2_outlined
+                          : Icons.sticky_note_2,
+                      color: todaysNote.isEmpty
+                          ? scheme.onSurfaceVariant
+                          : scheme.primary,
+                    ),
+                    onPressed: onEditNote,
+                  ),
+                  IconButton(
                     icon: Icon(Icons.delete_outline,
                         color: scheme.onSurfaceVariant),
                     onPressed: onDelete,
                   ),
                 ],
               ),
+              if (todaysNote.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.format_quote,
+                          size: 16, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          todaysNote,
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: scheme.onSurface,
+                              fontStyle: FontStyle.italic),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               SegmentedButton<HabitLogStatus>(
                 segments: [

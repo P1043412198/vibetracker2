@@ -7,6 +7,7 @@ import '../../models/enums.dart';
 import '../../state/providers.dart';
 import '../../state/settings_state.dart';
 import 'dashboard_charts.dart';
+import 'dashboard_widgets_v2.dart';
 
 /// Dashboard / "Главная" — counterpart of `src/pages/Dashboard.tsx`.
 ///
@@ -194,6 +195,18 @@ class DashboardPage extends ConsumerWidget {
           return const HabitHeatmapWidget();
         case 'task_progress_chart':
           return const TaskWeekProgressWidget();
+        case 'inbox':
+          return const InboxDashboardWidget();
+        case 'habits_overview':
+          return const HabitsOverviewWidget();
+        case 'goals_overview':
+          return const GoalsOverviewWidget();
+        case 'finance_free_funds':
+          return const FinanceFreeFundsWidget();
+        case 'loans_overview':
+          return const LoansOverviewWidget();
+        case 'challenges_overview':
+          return const ChallengesOverviewWidget();
       }
       return null;
     }

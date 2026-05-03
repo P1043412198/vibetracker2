@@ -8,6 +8,7 @@ import '../../models/habit.dart';
 import '../../services/notification_service.dart';
 import '../../services/streak.dart';
 import '../../state/providers.dart';
+import '../../widgets/habit_charts.dart';
 import '../../widgets/habit_heatmap.dart';
 
 /// Per-habit detail screen with streak chips, year heatmap, completion-rate
@@ -52,10 +53,18 @@ class HabitDetailsPage extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
         children: [
           _StreakHero(habit: habit, stats: stats),
+          if (habit.description != null && habit.description!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _DescriptionCard(habit: habit),
+          ],
+          const SizedBox(height: 16),
+          HabitChartsCard(habit: habit, logs: habitLogs),
           const SizedBox(height: 16),
           _HeatmapCard(habit: habit, logs: logs),
           const SizedBox(height: 16),
           _ReminderCard(habit: habit),
+          const SizedBox(height: 16),
+          _TodayNoteCard(habit: habit),
           const SizedBox(height: 16),
           _LogList(
             habit: habit,
@@ -581,6 +590,175 @@ class _ReminderCard extends ConsumerWidget {
                 'Включи, чтобы получать пуш каждый день в выбранное время',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Static description / long-form note attached to a habit (set on creation
+/// or via edit). Shown above charts so users see *why* they started the
+/// habit every time they open it.
+class _DescriptionCard extends StatelessWidget {
+  const _DescriptionCard({required this.habit});
+  final Habit habit;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, color: scheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Описание привычки',
+                      style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  Text(
+                    habit.description ?? '',
+                    style: const TextStyle(fontSize: 14, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Inline live-edit note for *today*. Creates / updates the today's
+/// `HabitLog`, defaulting status to `done` when the user only writes a
+/// note without explicitly marking the habit.
+class _TodayNoteCard extends ConsumerStatefulWidget {
+  const _TodayNoteCard({required this.habit});
+  final Habit habit;
+
+  @override
+  ConsumerState<_TodayNoteCard> createState() => _TodayNoteCardState();
+}
+
+class _TodayNoteCardState extends ConsumerState<_TodayNoteCard> {
+  late final TextEditingController _controller;
+  late final TextEditingController _feelingsController;
+  String _seedNote = '';
+  String _seedFeelings = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+    _feelingsController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _feelingsController.dispose();
+    super.dispose();
+  }
+
+  HabitLog? _todayLog(List<HabitLog> logs) {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    for (final l in logs) {
+      if (l.habitId == widget.habit.id && l.date == today) return l;
+    }
+    return null;
+  }
+
+  Future<void> _save() async {
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final logs = ref.read(habitLogsProvider);
+    final cur = _todayLog(logs);
+    final entry = HabitLog(
+      id: cur?.id ?? const Uuid().v4(),
+      habitId: widget.habit.id,
+      date: today,
+      status: cur?.status ?? HabitLogStatus.done,
+      notes: _controller.text.trim(),
+      feelings: _feelingsController.text.trim(),
+      value: cur?.value,
+    );
+    await ref.read(habitLogsProvider.notifier).upsert(entry);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Заметка сохранена')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final logs = ref.watch(habitLogsProvider);
+    final cur = _todayLog(logs);
+    final note = cur?.notes ?? '';
+    final feelings = cur?.feelings ?? '';
+    if (note != _seedNote) {
+      _seedNote = note;
+      _controller.text = note;
+      _controller.selection =
+          TextSelection.collapsed(offset: _controller.text.length);
+    }
+    if (feelings != _seedFeelings) {
+      _seedFeelings = feelings;
+      _feelingsController.text = feelings;
+      _feelingsController.selection =
+          TextSelection.collapsed(offset: _feelingsController.text.length);
+    }
+    final scheme = Theme.of(context).colorScheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.sticky_note_2_outlined, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text('Заметка за сегодня',
+                    style: Theme.of(context).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _controller,
+              minLines: 2,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                hintText: 'Что сегодня получилось / что мешало?',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _feelingsController,
+              minLines: 1,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                labelText: 'Ощущения',
+                hintText: 'спокойно / тревожно / прилив энергии…',
+              ),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Сохранить'),
+                onPressed: _save,
+              ),
+            ),
           ],
         ),
       ),

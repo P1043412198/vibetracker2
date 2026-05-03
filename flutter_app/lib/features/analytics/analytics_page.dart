@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 
 import 'fire_tab.dart';
+import 'habits_tab.dart';
 import 'predictive_tab.dart';
 import 'sankey_tab.dart';
 import 'treemap_tab.dart';
 
 /// "Аналитика" page. Phase 5 ships four tabs that mirror the React app:
 ///
-/// * Sankey  — income → expense flow (`charts/SankeyFlow.tsx`)
-/// * Treemap — expenses by category coloured by plan vs. actual
+/// * Sankey   — income → expense flow (`charts/SankeyFlow.tsx`)
+/// * Treemap  — expenses by category coloured by plan vs. actual
 ///   (`charts/TreemapExpenses.tsx`)
-/// * Прогноз — predictive month-end spend with optional Gemini insight
+/// * Прогноз  — predictive month-end spend with optional Gemini insight
 ///   (`PredictiveBudgetTab.tsx`)
-/// * FIRE    — Financial Independence calculator (`FIRECalculatorTab.tsx`)
+/// * FIRE     — Financial Independence calculator (`FIRECalculatorTab.tsx`)
+/// * Привычки — pie/donut/bar charts across all habits.
 class AnalyticsPage extends StatefulWidget {
   const AnalyticsPage({super.key});
 
@@ -27,7 +29,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    _tab = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -49,6 +51,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
             Tab(text: 'Treemap'),
             Tab(text: 'Прогноз'),
             Tab(text: 'FIRE'),
+            Tab(text: 'Привычки'),
           ],
         ),
       ),
@@ -59,6 +62,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
           TreemapTab(),
           PredictiveTab(),
           FireTab(),
+          HabitsAnalyticsTab(),
         ],
       ),
     );

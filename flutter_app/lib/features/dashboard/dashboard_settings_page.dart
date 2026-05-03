@@ -124,6 +124,24 @@ IconData _iconFor(String name) {
       return Icons.water_drop_outlined;
     case 'bedtime':
       return Icons.bedtime_outlined;
+    case 'show_chart':
+      return Icons.show_chart;
+    case 'grid_on':
+      return Icons.grid_on;
+    case 'bar_chart':
+      return Icons.bar_chart;
+    case 'inbox':
+      return Icons.inbox_outlined;
+    case 'donut_large':
+      return Icons.donut_large_outlined;
+    case 'pie_chart':
+      return Icons.pie_chart_outline;
+    case 'savings':
+      return Icons.savings_outlined;
+    case 'credit_score':
+      return Icons.credit_score_outlined;
+    case 'emoji_events':
+      return Icons.emoji_events_outlined;
     default:
       return Icons.dashboard_outlined;
   }

@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -82,6 +85,7 @@ class _TasksPageState extends ConsumerState<TasksPage>
                   .where((t) =>
                       t.period == period && t.date == _bucketKey(period))
                   .toList(),
+              allTasks: tasks,
             ),
         ],
       ),
@@ -114,11 +118,16 @@ class _TaskList extends ConsumerWidget {
     required this.period,
     required this.date,
     required this.tasks,
+    required this.allTasks,
   });
 
   final TaskPeriod period;
   final String date;
   final List<TaskItem> tasks;
+
+  /// All tasks across periods, used to drive 30-day completion / streak
+  /// charts in [_TasksStatsCard] (Phase 18 visualisations).
+  final List<TaskItem> allTasks;
 
   int _priorityOrder(TaskPriority? p) {
     switch (p) {
@@ -138,23 +147,35 @@ class _TaskList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (tasks.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('🌿', style: TextStyle(fontSize: 56)),
-              const SizedBox(height: 16),
-              Text(
-                'Никаких задач в этом периоде',
-                style: Theme.of(context).textTheme.titleMedium,
+      // Phase 18: even with no tasks in the current bucket, show the global
+      // last-30-days completion / streak charts so the page never feels
+      // empty.
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+        children: [
+          if (allTasks.isNotEmpty) ...[
+            _TasksOverviewCard(allTasks: allTasks),
+            const SizedBox(height: 12),
+          ],
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('🌿', style: TextStyle(fontSize: 56)),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Никаких задач в этом периоде',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('Нажми «Задача» внизу, чтобы добавить'),
+                ],
               ),
-              const SizedBox(height: 8),
-              const Text('Нажми «Задача» внизу, чтобы добавить'),
-            ],
+            ),
           ),
-        ),
+        ],
       );
     }
     final pending = tasks.where((t) => !t.completed).toList()
@@ -169,6 +190,8 @@ class _TaskList extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
       children: [
         _TasksStatsCard(tasks: tasks),
+        const SizedBox(height: 12),
+        _TasksOverviewCard(allTasks: allTasks),
         const SizedBox(height: 12),
         if (pending.isNotEmpty) ...[
           Text('Активные (${pending.length})',
@@ -878,4 +901,260 @@ class _TasksStatsCard extends StatelessWidget {
         TaskPriority.urgent => 'Срочно',
         TaskPriority.later => 'Потом',
       };
+}
+
+/// Phase 18: cross-bucket productivity overview shown at the top of every
+/// period tab. Renders three things:
+///   * a 30-day "completed daily-tasks" bar chart so you can see ramps and
+///     dry spells at a glance;
+///   * a current and best streak counter for consecutive days with at
+///     least one completed task;
+///   * a 4×N donut breaking down completion rate by [TaskPeriod].
+class _TasksOverviewCard extends StatelessWidget {
+  const _TasksOverviewCard({required this.allTasks});
+
+  final List<TaskItem> allTasks;
+
+  @override
+  Widget build(BuildContext context) {
+    if (allTasks.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final today = DateTime.now();
+
+    // ---- 30-day daily completion ----
+    final dayCounts = List<int>.filled(30, 0);
+    final dayTotals = List<int>.filled(30, 0);
+    for (final t in allTasks) {
+      if (t.period != TaskPeriod.day) continue;
+      final d = DateTime.tryParse(t.date);
+      if (d == null) continue;
+      final delta = today.difference(DateTime(d.year, d.month, d.day)).inDays;
+      if (delta < 0 || delta >= 30) continue;
+      final idx = 29 - delta;
+      dayTotals[idx] += 1;
+      if (t.completed) dayCounts[idx] += 1;
+    }
+    final maxCount =
+        dayCounts.fold<int>(0, (a, b) => math.max(a, b)).toDouble();
+    final yMax = (maxCount == 0 ? 4 : maxCount * 1.25).toDouble();
+
+    // ---- streaks ----
+    int current = 0;
+    int best = 0;
+    int run = 0;
+    for (var i = 0; i < dayCounts.length; i++) {
+      if (dayCounts[i] > 0) {
+        run += 1;
+        best = math.max(best, run);
+      } else {
+        run = 0;
+      }
+    }
+    // current = longest tail of consecutive non-zero counts ending today.
+    for (var i = dayCounts.length - 1; i >= 0; i--) {
+      if (dayCounts[i] > 0) {
+        current += 1;
+      } else {
+        break;
+      }
+    }
+
+    // ---- per-period completion (Day / Week / Month / Year) ----
+    final perPeriod = <TaskPeriod, _TaskCounts>{};
+    for (final p in [
+      TaskPeriod.day,
+      TaskPeriod.week,
+      TaskPeriod.month,
+      TaskPeriod.year,
+    ]) {
+      perPeriod[p] = _TaskCounts();
+    }
+    for (final t in allTasks) {
+      final c = perPeriod[t.period];
+      if (c == null) continue;
+      c.total += 1;
+      if (t.completed) c.done += 1;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.local_fire_department_outlined, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Продуктивность',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              _StreakBadge(label: 'Серия', value: current),
+              const SizedBox(width: 8),
+              _StreakBadge(label: 'Лучшая', value: best),
+            ]),
+            const SizedBox(height: 8),
+            Text('Выполнено по дням (30 дн.)',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 4),
+            SizedBox(
+              height: 110,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceBetween,
+                  minY: 0,
+                  maxY: yMax,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (v) => FlLine(
+                      color: scheme.outlineVariant.withValues(alpha: 0.4),
+                      strokeWidth: 0.5,
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 32,
+                        // ensure integer step so labels don't pile up.
+                        interval: math.max(1, (yMax / 4).ceilToDouble()),
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Text(i.toString(),
+                                style: const TextStyle(fontSize: 10)),
+                          );
+                        },
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        interval: 7,
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0 || i >= 30) {
+                            return const SizedBox.shrink();
+                          }
+                          final d = today.subtract(Duration(days: 29 - i));
+                          return Text(DateFormat('d.MM').format(d),
+                              style: const TextStyle(fontSize: 9));
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  barGroups: [
+                    for (var i = 0; i < dayCounts.length; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barRods: [
+                          BarChartRodData(
+                            toY: dayCounts[i].toDouble(),
+                            color: i == dayCounts.length - 1
+                                ? scheme.tertiary
+                                : scheme.primary,
+                            width: 6,
+                            borderRadius:
+                                const BorderRadius.all(Radius.circular(2)),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Выполнение по периодам',
+                style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 4),
+            for (final entry in perPeriod.entries)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        switch (entry.key) {
+                          TaskPeriod.day => 'День',
+                          TaskPeriod.week => 'Неделя',
+                          TaskPeriod.month => 'Месяц',
+                          TaskPeriod.year => 'Год',
+                          TaskPeriod.history => 'История',
+                        },
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: entry.value.total == 0
+                              ? 0
+                              : entry.value.done / entry.value.total,
+                          minHeight: 8,
+                          backgroundColor: scheme.surfaceContainerHighest,
+                          color: const Color(0xFF22C55E),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${entry.value.done}/${entry.value.total}',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskCounts {
+  int done = 0;
+  int total = 0;
+}
+
+class _StreakBadge extends StatelessWidget {
+  const _StreakBadge({required this.label, required this.value});
+  final String label;
+  final int value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFF59E0B)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 9, color: Color(0xFFB45309))),
+          Text(
+            '$value',
+            style: const TextStyle(
+                fontWeight: FontWeight.w800, color: Color(0xFFB45309)),
+          ),
+        ],
+      ),
+    );
+  }
 }

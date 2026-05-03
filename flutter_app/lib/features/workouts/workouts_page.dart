@@ -9,6 +9,7 @@ import '../../models/enums.dart';
 import '../../models/misc.dart';
 import '../../services/ai_service.dart';
 import '../../state/providers.dart';
+import 'body_photos_tab.dart';
 import 'workout_camera_page.dart';
 import 'workout_history_page.dart';
 
@@ -46,7 +47,7 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    _tab = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -91,6 +92,7 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
             Tab(text: 'Календарь'),
             Tab(text: 'Аналитика'),
             Tab(text: 'Тело'),
+            Tab(text: 'Фото'),
           ],
         ),
       ),
@@ -101,6 +103,7 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
           _CalendarTab(),
           _AnalyticsTab(),
           _BodyTab(),
+          BodyPhotosTab(),
         ],
       ),
     );
@@ -510,14 +513,20 @@ Future<void> _showNodeEditor(
     builder: (sheetCtx) {
       return StatefulBuilder(
         builder: (ctx, setState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 4,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-            ),
-            child: Column(
+          return SafeArea(
+            top: false,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.9,
+              ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  left: 20,
+                  right: 20,
+                  top: 4,
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+                ),
+                child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -674,6 +683,8 @@ Future<void> _showNodeEditor(
                       Text(existing == null ? 'Создать' : 'Сохранить'),
                 ),
               ],
+                ),
+              ),
             ),
           );
         },

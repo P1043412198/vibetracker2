@@ -83,6 +83,11 @@ class _FinancePageState extends ConsumerState<FinancePage>
         title: const Text('Финансы'),
         actions: [
           IconButton(
+            tooltip: 'Обновить курсы НБРБ',
+            icon: const Icon(Icons.currency_exchange_outlined),
+            onPressed: () => _refreshNbrbRates(context, ref),
+          ),
+          IconButton(
             tooltip: 'Чеки',
             icon: const Icon(Icons.receipt_long_outlined),
             onPressed: () => context.push('/receipts'),
@@ -247,6 +252,40 @@ class _MiniStat extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+Future<void> _refreshNbrbRates(BuildContext context, WidgetRef ref) async {
+  final messenger = ScaffoldMessenger.of(context);
+  messenger.showSnackBar(
+    const SnackBar(
+      duration: Duration(seconds: 1),
+      content: Row(children: [
+        SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(strokeWidth: 2)),
+        SizedBox(width: 12),
+        Text('Загружаю курсы НБРБ…'),
+      ]),
+    ),
+  );
+  try {
+    final n =
+        await ref.read(currencyRatesProvider.notifier).refreshFromNbrb();
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+          content: Text('Курсы НБРБ обновлены ($n валют)'),
+          duration: const Duration(seconds: 2)),
+    );
+  } catch (e) {
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+          backgroundColor: const Color(0xFFEF4444),
+          content: Text('Не удалось обновить НБРБ: $e')),
     );
   }
 }
