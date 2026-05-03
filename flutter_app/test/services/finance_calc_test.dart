@@ -516,6 +516,105 @@ void main() {
     });
   });
 
+  group('Wave 2 — month compare', () {
+    test('returns null when fewer than two history entries', () {
+      expect(buildMonthCompare(const []), isNull);
+      expect(
+          buildMonthCompare([
+            HistoricalMonth(
+                month: DateTime(2025, 5, 1),
+                monthKey: '2025-05',
+                income: 1000,
+                expense: 500),
+          ]),
+          isNull);
+    });
+
+    test('computes deltas vs previous month', () {
+      final history = [
+        HistoricalMonth(
+            month: DateTime(2025, 4, 1),
+            monthKey: '2025-04',
+            income: 2000,
+            expense: 1800),
+        HistoricalMonth(
+            month: DateTime(2025, 5, 1),
+            monthKey: '2025-05',
+            income: 2300,
+            expense: 1900),
+      ];
+      final c = buildMonthCompare(history);
+      expect(c, isNotNull);
+      expect(c!.thisIncome, 2300);
+      expect(c.prevIncome, 2000);
+      expect(c.incomeDelta, 300);
+      expect(c.expenseDelta, 100);
+      expect(c.netDelta, 200); // (2300-1900) - (2000-1800)
+      expect(c.hasBothMonths, isTrue);
+    });
+  });
+
+  group('Wave 2 — savings forecast + what-if', () {
+    test('extrapolates average net inflow over the horizon', () {
+      final history = [
+        for (var i = 4; i >= 0; i--)
+          HistoricalMonth(
+              month: DateTime(2025, 5 - i, 1),
+              monthKey: '2025-${(5 - i).toString().padLeft(2, '0')}',
+              income: 2000,
+              expense: 1500),
+      ];
+      final f = buildSavingsForecast(
+          currentLiquid: 1000, history: history, months: 6);
+      expect(f.monthlyIncome, 2000);
+      expect(f.monthlyExpense, 1500);
+      expect(f.monthlyNet, 500);
+      // 1000 + 6 * 500 = 4000.
+      expect(f.endBalance, 4000);
+      expect(f.points.length, 7);
+      expect(f.points.first, 1000);
+      expect(f.points.last, 4000);
+    });
+
+    test('what-if cuts expenses by 20 % → larger end balance', () {
+      final base = SavingsForecast(
+        startBalance: 1000,
+        monthlyIncome: 2000,
+        monthlyExpense: 1500,
+        monthlyNet: 500,
+        months: 6,
+        endBalance: 4000,
+      );
+      final cut = applyWhatIf(base, expenseDelta: -0.2);
+      // newExpense = 1200 → newNet = 800 → endBalance = 1000 + 4800 = 5800
+      expect(cut.monthlyExpense, 1200);
+      expect(cut.monthlyNet, 800);
+      expect(cut.endBalance, 5800);
+    });
+
+    test('what-if 30 % income raise grows the cushion', () {
+      final base = SavingsForecast(
+        startBalance: 0,
+        monthlyIncome: 1000,
+        monthlyExpense: 800,
+        monthlyNet: 200,
+        months: 6,
+        endBalance: 1200,
+      );
+      final raise = applyWhatIf(base, incomeDelta: 0.3);
+      expect(raise.monthlyIncome, 1300);
+      expect(raise.monthlyNet, 500);
+      expect(raise.endBalance, 3000);
+    });
+
+    test('empty history → flat forecast', () {
+      final f = buildSavingsForecast(currentLiquid: 500, history: const []);
+      expect(f.monthlyNet, 0);
+      expect(f.endBalance, 500);
+      expect(f.points.every((p) => p == 500), isTrue);
+    });
+  });
+
   group('Phase 19 — recurEvery serialization', () {
     test('IncomeEntry round-trips recurEvery', () {
       final e = IncomeEntry(

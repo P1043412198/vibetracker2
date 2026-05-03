@@ -1044,6 +1044,151 @@ List<HistoricalMonth> computeHistoricalMonths({
   return out;
 }
 
+/// =============================================================
+/// Wave 2: month compare + savings forecast
+/// =============================================================
+
+/// Side-by-side numbers for "this month vs previous month" — used by the
+/// `_MonthCompareCard` to teach the user to spot trends.
+class MonthCompare {
+  MonthCompare({
+    required this.thisIncome,
+    required this.thisExpense,
+    required this.prevIncome,
+    required this.prevExpense,
+  });
+
+  final num thisIncome;
+  final num thisExpense;
+  final num prevIncome;
+  final num prevExpense;
+
+  num get thisNet => thisIncome - thisExpense;
+  num get prevNet => prevIncome - prevExpense;
+
+  num get incomeDelta => thisIncome - prevIncome;
+  num get expenseDelta => thisExpense - prevExpense;
+  num get netDelta => thisNet - prevNet;
+
+  /// True when both months had non-zero data — caller can hide the card
+  /// otherwise (no point comparing against an empty month).
+  bool get hasBothMonths =>
+      (prevIncome > 0 || prevExpense > 0) &&
+      (thisIncome > 0 || thisExpense > 0);
+}
+
+/// Build a [MonthCompare] from a [history] list (oldest first). When the
+/// list has < 2 entries, returns null.
+MonthCompare? buildMonthCompare(List<HistoricalMonth> history) {
+  if (history.length < 2) return null;
+  final prev = history[history.length - 2];
+  final cur = history.last;
+  return MonthCompare(
+    thisIncome: cur.income,
+    thisExpense: cur.expense,
+    prevIncome: prev.income,
+    prevExpense: prev.expense,
+  );
+}
+
+/// Future projection of liquid balance under "continue at the current
+/// average" assumption — used for the 6-month forecast card.
+class SavingsForecast {
+  SavingsForecast({
+    required this.startBalance,
+    required this.monthlyNet,
+    required this.monthlyIncome,
+    required this.monthlyExpense,
+    required this.months,
+    required this.endBalance,
+  });
+
+  final num startBalance;
+  /// Average net (income − expense) per month over the history window.
+  final num monthlyNet;
+  final num monthlyIncome;
+  final num monthlyExpense;
+  /// Forecast horizon in months (e.g. 6).
+  final int months;
+  /// Predicted balance after [months] months.
+  final num endBalance;
+
+  /// Per-month projected balance points (length = months + 1, including
+  /// the start point).
+  List<num> get points {
+    final out = <num>[startBalance];
+    var bal = startBalance;
+    for (var i = 0; i < months; i++) {
+      bal = bal + monthlyNet;
+      out.add(bal);
+    }
+    return out;
+  }
+
+  /// "Coverage" metric: how many months of average expenses [endBalance]
+  /// represents (useful for the «подушка через X мес» line).
+  num get endMonthsCoverage =>
+      monthlyExpense > 0 ? endBalance / monthlyExpense : 0;
+}
+
+/// Build a forecast that simply extrapolates the average net inflow from
+/// [history] forward [months] months. Useful for "what happens if I keep
+/// the same habits" reasoning, not a compound-interest model.
+SavingsForecast buildSavingsForecast({
+  required num currentLiquid,
+  required List<HistoricalMonth> history,
+  int months = 6,
+}) {
+  if (history.isEmpty) {
+    return SavingsForecast(
+      startBalance: currentLiquid,
+      monthlyNet: 0,
+      monthlyIncome: 0,
+      monthlyExpense: 0,
+      months: months,
+      endBalance: currentLiquid,
+    );
+  }
+  num inc = 0;
+  num exp = 0;
+  for (final m in history) {
+    inc += m.income;
+    exp += m.expense;
+  }
+  final avgIncome = inc / history.length;
+  final avgExpense = exp / history.length;
+  final avgNet = avgIncome - avgExpense;
+  return SavingsForecast(
+    startBalance: currentLiquid,
+    monthlyNet: avgNet,
+    monthlyIncome: avgIncome,
+    monthlyExpense: avgExpense,
+    months: months,
+    endBalance: currentLiquid + avgNet * months,
+  );
+}
+
+/// "What-if" projection: tweak income / expense by a percentage and see
+/// how the forecast changes. `incomeDelta` and `expenseDelta` are signed
+/// percentages (0.0 = no change, 0.1 = +10 %, -0.2 = −20 %).
+SavingsForecast applyWhatIf(
+  SavingsForecast base, {
+  double incomeDelta = 0,
+  double expenseDelta = 0,
+}) {
+  final newIncome = base.monthlyIncome * (1 + incomeDelta);
+  final newExpense = base.monthlyExpense * (1 + expenseDelta);
+  final newNet = newIncome - newExpense;
+  return SavingsForecast(
+    startBalance: base.startBalance,
+    monthlyNet: newNet,
+    monthlyIncome: newIncome,
+    monthlyExpense: newExpense,
+    months: base.months,
+    endBalance: base.startBalance + newNet * base.months,
+  );
+}
+
 /// Emergency-fund metric. `months` = total non-excluded liquid assets divided
 /// by the average monthly expense over [history]. `severity` is a 0..3
 /// indicator (0=red <1mo, 1=orange 1..3, 2=blue 3..6, 3=green ≥6).

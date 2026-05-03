@@ -175,6 +175,12 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
         plan?.scheduledExpenses ?? const <ScheduledExpense>[]);
     final incomePeriods =
         cashflow == null ? const <IncomePeriod>[] : computeIncomePeriods(cashflow);
+    final monthCompare = buildMonthCompare(history);
+    final forecast = buildSavingsForecast(
+      currentLiquid: totalLiquid,
+      history: history,
+      months: 6,
+    );
     final savingsGoals = ref.watch(savingsGoalsProvider);
     final hasPrevPlan = prevPlan != null &&
         ((prevPlan.categoryPlans.isNotEmpty) ||
@@ -298,6 +304,24 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             fmt: fmt,
           ),
         ],
+        if (monthCompare != null && monthCompare.hasBothMonths) ...[
+          const SizedBox(height: 12),
+          _MonthCompareCard(
+            compare: monthCompare,
+            month: _month,
+            currency: planCurrency,
+            fmt: fmt,
+          ),
+        ],
+        if (history.length >= 2 &&
+            history.any((m) => m.income > 0 || m.expense > 0)) ...[
+          const SizedBox(height: 12),
+          _SavingsForecastCard(
+            forecast: forecast,
+            currency: planCurrency,
+            fmt: fmt,
+          ),
+        ],
         const SizedBox(height: 12),
         _SavingsGoalsCard(
           goals: savingsGoals,
@@ -337,6 +361,12 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
               child: Text('Лимиты по категориям',
                   style: Theme.of(context).textTheme.titleMedium),
             ),
+            if ((plan?.categoryPlans.length ?? 0) >= 2)
+              IconButton(
+                icon: const Icon(Icons.swap_vert),
+                tooltip: 'Изменить порядок категорий',
+                onPressed: () => _reorderCategories(plan, monthKey),
+              ),
             TextButton.icon(
               icon: const Icon(Icons.add),
               label: const Text('Категория'),
@@ -677,6 +707,28 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     final cps =
         plan.categoryPlans.where((c) => c.category != category).toList();
     await _upsertPlan(plan, plan.monthKey, categoryPlans: cps);
+  }
+
+  /// Wave 2 — Item 17. Drag-and-drop reorder of category limits.
+  /// Opens a bottom sheet with a [ReorderableListView]; on Save the new
+  /// order is persisted via [_upsertPlan].
+  Future<void> _reorderCategories(
+      MonthlyBudgetPlan? plan, String monthKey) async {
+    if (plan == null || plan.categoryPlans.length < 2) return;
+    final initial = [...plan.categoryPlans];
+    final reordered = await showModalBottomSheet<List<CategoryPlan>>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetCtx) => _ReorderCategoriesSheet(initial: initial),
+    );
+    if (reordered == null) return;
+    final sameOrder = reordered.length == initial.length &&
+        [
+          for (var i = 0; i < reordered.length; i++)
+            reordered[i].category == initial[i].category
+        ].every((e) => e);
+    if (sameOrder) return;
+    await _upsertPlan(plan, monthKey, categoryPlans: reordered);
   }
 
   Future<void> _upsertPlan(
@@ -2231,6 +2283,550 @@ class _DailyBudgetProgress extends StatelessWidget {
           minHeight: 6,
           backgroundColor: scheme.surfaceContainerHighest,
           color: scheme.primary,
+        ),
+      ),
+    );
+  }
+}
+
+/// Wave 2 — Item 14. "В этом месяце vs прошлый" — three side-by-side rows
+/// (доход, расход, чистый результат) with explicit deltas. No charts —
+/// the goal is to teach the user to spot trends, not to admire bars.
+class _MonthCompareCard extends StatelessWidget {
+  const _MonthCompareCard({
+    required this.compare,
+    required this.month,
+    required this.currency,
+    required this.fmt,
+  });
+
+  final MonthCompare compare;
+  final DateTime month;
+  final String currency;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final prevMonth = DateTime(month.year, month.month - 1, 1);
+    final mFmt = DateFormat.MMMM('ru_RU');
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.compare_arrows, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Сравнение с прошлым месяцем',
+                  style: Theme.of(context).textTheme.titleSmall),
+            ]),
+            const SizedBox(height: 4),
+            Text(
+              '${mFmt.format(month)} vs ${mFmt.format(prevMonth)}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            _CompareRow(
+              label: 'Доход',
+              thisValue: compare.thisIncome,
+              prevValue: compare.prevIncome,
+              delta: compare.incomeDelta,
+              currency: currency,
+              fmt: fmt,
+              positiveIsGood: true,
+            ),
+            _CompareRow(
+              label: 'Расход',
+              thisValue: compare.thisExpense,
+              prevValue: compare.prevExpense,
+              delta: compare.expenseDelta,
+              currency: currency,
+              fmt: fmt,
+              positiveIsGood: false,
+            ),
+            _CompareRow(
+              label: 'Сохранил',
+              thisValue: compare.thisNet,
+              prevValue: compare.prevNet,
+              delta: compare.netDelta,
+              currency: currency,
+              fmt: fmt,
+              positiveIsGood: true,
+              bold: true,
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(children: [
+                Icon(Icons.lightbulb_outline,
+                    size: 16, color: scheme.tertiary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _coachingTip(compare),
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _coachingTip(MonthCompare c) {
+    if (c.netDelta > 0 && c.expenseDelta < 0) {
+      return 'Тратишь меньше, копишь больше — продолжай в том же духе.';
+    }
+    if (c.netDelta < 0 && c.expenseDelta > 0) {
+      return 'Расходы растут быстрее доходов. Загляни в категории '
+          'и подписки — где можно ужать.';
+    }
+    if (c.netDelta < 0 && c.incomeDelta < 0) {
+      return 'Доход просел. Проверь повторяющиеся доходы и заплани, как '
+          'компенсировать в этом месяце.';
+    }
+    if (c.netDelta > 0 && c.incomeDelta > 0) {
+      return 'Доход вырос — хорошее время направить разницу в подушку '
+          'или на цель, пока не привык тратить «лишнее».';
+    }
+    return 'Сравнивай месяцы регулярно — так видно, какие привычки '
+        'действительно влияют на итог, а какие — мелочь.';
+  }
+}
+
+class _CompareRow extends StatelessWidget {
+  const _CompareRow({
+    required this.label,
+    required this.thisValue,
+    required this.prevValue,
+    required this.delta,
+    required this.currency,
+    required this.fmt,
+    required this.positiveIsGood,
+    this.bold = false,
+  });
+
+  final String label;
+  final num thisValue;
+  final num prevValue;
+  final num delta;
+  final String currency;
+  final NumberFormat fmt;
+  final bool positiveIsGood;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) {
+    final isImprovement = positiveIsGood ? delta > 0 : delta < 0;
+    final color = delta == 0
+        ? Theme.of(context).colorScheme.onSurfaceVariant
+        : (isImprovement
+            ? const Color(0xFF22C55E)
+            : const Color(0xFFEF4444));
+    final sign = delta > 0 ? '+' : (delta < 0 ? '−' : '');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        SizedBox(
+          width: 78,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            '${fmt.format(thisValue)} $currency · '
+            'было ${fmt.format(prevValue)} $currency',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+        Text(
+          delta == 0
+              ? '0'
+              : '$sign${fmt.format(delta.abs())} $currency',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Wave 2 — Item 18. Six-month forecast: based on the *average* net inflow
+/// of the last six months, project the liquid balance forward six months.
+/// Includes a what-if mini-simulator (Item 16) so the user can quickly see
+/// the effect of cutting expenses or growing income.
+class _SavingsForecastCard extends StatefulWidget {
+  const _SavingsForecastCard({
+    required this.forecast,
+    required this.currency,
+    required this.fmt,
+  });
+
+  final SavingsForecast forecast;
+  final String currency;
+  final NumberFormat fmt;
+
+  @override
+  State<_SavingsForecastCard> createState() => _SavingsForecastCardState();
+}
+
+class _SavingsForecastCardState extends State<_SavingsForecastCard> {
+  double _expenseDelta = 0; // -0.30..0.30 (cut up to 30 % or grow 30 %)
+  double _incomeDelta = 0;
+  bool _whatIfOpen = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final base = widget.forecast;
+    final scenario = applyWhatIf(
+      base,
+      incomeDelta: _incomeDelta,
+      expenseDelta: _expenseDelta,
+    );
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.trending_up, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Прогноз на 6 месяцев',
+                  style: Theme.of(context).textTheme.titleSmall),
+            ]),
+            const SizedBox(height: 6),
+            Text.rich(
+              TextSpan(children: [
+                const TextSpan(text: 'Если продолжишь так же, через '),
+                TextSpan(
+                  text: '${base.months} мес',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const TextSpan(text: ' у тебя будет '),
+                TextSpan(
+                  text:
+                      '${widget.fmt.format(base.endBalance)} ${widget.currency}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: base.monthlyNet >= 0
+                        ? const Color(0xFF22C55E)
+                        : const Color(0xFFEF4444),
+                  ),
+                ),
+                const TextSpan(text: '.'),
+              ]),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Средний доход ${widget.fmt.format(base.monthlyIncome)} '
+              '${widget.currency}/мес, расход '
+              '${widget.fmt.format(base.monthlyExpense)} ${widget.currency}/мес '
+              '(нетто ${widget.fmt.format(base.monthlyNet)}).',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            _ForecastSparkline(forecast: scenario, scheme: scheme),
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: () => setState(() => _whatIfOpen = !_whatIfOpen),
+              child: Row(children: [
+                Icon(
+                  _whatIfOpen ? Icons.expand_less : Icons.expand_more,
+                  color: scheme.primary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Что если…',
+                  style: TextStyle(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ]),
+            ),
+            if (_whatIfOpen) ...[
+              const SizedBox(height: 4),
+              _WhatIfSlider(
+                label: 'Расходы',
+                suffix: _formatPct(_expenseDelta),
+                value: _expenseDelta,
+                onChanged: (v) => setState(() => _expenseDelta = v),
+              ),
+              _WhatIfSlider(
+                label: 'Доходы',
+                suffix: _formatPct(_incomeDelta),
+                value: _incomeDelta,
+                onChanged: (v) => setState(() => _incomeDelta = v),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _scenarioSummary(base, scenario),
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _formatPct(double v) {
+    final p = (v * 100).round();
+    if (p == 0) return 'без изменений';
+    return p > 0 ? '+$p %' : '$p %';
+  }
+
+  String _scenarioSummary(SavingsForecast base, SavingsForecast scenario) {
+    final diff = scenario.endBalance - base.endBalance;
+    if (diff.abs() < 1) {
+      return 'Подвинь ползунки, чтобы увидеть, как поменяется итог.';
+    }
+    final sign = diff > 0 ? '+' : '−';
+    return 'При этих изменениях через 6 мес у тебя будет '
+        '${widget.fmt.format(scenario.endBalance)} ${widget.currency} '
+        '($sign${widget.fmt.format(diff.abs())} к базовому прогнозу).';
+  }
+}
+
+class _ForecastSparkline extends StatelessWidget {
+  const _ForecastSparkline({required this.forecast, required this.scheme});
+
+  final SavingsForecast forecast;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final pts = forecast.points;
+    final minY = pts.fold<double>(
+        0, (a, b) => math.min(a, b.toDouble()));
+    final maxY = pts.fold<double>(
+        0, (a, b) => math.max(a, b.toDouble()));
+    final span = math.max(1.0, (maxY - minY).abs());
+    return SizedBox(
+      height: 90,
+      child: LineChart(
+        LineChartData(
+          minX: 0,
+          maxX: (pts.length - 1).toDouble(),
+          minY: minY - span * 0.1,
+          maxY: maxY + span * 0.1,
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            getDrawingHorizontalLine: (v) => FlLine(
+              color: scheme.outlineVariant.withValues(alpha: 0.3),
+              strokeWidth: 0.5,
+            ),
+          ),
+          titlesData: const FlTitlesData(show: false),
+          borderData: FlBorderData(show: false),
+          lineBarsData: [
+            LineChartBarData(
+              spots: [
+                for (var i = 0; i < pts.length; i++)
+                  FlSpot(i.toDouble(), pts[i].toDouble()),
+              ],
+              isCurved: true,
+              barWidth: 2.5,
+              color: forecast.monthlyNet >= 0
+                  ? const Color(0xFF22C55E)
+                  : const Color(0xFFEF4444),
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                color: (forecast.monthlyNet >= 0
+                        ? const Color(0xFF22C55E)
+                        : const Color(0xFFEF4444))
+                    .withValues(alpha: 0.18),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WhatIfSlider extends StatelessWidget {
+  const _WhatIfSlider({
+    required this.label,
+    required this.suffix,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String suffix;
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(children: [
+        SizedBox(
+          width: 70,
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+        Expanded(
+          child: Slider(
+            value: value,
+            min: -0.30,
+            max: 0.30,
+            divisions: 12,
+            label: suffix,
+            onChanged: onChanged,
+          ),
+        ),
+        SizedBox(
+          width: 64,
+          child: Text(
+            suffix,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 11),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Wave 2 — Item 17. Bottom sheet with a [ReorderableListView] that lets
+/// the user drag category-plan rows up and down. Returns the new order
+/// (or null on cancel).
+class _ReorderCategoriesSheet extends StatefulWidget {
+  const _ReorderCategoriesSheet({required this.initial});
+
+  final List<CategoryPlan> initial;
+
+  @override
+  State<_ReorderCategoriesSheet> createState() =>
+      _ReorderCategoriesSheetState();
+}
+
+class _ReorderCategoriesSheetState extends State<_ReorderCategoriesSheet> {
+  late List<CategoryPlan> _items;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = [...widget.initial];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: scheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Порядок категорий',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Отмена'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(_items),
+                    child: const Text('Сохранить'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Flexible(
+              child: ReorderableListView.builder(
+                shrinkWrap: true,
+                buildDefaultDragHandles: false,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _items.length,
+                onReorder: (oldIndex, newIndex) {
+                  setState(() {
+                    if (newIndex > oldIndex) newIndex -= 1;
+                    final item = _items.removeAt(oldIndex);
+                    _items.insert(newIndex, item);
+                  });
+                },
+                itemBuilder: (ctx, i) {
+                  final cp = _items[i];
+                  return Padding(
+                    key: ValueKey(cp.category),
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Material(
+                      color: scheme.surfaceContainer,
+                      borderRadius: BorderRadius.circular(10),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 0),
+                        title: Text(cp.category),
+                        subtitle: Text('Лимит ${cp.planned}'),
+                        trailing: ReorderableDragStartListener(
+                          index: i,
+                          child: const Icon(Icons.drag_handle),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
