@@ -39,6 +39,12 @@ class _InboxPageState extends ConsumerState<InboxPage> {
   String _query = '';
   bool _showSearch = false;
 
+  /// Ids that the user is currently multi-selecting. The set drives the
+  /// AppBar swap (count + bulk actions) and the bubble's checkmark / tinted
+  /// background — there is no separate "isSelecting" flag.
+  final Set<String> _selectedIds = <String>{};
+  bool get _isSelecting => _selectedIds.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
@@ -188,6 +194,83 @@ class _InboxPageState extends ConsumerState<InboxPage> {
     );
   }
 
+  /// Toggle a single id in the selection set. Pressing on an already-
+  /// selected bubble removes it; pressing the last one drops back to
+  /// normal mode automatically (because the AppBar reads [_isSelecting]).
+  void _toggleSelected(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _clearSelection() => setState(_selectedIds.clear);
+
+  void _selectAllVisible(List<InboxItem> visible) {
+    setState(() {
+      _selectedIds.addAll(visible.map((e) => e.id));
+    });
+  }
+
+  Future<void> _bulkDelete() async {
+    if (_selectedIds.isEmpty) return;
+    final count = _selectedIds.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Удалить $count?'),
+        content: const Text('Записи будут удалены без возможности восстановления.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final notifier = ref.read(inboxProvider.notifier);
+    for (final id in _selectedIds.toList()) {
+      await notifier.remove(id);
+    }
+    if (!mounted) return;
+    setState(_selectedIds.clear);
+  }
+
+  Future<void> _bulkArchive({required bool archive}) async {
+    if (_selectedIds.isEmpty) return;
+    final notifier = ref.read(inboxProvider.notifier);
+    final list = ref.read(inboxProvider);
+    for (final id in _selectedIds) {
+      final found = list.where((e) => e.id == id);
+      if (found.isEmpty) continue;
+      await notifier.upsert(found.first.copyWith(archived: archive));
+    }
+    if (!mounted) return;
+    setState(_selectedIds.clear);
+  }
+
+  Future<void> _bulkPin({required bool pin}) async {
+    if (_selectedIds.isEmpty) return;
+    final notifier = ref.read(inboxProvider.notifier);
+    final list = ref.read(inboxProvider);
+    for (final id in _selectedIds) {
+      final found = list.where((e) => e.id == id);
+      if (found.isEmpty) continue;
+      await notifier.upsert(found.first.copyWith(pinned: pin));
+    }
+    if (!mounted) return;
+    setState(_selectedIds.clear);
+  }
+
   void _showItemMenu(InboxItem item) {
     showModalBottomSheet<void>(
       context: context,
@@ -195,6 +278,15 @@ class _InboxPageState extends ConsumerState<InboxPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ListTile(
+              leading: const Icon(Icons.check_circle_outline),
+              title: const Text('Выделить'),
+              onTap: () {
+                Navigator.of(sheetCtx).pop();
+                setState(() => _selectedIds.add(item.id));
+              },
+            ),
+            const Divider(height: 1),
             ListTile(
               leading: Icon(item.pinned ? Icons.push_pin : Icons.push_pin_outlined),
               title: Text(item.pinned ? 'Открепить' : 'Закрепить'),
@@ -307,8 +399,56 @@ class _InboxPageState extends ConsumerState<InboxPage> {
     }.toList()
       ..sort();
 
-    return Scaffold(
-      appBar: AppBar(
+    final allPinned = _isSelecting &&
+        _selectedIds.every(
+          (id) => all.any((e) => e.id == id && e.pinned),
+        );
+    final allArchived = _isSelecting &&
+        _selectedIds.every(
+          (id) => all.any((e) => e.id == id && e.archived),
+        );
+
+    return PopScope(
+      canPop: !_isSelecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _isSelecting) _clearSelection();
+      },
+      child: Scaffold(
+      appBar: _isSelecting
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Снять выделение',
+                onPressed: _clearSelection,
+              ),
+              title: Text('${_selectedIds.length} выбрано'),
+              actions: [
+                IconButton(
+                  tooltip: 'Выбрать все',
+                  icon: const Icon(Icons.select_all),
+                  onPressed: () => _selectAllVisible(items),
+                ),
+                IconButton(
+                  tooltip: allPinned ? 'Открепить' : 'Закрепить',
+                  icon: Icon(
+                      allPinned ? Icons.push_pin : Icons.push_pin_outlined),
+                  onPressed: () => _bulkPin(pin: !allPinned),
+                ),
+                IconButton(
+                  tooltip: allArchived ? 'Из архива' : 'В архив',
+                  icon: Icon(allArchived
+                      ? Icons.unarchive_outlined
+                      : Icons.archive_outlined),
+                  onPressed: () => _bulkArchive(archive: !allArchived),
+                ),
+                IconButton(
+                  tooltip: 'Удалить',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: _bulkDelete,
+                ),
+              ],
+            )
+          : AppBar(
         title: Text(_showSearch ? '' : 'Сохранёнки'),
         actions: [
           IconButton(
@@ -410,21 +550,37 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                             _DateChip(date: DateTime.parse(item.createdAt)),
                           _Bubble(
                             item: item,
-                            onTap: () => item.isLink ? _open(item) : null,
-                            onLongPress: () => _showItemMenu(item),
+                            selected: _selectedIds.contains(item.id),
+                            selectionMode: _isSelecting,
+                            onTap: () {
+                              if (_isSelecting) {
+                                _toggleSelected(item.id);
+                              } else if (item.isLink) {
+                                _open(item);
+                              }
+                            },
+                            onLongPress: () {
+                              if (_isSelecting) {
+                                _toggleSelected(item.id);
+                              } else {
+                                _showItemMenu(item);
+                              }
+                            },
                           ),
                         ],
                       );
                     },
                   ),
           ),
-          _Composer(
-            controller: _composerController,
-            focusNode: _composerFocus,
-            onSubmit: _capture,
-            onPaste: _pasteFromClipboard,
-          ),
+          if (!_isSelecting)
+            _Composer(
+              controller: _composerController,
+              focusNode: _composerFocus,
+              onSubmit: _capture,
+              onPaste: _pasteFromClipboard,
+            ),
         ],
+      ),
       ),
     );
   }
@@ -501,27 +657,46 @@ class _Bubble extends StatelessWidget {
     required this.item,
     required this.onTap,
     required this.onLongPress,
+    this.selected = false,
+    this.selectionMode = false,
   });
   final InboxItem item;
   final VoidCallback? onTap;
   final VoidCallback onLongPress;
+  final bool selected;
+  final bool selectionMode;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final time = DateFormat.Hm().format(DateTime.parse(item.createdAt));
+    final bubbleColor = selected
+        ? scheme.primaryContainer
+        : scheme.surfaceContainerHigh;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          if (selectionMode)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Icon(
+                selected
+                    ? Icons.check_circle
+                    : Icons.radio_button_unchecked,
+                color:
+                    selected ? scheme.primary : scheme.outlineVariant,
+                size: 22,
+              ),
+            ),
           Flexible(
             child: ConstrainedBox(
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.86,
               ),
               child: Material(
-                color: scheme.surfaceContainerHigh,
+                color: bubbleColor,
                 borderRadius: BorderRadius.circular(14),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
