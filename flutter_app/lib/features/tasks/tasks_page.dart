@@ -1016,9 +1016,18 @@ class _TasksOverviewCard extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 28,
-                        getTitlesWidget: (v, _) => Text(v.toInt().toString(),
-                            style: const TextStyle(fontSize: 10)),
+                        reservedSize: 32,
+                        // ensure integer step so labels don't pile up.
+                        interval: math.max(1, (yMax / 4).ceilToDouble()),
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Text(i.toString(),
+                                style: const TextStyle(fontSize: 10)),
+                          );
+                        },
                       ),
                     ),
                     bottomTitles: AxisTitles(

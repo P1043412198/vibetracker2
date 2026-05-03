@@ -129,6 +129,7 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             loans: loans,
             planCurrency: planCurrency,
             convert: convert,
+            carryIn: carryIn,
           );
     final breakdown = cashflow == null
         ? null
@@ -1741,10 +1742,9 @@ class _FreeFundsByWeekCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final weeks = breakdown.weeks;
     final maxAbs = weeks.fold<double>(
-        0,
-        (a, w) => math.max(
-            a, (w.endBalance - w.startBalance).abs().toDouble()));
+        0, (a, w) => math.max(a, w.weeklyFree.abs().toDouble()));
     final ySpan = (maxAbs == 0 ? 100 : maxAbs * 1.25).toDouble();
+    final yInterval = _niceInterval(ySpan, 4);
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -1757,13 +1757,18 @@ class _FreeFundsByWeekCard extends StatelessWidget {
               Text('Свободные средства по неделям',
                   style: Theme.of(context).textTheme.titleSmall),
             ]),
+            const SizedBox(height: 4),
+            Text(
+              'Бар = свободно в эту неделю (из остатка до следующей зарплаты)',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 8),
             SizedBox(
               height: 140,
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
-                  minY: -ySpan,
+                  minY: 0,
                   maxY: ySpan,
                   gridData: FlGridData(
                     show: true,
@@ -1778,9 +1783,13 @@ class _FreeFundsByWeekCard extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 38,
-                        getTitlesWidget: (v, _) => Text(v.toInt().toString(),
-                            style: const TextStyle(fontSize: 10)),
+                        reservedSize: 44,
+                        interval: yInterval,
+                        getTitlesWidget: (v, _) => Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Text(v.toInt().toString(),
+                              style: const TextStyle(fontSize: 10)),
+                        ),
                       ),
                     ),
                     bottomTitles: AxisTitles(
@@ -1808,13 +1817,8 @@ class _FreeFundsByWeekCard extends StatelessWidget {
                         x: i,
                         barRods: [
                           BarChartRodData(
-                            toY: (weeks[i].endBalance - weeks[i].startBalance)
-                                .toDouble(),
-                            color: (weeks[i].endBalance -
-                                            weeks[i].startBalance) >=
-                                        0
-                                ? scheme.primary
-                                : const Color(0xFFEF4444),
+                            toY: math.max(0, weeks[i].weeklyFree.toDouble()),
+                            color: scheme.primary,
                             width: 18,
                             borderRadius:
                                 const BorderRadius.all(Radius.circular(4)),
@@ -1832,28 +1836,27 @@ class _FreeFundsByWeekCard extends StatelessWidget {
                 child: Row(
                   children: [
                     SizedBox(
-                      width: 70,
+                      width: 90,
                       child: Text(
-                        'Нед. ${w.index}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        'Нед. ${w.index} (${DateFormat('d').format(w.startDate)}–${DateFormat('d').format(w.endDate)})',
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600),
                       ),
                     ),
                     Expanded(
                       child: Text(
-                        '${DateFormat('d').format(w.startDate)}–${DateFormat('d MMM', 'ru').format(w.endDate)} · '
-                        '${w.daysInclusive} дн. · '
-                        '${fmt.format(w.dailyAllowance)} $currency/день',
-                        style: const TextStyle(fontSize: 12),
+                        '${w.daysInclusive} дн. · ${fmt.format(w.dailyAllowance)} $currency/день · остаток ${fmt.format(w.endBalance)} $currency',
+                        style: const TextStyle(fontSize: 11),
                       ),
                     ),
                     Text(
-                      '${fmt.format(w.endBalance - w.startBalance)} $currency',
+                      '${fmt.format(w.weeklyFree)} $currency',
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: (w.endBalance - w.startBalance) >= 0
+                          color: w.weeklyFree > 0
                               ? const Color(0xFF22C55E)
-                              : const Color(0xFFEF4444)),
+                              : const Color(0xFF6B7280)),
                     ),
                   ],
                 ),
@@ -1898,6 +1901,7 @@ class _FreeFundsByWeekdayCard extends StatelessWidget {
     final maxAllowance = days.fold<double>(
         0, (a, d) => math.max(a, d.allowance.abs().toDouble()));
     final yMax = (maxAllowance == 0 ? 50 : maxAllowance * 1.25).toDouble();
+    final yInterval = _niceInterval(yMax, 4);
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -1931,9 +1935,13 @@ class _FreeFundsByWeekdayCard extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 36,
-                        getTitlesWidget: (v, _) => Text(v.toInt().toString(),
-                            style: const TextStyle(fontSize: 10)),
+                        reservedSize: 44,
+                        interval: yInterval,
+                        getTitlesWidget: (v, _) => Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Text(v.toInt().toString(),
+                              style: const TextStyle(fontSize: 10)),
+                        ),
                       ),
                     ),
                     bottomTitles: AxisTitles(
@@ -1977,6 +1985,11 @@ class _FreeFundsByWeekdayCard extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 4),
+            Text(
+              'Бар = сколько можно тратить в этот день (остаток равномерно до следующей зп)',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 8),
             for (var i = 0; i < days.length; i++)
               Padding(
@@ -1999,11 +2012,19 @@ class _FreeFundsByWeekdayCard extends StatelessWidget {
                     ),
                     Expanded(
                       child: Text(
-                        days[i].income > 0 || days[i].expense > 0
-                            ? 'доход ${fmt.format(days[i].income)} · '
-                                'расход ${fmt.format(days[i].expense)}'
-                            : 'обычный день',
-                        style: const TextStyle(fontSize: 12),
+                        () {
+                          final parts = <String>[];
+                          if (days[i].income > 0) {
+                            parts.add('+${fmt.format(days[i].income)}');
+                          }
+                          if (days[i].expense > 0) {
+                            parts.add('-${fmt.format(days[i].expense)}');
+                          }
+                          parts.add(
+                              'остаток ${fmt.format(days[i].endBalance)}');
+                          return parts.join(' · ');
+                        }(),
+                        style: const TextStyle(fontSize: 11),
                       ),
                     ),
                     Text(
@@ -2310,4 +2331,17 @@ class _LegendDot extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Pick a "nice" Y-axis interval so labels don't overlap. Targets ~[divisions]
+/// gridlines. Rounds to powers of 10 with 1/2/5 mantissa.
+double _niceInterval(double range, int divisions) {
+  if (range <= 0) return 1.0;
+  final raw = range / math.max(1, divisions);
+  final pow10 = math.pow(10, raw.abs().toStringAsFixed(0).length - 1);
+  for (final mult in const <double>[1, 2, 5, 10]) {
+    final candidate = mult * pow10;
+    if (candidate >= raw) return candidate;
+  }
+  return raw;
 }
