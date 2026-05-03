@@ -321,12 +321,14 @@ class FreeFundsWeek {
 
   final int daysInclusive;
 
-  /// Suggested daily allowance averaged across the week: looks at the
-  /// balance available at the END of the week and divides by the days
-  /// from that point to the next income event (or month end).
+  /// `weeklyFree / daysInclusive` — справедливый по-день бюджет внутри
+  /// фактически отображенной недели.
   final num dailyAllowance;
 
-  /// `dailyAllowance * daysInclusive` — "свободных средств в эту неделю".
+  /// "Свободных средств в эту неделю" — `max(0, endBalance − commits)`,
+  /// где commits — запланированные расходы от конца недели до
+  /// ближайшего дохода / конца месяца. Реальный пул денег,
+  /// который остаётся после этой недели для свободного распоряжения.
   final num weeklyFree;
 }
 
@@ -450,7 +452,15 @@ FreeFundsBreakdown buildFreeFundsBreakdown({
     }
     final daysInWeek = endDay - d + 1;
     final allowanceAtEnd = computeAllowance(endDay);
-    final daily = allowanceAtEnd.allowance;
+    // Total free pool at end-of-week: balance left after future committed
+    // expenses up to the next income event or month-end. This is the
+    // реальный остаток свободных средств user can spend across the
+    // remaining stretch — NOT `dailyAllowance × daysInWeek` (the latter
+    // multiplies the spike on the very last day where daysAhead=1).
+    final pool = allowanceAtEnd.allowance > 0
+        ? allowanceAtEnd.allowance * allowanceAtEnd.daysAhead
+        : 0.0;
+    final daily = daysInWeek > 0 ? pool / daysInWeek : 0.0;
     weekIdx++;
     weeks.add(FreeFundsWeek(
       index: weekIdx,
@@ -464,7 +474,7 @@ FreeFundsBreakdown buildFreeFundsBreakdown({
       endBalance: endBal,
       daysInclusive: daysInWeek,
       dailyAllowance: daily,
-      weeklyFree: daily * daysInWeek,
+      weeklyFree: pool,
     ));
     d = endDay + 1;
   }

@@ -105,8 +105,8 @@ void main() {
       expect(w5.expense, 0);
     });
 
-    test('weekly free funds = endBalance / daysToNextIncome × daysInWeek '
-        '(positive only when balance is positive)', () {
+    test('weekly free funds = max(0, endBalance − upcomingCommits) and is '
+        'never larger than the actual end-balance pool', () {
       final cf = buildCashflow(
         month: DateTime(2025, 5, 1),
         plan: samplePlan(),
@@ -119,23 +119,41 @@ void main() {
         today: DateTime(2025, 5, 20),
       );
 
-      // Week 5 (May 26-31): end balance = 1100 (after advance on 30th).
-      // Next income day after 31 = none → daysAhead = 1 (clamped).
-      // dailyAllowance ≈ 1100, daysInWeek = 6, weeklyFree = 1100 * 6 / ?
-      // Allowance is computed at end of week (day 31). After day 31 the
-      // remaining run is just day 31 itself → daysAhead = 1.
+      // Week 5 (May 26-31): endBalance = 1100 (after advance on the 30th)
+      // and no expenses are scheduled after the 31st → free pool = 1100.
+      // Critical regression guard: weeklyFree must NOT spike to ~7700 by
+      // multiplying day-31's dailyAllowance (= 1100, daysAhead=1) by 7.
       final w5 = br.weeks.firstWhere((w) => w.startDay == 26);
       expect(w5.endBalance, 1100);
-      expect(w5.dailyAllowance, greaterThan(0));
-      expect(w5.weeklyFree, greaterThan(0));
+      expect(w5.weeklyFree, 1100);
+      expect(w5.dailyAllowance, closeTo(1100 / 6, 0.01));
+
+      // Week 4 (May 19-25): endBalance = 300 (no events between 17 and
+      // 30). No expenses scheduled before next income on day 30 → pool
+      // = 300, dailyAllowance = 300 / 7 ≈ 42.86.
+      final w4 = br.weeks.firstWhere((w) => w.startDay == 19);
+      expect(w4.endBalance, 300);
+      expect(w4.weeklyFree, 300);
+      expect(w4.dailyAllowance, closeTo(300 / 7, 0.01));
 
       // Week 1 (May 1-4): end balance = -1000 (after rent).
-      // No income comes until day 16 → daysAhead = 12 (5..16 exclusive).
-      // available = -1000 → clamped to 0 → allowance = 0.
+      // No income comes until day 16 → available is negative → pool = 0.
       final w1 = br.weeks[0];
       expect(w1.endBalance, -1000);
       expect(w1.dailyAllowance, 0); // negative balance ⇒ no allowance
       expect(w1.weeklyFree, 0);
+
+      // Sanity: total weeklyFree across all weeks should never exceed
+      // the maximum running balance reached during the month — i.e. the
+      // chart Y-axis cannot blow up to many times the actual budget.
+      final maxBalance = cf.timeline
+          .map((d) => d.balance)
+          .fold<num>(0, (a, b) => b > a ? b : a);
+      for (final w in br.weeks) {
+        expect(w.weeklyFree, lessThanOrEqualTo(maxBalance),
+            reason: 'week ${w.index} weeklyFree=${w.weeklyFree} exceeds '
+                'peak running balance $maxBalance');
+      }
     });
 
     test('per-day allowance is non-negative and decreases towards next pay',
