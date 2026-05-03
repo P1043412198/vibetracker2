@@ -28,27 +28,141 @@ class WaterLog {
       );
 }
 
+/// Captured inbox entry — used to be a plain GTD note. With the chat-inbox
+/// rework it also stores share-target links and link-preview metadata.
+///
+/// Persistence is via JSON in Hive (see [JsonListController]); all fields
+/// added after the initial release are optional so older entries keep
+/// loading.
 class InboxItem {
   InboxItem({
     required this.id,
     required this.content,
     required this.createdAt,
+    this.url,
+    this.linkTitle,
+    this.linkDomain,
+    this.linkImage,
+    this.platform,
+    this.tags,
+    this.pinned = false,
+    this.archived = false,
+    this.mediaPath,
+    this.mediaType,
+    this.mediaMime,
   });
 
   final String id;
   final String content;
   final String createdAt;
 
+  /// First detected URL inside [content], when the entry is a saved link.
+  /// `null` when the entry is a plain note.
+  final String? url;
+
+  /// `og:title` / `<title>` of the linked page, fetched lazily on first
+  /// preview and cached here. Falls back to [url] domain when missing.
+  final String? linkTitle;
+
+  /// Bare domain of [url] (e.g. `www.youtube.com`). Stored to render the
+  /// chip without re-parsing on every build.
+  final String? linkDomain;
+
+  /// `og:image` URL — fetched once and cached as-is. The widget renders it
+  /// via `Image.network` and falls back to a platform icon on error.
+  final String? linkImage;
+
+  /// Detected social platform (`instagram` | `youtube` | `tiktok` |
+  /// `telegram` | `twitter` | `vk` | `reddit` | `pinterest` | `threads` |
+  /// `web`). Used purely for the colored badge / icon.
+  final String? platform;
+
+  /// Hashtags pulled from [content] (e.g. `#идея`, `#купить`). Lower-cased.
+  final List<String>? tags;
+
+  final bool pinned;
+  final bool archived;
+
+  /// Absolute path to a shared image / video that the native side copied
+  /// into the app's private files dir. `null` for text-only entries.
+  final String? mediaPath;
+
+  /// Coarse media kind: `image` or `video`. Drives which widget renders
+  /// the bubble.
+  final String? mediaType;
+
+  /// Original MIME type — kept around so we can pick the correct viewer
+  /// when the user taps the media (`launchUrl(file://…)` honors it).
+  final String? mediaMime;
+
+  bool get isLink => url != null && url!.isNotEmpty;
+  bool get hasMedia => mediaPath != null && mediaPath!.isNotEmpty;
+  bool get isImage => mediaType == 'image';
+  bool get isVideo => mediaType == 'video';
+
+  InboxItem copyWith({
+    String? content,
+    String? url,
+    String? linkTitle,
+    String? linkDomain,
+    String? linkImage,
+    String? platform,
+    List<String>? tags,
+    bool? pinned,
+    bool? archived,
+    String? mediaPath,
+    String? mediaType,
+    String? mediaMime,
+  }) =>
+      InboxItem(
+        id: id,
+        content: content ?? this.content,
+        createdAt: createdAt,
+        url: url ?? this.url,
+        linkTitle: linkTitle ?? this.linkTitle,
+        linkDomain: linkDomain ?? this.linkDomain,
+        linkImage: linkImage ?? this.linkImage,
+        platform: platform ?? this.platform,
+        tags: tags ?? this.tags,
+        pinned: pinned ?? this.pinned,
+        archived: archived ?? this.archived,
+        mediaPath: mediaPath ?? this.mediaPath,
+        mediaType: mediaType ?? this.mediaType,
+        mediaMime: mediaMime ?? this.mediaMime,
+      );
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'content': content,
         'createdAt': createdAt,
+        if (url != null) 'url': url,
+        if (linkTitle != null) 'linkTitle': linkTitle,
+        if (linkDomain != null) 'linkDomain': linkDomain,
+        if (linkImage != null) 'linkImage': linkImage,
+        if (platform != null) 'platform': platform,
+        if (tags != null && tags!.isNotEmpty) 'tags': tags,
+        if (pinned) 'pinned': pinned,
+        if (archived) 'archived': archived,
+        if (mediaPath != null) 'mediaPath': mediaPath,
+        if (mediaType != null) 'mediaType': mediaType,
+        if (mediaMime != null) 'mediaMime': mediaMime,
       };
 
   factory InboxItem.fromJson(Map<String, dynamic> json) => InboxItem(
         id: json['id'] as String,
         content: (json['content'] ?? '') as String,
         createdAt: json['createdAt'] as String,
+        url: json['url'] as String?,
+        linkTitle: json['linkTitle'] as String?,
+        linkDomain: json['linkDomain'] as String?,
+        linkImage: json['linkImage'] as String?,
+        platform: json['platform'] as String?,
+        tags: (json['tags'] as List?)?.whereType<String>().toList(),
+        pinned: json['pinned'] == true,
+        archived: json['archived'] == true,
+        mediaPath: json['mediaPath'] as String?,
+        mediaType: json['mediaType'] as String?,
+        mediaMime: json['mediaMime'] as String?,
       );
 }
 

@@ -2,12 +2,23 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import '../models/sphere.dart';
+import '../models/misc.dart';
 import '../state/providers.dart';
+import 'link_preview_service.dart';
 
-/// Receives Android Sharesheet (`ACTION_SEND`, `text/plain`) handoffs and
-/// stores them as a note inside the "Заметки" sphere — counterpart of
-/// `src/pages/ShareTarget.tsx` in the React build.
+/// Receives Android Sharesheet (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`)
+/// hand-offs and stores them in the chat-style inbox.
+///
+/// Native side (`MainActivity`) packs a structured payload:
+/// ```
+/// {
+///   "text": String?,
+///   "media": [ {"path", "type": "image"|"video", "mime"}, ... ]
+/// }
+/// ```
+/// We unpack here and create one [InboxItem] per media entry plus an
+/// optional text-only entry, so each share lands as its own bubble in
+/// the chat — matching how messengers display received attachments.
 class ShareIntentService {
   ShareIntentService._();
   static final ShareIntentService instance = ShareIntentService._();
@@ -21,63 +32,111 @@ class ShareIntentService {
 
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onShare') {
-        final payload = call.arguments;
-        if (payload is String && payload.isNotEmpty) {
-          await _saveToNotes(ref, payload);
-        }
+        await _ingest(ref, call.arguments);
       }
     });
 
     // Drain any cold-start payload that the activity captured before we
     // hooked up the channel.
     try {
-      final pending = await _channel.invokeMethod<String?>('consumePending');
-      if (pending != null && pending.isNotEmpty) {
-        await _saveToNotes(ref, pending);
+      final pending = await _channel.invokeMethod<dynamic>('consumePending');
+      if (pending != null) {
+        await _ingest(ref, pending);
       }
     } catch (_) {
       // Channel might not be available outside Android — safe to ignore.
     }
   }
 
-  Future<void> _saveToNotes(WidgetRef ref, String content) async {
-    final spheres = ref.read(spheresProvider);
-    final controller = ref.read(spheresProvider.notifier);
-    final uuid = const Uuid();
-    final now = DateTime.now().toIso8601String();
-
-    Sphere? notesSphere = spheres.firstWhereOrNull(
-      (s) => s.title.trim().toLowerCase() == 'заметки',
-    );
-
-    final newNote = SphereNote(
-      id: uuid.v4(),
-      content: content,
-      createdAt: now,
-    );
-
-    if (notesSphere == null) {
-      final created = Sphere(
-        id: uuid.v4(),
-        title: 'Заметки',
-        notes: '',
-        createdAt: now,
-        description: 'Сохранённые ссылки и идеи',
-        notesList: [newNote],
-      );
-      await controller.add(created);
-    } else {
-      final next = [...?notesSphere.notesList, newNote];
-      await controller.upsert(notesSphere.copyWith(notesList: next));
+  /// Branch on payload shape. The new MainActivity always sends a Map; older
+  /// builds (before this PR) sent a plain String, so we keep the String
+  /// fallback for upgrade safety — otherwise the very first cold-start after
+  /// install could lose a queued payload.
+  Future<void> _ingest(WidgetRef ref, dynamic payload) async {
+    if (payload is String && payload.isNotEmpty) {
+      await _saveText(ref, payload);
+      return;
+    }
+    if (payload is Map) {
+      final text = payload['text'] as String?;
+      final media = (payload['media'] as List?) ?? const [];
+      // One inbox bubble per media item — the user gets each photo/video as
+      // its own card, the same way Telegram renders forwarded media.
+      for (final raw in media) {
+        if (raw is! Map) continue;
+        final path = raw['path'] as String?;
+        if (path == null || path.isEmpty) continue;
+        final type = (raw['type'] as String?) ?? 'image';
+        final mime = raw['mime'] as String?;
+        await _saveMedia(ref, path: path, type: type, mime: mime, caption: text);
+      }
+      // If there was text but no media, store it as a normal text entry.
+      if (media.isEmpty && text != null && text.isNotEmpty) {
+        await _saveText(ref, text);
+      }
     }
   }
-}
 
-extension _FirstWhere<T> on Iterable<T> {
-  T? firstWhereOrNull(bool Function(T) test) {
-    for (final e in this) {
-      if (test(e)) return e;
+  Future<void> _saveText(WidgetRef ref, String content) async {
+    final parsed = parseFirstUrl(content);
+    final tags = extractHashtags(content);
+    final id = const Uuid().v4();
+    final item = InboxItem(
+      id: id,
+      content: content,
+      createdAt: DateTime.now().toIso8601String(),
+      url: parsed.url,
+      linkDomain: parsed.domain,
+      platform: parsed.platform,
+      tags: tags.isEmpty ? null : tags,
+    );
+    await ref.read(inboxProvider.notifier).add(item);
+
+    if (parsed.isNotEmpty) {
+      // ignore: discarded_futures
+      _hydrate(ref, id, parsed.url!);
     }
-    return null;
+  }
+
+  Future<void> _saveMedia(
+    WidgetRef ref, {
+    required String path,
+    required String type,
+    String? mime,
+    String? caption,
+  }) async {
+    final cap = caption?.trim() ?? '';
+    final tags = extractHashtags(cap);
+    await ref.read(inboxProvider.notifier).add(
+          InboxItem(
+            id: const Uuid().v4(),
+            content: cap,
+            createdAt: DateTime.now().toIso8601String(),
+            tags: tags.isEmpty ? null : tags,
+            mediaPath: path,
+            mediaType: type,
+            mediaMime: mime,
+          ),
+        );
+  }
+
+  Future<void> _hydrate(WidgetRef ref, String id, String url) async {
+    final preview = await fetchLinkPreview(url);
+    if (preview.isEmpty) return;
+    final list = ref.read(inboxProvider);
+    InboxItem? existing;
+    for (final e in list) {
+      if (e.id == id) {
+        existing = e;
+        break;
+      }
+    }
+    if (existing == null) return;
+    await ref.read(inboxProvider.notifier).upsert(
+          existing.copyWith(
+            linkTitle: preview.title,
+            linkImage: preview.imageUrl,
+          ),
+        );
   }
 }
