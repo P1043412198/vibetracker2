@@ -47,6 +47,9 @@ class InboxItem {
     this.tags,
     this.pinned = false,
     this.archived = false,
+    this.mediaPath,
+    this.mediaType,
+    this.mediaMime,
   });
 
   final String id;
@@ -80,7 +83,22 @@ class InboxItem {
   final bool pinned;
   final bool archived;
 
+  /// Absolute path to a shared image / video that the native side copied
+  /// into the app's private files dir. `null` for text-only entries.
+  final String? mediaPath;
+
+  /// Coarse media kind: `image` or `video`. Drives which widget renders
+  /// the bubble.
+  final String? mediaType;
+
+  /// Original MIME type — kept around so we can pick the correct viewer
+  /// when the user taps the media (`launchUrl(file://…)` honors it).
+  final String? mediaMime;
+
   bool get isLink => url != null && url!.isNotEmpty;
+  bool get hasMedia => mediaPath != null && mediaPath!.isNotEmpty;
+  bool get isImage => mediaType == 'image';
+  bool get isVideo => mediaType == 'video';
 
   InboxItem copyWith({
     String? content,
@@ -92,6 +110,9 @@ class InboxItem {
     List<String>? tags,
     bool? pinned,
     bool? archived,
+    String? mediaPath,
+    String? mediaType,
+    String? mediaMime,
   }) =>
       InboxItem(
         id: id,
@@ -105,6 +126,9 @@ class InboxItem {
         tags: tags ?? this.tags,
         pinned: pinned ?? this.pinned,
         archived: archived ?? this.archived,
+        mediaPath: mediaPath ?? this.mediaPath,
+        mediaType: mediaType ?? this.mediaType,
+        mediaMime: mediaMime ?? this.mediaMime,
       );
 
   Map<String, dynamic> toJson() => {
@@ -119,6 +143,9 @@ class InboxItem {
         if (tags != null && tags!.isNotEmpty) 'tags': tags,
         if (pinned) 'pinned': pinned,
         if (archived) 'archived': archived,
+        if (mediaPath != null) 'mediaPath': mediaPath,
+        if (mediaType != null) 'mediaType': mediaType,
+        if (mediaMime != null) 'mediaMime': mediaMime,
       };
 
   factory InboxItem.fromJson(Map<String, dynamic> json) => InboxItem(
@@ -133,6 +160,9 @@ class InboxItem {
         tags: (json['tags'] as List?)?.whereType<String>().toList(),
         pinned: json['pinned'] == true,
         archived: json['archived'] == true,
+        mediaPath: json['mediaPath'] as String?,
+        mediaType: json['mediaType'] as String?,
+        mediaMime: json['mediaMime'] as String?,
       );
 }
 

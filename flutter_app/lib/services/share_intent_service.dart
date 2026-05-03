@@ -6,11 +6,19 @@ import '../models/misc.dart';
 import '../state/providers.dart';
 import 'link_preview_service.dart';
 
-/// Receives Android Sharesheet (`ACTION_SEND`, `text/plain`) handoffs and
-/// stores them in the chat-style inbox. The pre-existing native side
-/// (`MainActivity` + `ai.vibesight.tracker/share` channel) is unchanged —
-/// only the Dart-side sink moved from the "Заметки" sphere to the inbox
-/// so shared links land in the same place the user reads them.
+/// Receives Android Sharesheet (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`)
+/// hand-offs and stores them in the chat-style inbox.
+///
+/// Native side (`MainActivity`) packs a structured payload:
+/// ```
+/// {
+///   "text": String?,
+///   "media": [ {"path", "type": "image"|"video", "mime"}, ... ]
+/// }
+/// ```
+/// We unpack here and create one [InboxItem] per media entry plus an
+/// optional text-only entry, so each share lands as its own bubble in
+/// the chat — matching how messengers display received attachments.
 class ShareIntentService {
   ShareIntentService._();
   static final ShareIntentService instance = ShareIntentService._();
@@ -24,26 +32,52 @@ class ShareIntentService {
 
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onShare') {
-        final payload = call.arguments;
-        if (payload is String && payload.isNotEmpty) {
-          await _saveToInbox(ref, payload);
-        }
+        await _ingest(ref, call.arguments);
       }
     });
 
     // Drain any cold-start payload that the activity captured before we
     // hooked up the channel.
     try {
-      final pending = await _channel.invokeMethod<String?>('consumePending');
-      if (pending != null && pending.isNotEmpty) {
-        await _saveToInbox(ref, pending);
+      final pending = await _channel.invokeMethod<dynamic>('consumePending');
+      if (pending != null) {
+        await _ingest(ref, pending);
       }
     } catch (_) {
       // Channel might not be available outside Android — safe to ignore.
     }
   }
 
-  Future<void> _saveToInbox(WidgetRef ref, String content) async {
+  /// Branch on payload shape. The new MainActivity always sends a Map; older
+  /// builds (before this PR) sent a plain String, so we keep the String
+  /// fallback for upgrade safety — otherwise the very first cold-start after
+  /// install could lose a queued payload.
+  Future<void> _ingest(WidgetRef ref, dynamic payload) async {
+    if (payload is String && payload.isNotEmpty) {
+      await _saveText(ref, payload);
+      return;
+    }
+    if (payload is Map) {
+      final text = payload['text'] as String?;
+      final media = (payload['media'] as List?) ?? const [];
+      // One inbox bubble per media item — the user gets each photo/video as
+      // its own card, the same way Telegram renders forwarded media.
+      for (final raw in media) {
+        if (raw is! Map) continue;
+        final path = raw['path'] as String?;
+        if (path == null || path.isEmpty) continue;
+        final type = (raw['type'] as String?) ?? 'image';
+        final mime = raw['mime'] as String?;
+        await _saveMedia(ref, path: path, type: type, mime: mime, caption: text);
+      }
+      // If there was text but no media, store it as a normal text entry.
+      if (media.isEmpty && text != null && text.isNotEmpty) {
+        await _saveText(ref, text);
+      }
+    }
+  }
+
+  Future<void> _saveText(WidgetRef ref, String content) async {
     final parsed = parseFirstUrl(content);
     final tags = extractHashtags(content);
     final id = const Uuid().v4();
@@ -59,11 +93,31 @@ class ShareIntentService {
     await ref.read(inboxProvider.notifier).add(item);
 
     if (parsed.isNotEmpty) {
-      // Hydrate preview metadata in the background. Failures are silent —
-      // the entry still shows the bare URL with a platform chip.
       // ignore: discarded_futures
       _hydrate(ref, id, parsed.url!);
     }
+  }
+
+  Future<void> _saveMedia(
+    WidgetRef ref, {
+    required String path,
+    required String type,
+    String? mime,
+    String? caption,
+  }) async {
+    final cap = caption?.trim() ?? '';
+    final tags = extractHashtags(cap);
+    await ref.read(inboxProvider.notifier).add(
+          InboxItem(
+            id: const Uuid().v4(),
+            content: cap,
+            createdAt: DateTime.now().toIso8601String(),
+            tags: tags.isEmpty ? null : tags,
+            mediaPath: path,
+            mediaType: type,
+            mediaMime: mime,
+          ),
+        );
   }
 
   Future<void> _hydrate(WidgetRef ref, String id, String url) async {

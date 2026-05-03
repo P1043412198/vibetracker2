@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
@@ -121,6 +126,108 @@ class _InboxPageState extends ConsumerState<InboxPage> {
     _scrollToBottom();
   }
 
+  /// Bottom sheet that lets the user attach an image / video from the
+  /// gallery or camera. Files are copied into the same private
+  /// `inbox_media/` dir the share-target uses, so render and cleanup
+  /// stay symmetric with shared media.
+  Future<void> _pickMedia() async {
+    final picked = await showModalBottomSheet<_PickChoice>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Картинка из галереи'),
+              onTap: () => Navigator.of(sheetCtx).pop(_PickChoice.imageGallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam_outlined),
+              title: const Text('Видео из галереи'),
+              onTap: () => Navigator.of(sheetCtx).pop(_PickChoice.videoGallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Сфотографировать'),
+              onTap: () => Navigator.of(sheetCtx).pop(_PickChoice.imageCamera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.video_camera_back_outlined),
+              title: const Text('Снять видео'),
+              onTap: () => Navigator.of(sheetCtx).pop(_PickChoice.videoCamera),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked == null) return;
+    final picker = ImagePicker();
+    XFile? file;
+    String type = 'image';
+    try {
+      switch (picked) {
+        case _PickChoice.imageGallery:
+          file = await picker.pickImage(source: ImageSource.gallery);
+          type = 'image';
+          break;
+        case _PickChoice.imageCamera:
+          file = await picker.pickImage(source: ImageSource.camera);
+          type = 'image';
+          break;
+        case _PickChoice.videoGallery:
+          file = await picker.pickVideo(source: ImageSource.gallery);
+          type = 'video';
+          break;
+        case _PickChoice.videoCamera:
+          file = await picker.pickVideo(source: ImageSource.camera);
+          type = 'video';
+          break;
+      }
+    } catch (_) {
+      return;
+    }
+    if (file == null) return;
+    final saved = await _persistMediaFile(File(file.path), type: type);
+    final caption = _composerController.text.trim();
+    await ref.read(inboxProvider.notifier).add(
+          InboxItem(
+            id: const Uuid().v4(),
+            content: caption,
+            createdAt: DateTime.now().toIso8601String(),
+            tags: caption.isEmpty
+                ? null
+                : (extractHashtags(caption).isEmpty
+                    ? null
+                    : extractHashtags(caption)),
+            mediaPath: saved.path,
+            mediaType: type,
+            mediaMime: file.mimeType,
+          ),
+        );
+    _composerController.clear();
+    _scrollToBottom();
+  }
+
+  /// Copy [src] into the private `inbox_media/` directory and return the
+  /// resulting [File]. We always copy because [XFile.path] for camera
+  /// captures lives in a tmp dir that the OS may evict at any point.
+  Future<File> _persistMediaFile(File src, {required String type}) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final mediaDir = Directory(p.join(dir.path, 'inbox_media'));
+    if (!await mediaDir.exists()) {
+      await mediaDir.create(recursive: true);
+    }
+    final ext = p.extension(src.path).isEmpty
+        ? (type == 'image' ? '.jpg' : '.mp4')
+        : p.extension(src.path);
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final dst = File(p.join(mediaDir.path, '${type}_$ts$ext'));
+    await src.copy(dst.path);
+    return dst;
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
@@ -157,6 +264,20 @@ class _InboxPageState extends ConsumerState<InboxPage> {
   }
 
   Future<void> _open(InboxItem item) async {
+    if (item.hasMedia) {
+      // Hand the file off to the system viewer (gallery / video player).
+      // launchUrl with file:// works on Android via FileProvider when the
+      // file lives in app's private dir, but since 7.0 strict-uri rules
+      // can reject it; fall back to opening the parent dir on failure.
+      final uri = Uri.file(item.mediaPath!);
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+      return;
+    }
     if (!item.isLink) return;
     final uri = Uri.tryParse(item.url!);
     if (uri == null) return;
@@ -555,7 +676,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                             onTap: () {
                               if (_isSelecting) {
                                 _toggleSelected(item.id);
-                              } else if (item.isLink) {
+                              } else if (item.isLink || item.hasMedia) {
                                 _open(item);
                               }
                             },
@@ -578,6 +699,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
               focusNode: _composerFocus,
               onSubmit: _capture,
               onPaste: _pasteFromClipboard,
+              onAttach: _pickMedia,
             ),
         ],
       ),
@@ -724,12 +846,13 @@ class _Bubble extends StatelessWidget {
                               ],
                             ),
                           ),
+                        if (item.hasMedia) _MediaPreview(item: item),
                         if (item.isLink) _LinkPreview(item: item),
                         if (item.content.trim().isNotEmpty &&
                             item.content.trim() != item.url)
                           Padding(
                             padding: EdgeInsets.only(
-                                top: item.isLink ? 8 : 0),
+                                top: (item.isLink || item.hasMedia) ? 8 : 0),
                             child: SelectableText(
                               item.content,
                               style: const TextStyle(fontSize: 15, height: 1.3),
@@ -789,6 +912,128 @@ class _Bubble extends StatelessWidget {
 /// always shows a colored platform-icon row + domain + og:title (or just
 /// the URL when og fetch hasn't returned yet). Tap on the parent bubble
 /// opens the link in the system browser.
+/// Inline media card for shared / picked attachments. Renders the image
+/// straight from disk (with a graceful "image gone" fallback) and shows
+/// a video as a dark thumbnail with a centred play button — tap on the
+/// surrounding bubble hands the file off to the system viewer.
+class _MediaPreview extends StatelessWidget {
+  const _MediaPreview({required this.item});
+  final InboxItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final file = item.mediaPath != null ? File(item.mediaPath!) : null;
+    final exists = file != null && file.existsSync();
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: AspectRatio(
+        aspectRatio: 4 / 3,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (item.isImage && exists)
+              Image.file(
+                file,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _MediaFallback(
+                  icon: Icons.broken_image_outlined,
+                  label: 'Файл недоступен',
+                  scheme: scheme,
+                ),
+              )
+            else if (item.isVideo && exists)
+              Container(
+                color: Colors.black,
+                alignment: Alignment.center,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(Icons.play_circle_fill,
+                        size: 56, color: Colors.white.withValues(alpha: 0.9)),
+                  ],
+                ),
+              )
+            else
+              _MediaFallback(
+                icon: item.isVideo
+                    ? Icons.videocam_off_outlined
+                    : Icons.image_not_supported_outlined,
+                label: 'Медиа не найдено',
+                scheme: scheme,
+              ),
+            if (exists)
+              Positioned(
+                left: 8,
+                top: 8,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        item.isVideo
+                            ? Icons.videocam_outlined
+                            : Icons.photo_outlined,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        item.isVideo ? 'Видео' : 'Фото',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MediaFallback extends StatelessWidget {
+  const _MediaFallback({
+    required this.icon,
+    required this.label,
+    required this.scheme,
+  });
+  final IconData icon;
+  final String label;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: scheme.surfaceContainerHigh,
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 36, color: scheme.onSurfaceVariant),
+          const SizedBox(height: 8),
+          Text(label,
+              style: TextStyle(
+                fontSize: 12,
+                color: scheme.onSurfaceVariant,
+              )),
+        ],
+      ),
+    );
+  }
+}
+
 class _LinkPreview extends StatelessWidget {
   const _LinkPreview({required this.item});
   final InboxItem item;
@@ -912,11 +1157,13 @@ class _Composer extends StatelessWidget {
     required this.focusNode,
     required this.onSubmit,
     required this.onPaste,
+    required this.onAttach,
   });
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onSubmit;
   final VoidCallback onPaste;
+  final VoidCallback onAttach;
 
   @override
   Widget build(BuildContext context) {
@@ -924,9 +1171,14 @@ class _Composer extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+        padding: const EdgeInsets.fromLTRB(4, 4, 8, 8),
         child: Row(
           children: [
+            IconButton(
+              tooltip: 'Прикрепить файл',
+              icon: const Icon(Icons.attach_file),
+              onPressed: onAttach,
+            ),
             IconButton(
               tooltip: 'Вставить из буфера',
               icon: const Icon(Icons.content_paste_outlined),
@@ -1152,3 +1404,6 @@ Color _platformColor(String? p, ColorScheme scheme) {
       return scheme.primary;
   }
 }
+
+
+enum _PickChoice { imageGallery, imageCamera, videoGallery, videoCamera }
