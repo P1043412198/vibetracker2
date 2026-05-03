@@ -1,0 +1,232 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../models/dashboard_config.dart';
+import '../services/storage.dart';
+
+/// Persisted theme-mode toggle (system/light/dark).
+class ThemeModeController extends StateNotifier<ThemeMode> {
+  ThemeModeController() : super(ThemeMode.system) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) {
+      state = ThemeMode.values.firstWhere(
+        (m) => m.name == stored,
+        orElse: () => ThemeMode.system,
+      );
+    }
+  }
+
+  static const _key = 'themeMode';
+
+  Future<void> set(ThemeMode mode) async {
+    state = mode;
+    await AppStorage.writeString(_key, mode.name);
+  }
+}
+
+final themeModeProvider =
+    StateNotifierProvider<ThemeModeController, ThemeMode>((ref) {
+  return ThemeModeController();
+});
+
+/// Default currency used in finance screens (mirrors React `defaultCurrency`).
+final defaultCurrencyProvider = StateProvider<String>((ref) {
+  return AppStorage.readString('defaultCurrency') ?? 'BYN';
+});
+
+/// Water goal in ml (default 2000).
+class WaterGoalController extends StateNotifier<int> {
+  WaterGoalController() : super(2000) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) {
+      state = int.tryParse(stored) ?? 2000;
+    }
+  }
+
+  static const _key = 'waterGoal';
+
+  Future<void> set(int goal) async {
+    state = goal;
+    await AppStorage.writeString(_key, goal.toString());
+  }
+}
+
+final waterGoalProvider =
+    StateNotifierProvider<WaterGoalController, int>((ref) {
+  return WaterGoalController();
+});
+
+/// Water increment in ml (default 250).
+class WaterIncrementController extends StateNotifier<int> {
+  WaterIncrementController() : super(250) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) {
+      state = int.tryParse(stored) ?? 250;
+    }
+  }
+
+  static const _key = 'waterIncrement';
+
+  Future<void> set(int increment) async {
+    state = increment;
+    await AppStorage.writeString(_key, increment.toString());
+  }
+}
+
+final waterIncrementProvider =
+    StateNotifierProvider<WaterIncrementController, int>((ref) {
+  return WaterIncrementController();
+});
+
+/// Water visualization mode: 'glass' or 'bottle'.
+class WaterVisualizationController extends StateNotifier<String> {
+  WaterVisualizationController() : super('glass') {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) state = stored;
+  }
+
+  static const _key = 'waterVisualization';
+
+  Future<void> set(String mode) async {
+    state = mode;
+    await AppStorage.writeString(_key, mode);
+  }
+}
+
+final waterVisualizationProvider =
+    StateNotifierProvider<WaterVisualizationController, String>((ref) {
+  return WaterVisualizationController();
+});
+
+/// Persisted dashboard layout: visible widgets and their order.
+class DashboardConfigController extends StateNotifier<DashboardConfig> {
+  DashboardConfigController() : super(DashboardConfig.defaultConfig()) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null && stored.isNotEmpty) {
+      try {
+        final decoded = json.decode(stored);
+        if (decoded is Map<String, dynamic>) {
+          state = DashboardConfig.fromJson(decoded);
+        }
+      } catch (_) {
+        // Fall back to default if persisted JSON is corrupt.
+      }
+    }
+  }
+
+  static const _key = 'dashboardConfig';
+
+  Future<void> _persist() async {
+    await AppStorage.writeString(_key, json.encode(state.toJson()));
+  }
+
+  Future<void> reorder(List<String> ids) async {
+    state = state.copyWith(widgetsOrder: ids);
+    await _persist();
+  }
+
+  Future<void> setVisible(String id, bool visible) async {
+    final next = <String>{
+      if (visible) ...state.widgetsOrder.where(state.visibleWidgets.contains),
+      if (visible) id,
+      if (!visible) ...state.visibleWidgets.where((e) => e != id),
+    }.toList();
+    // Re-sort visible by current order.
+    next.sort((a, b) =>
+        state.widgetsOrder.indexOf(a).compareTo(state.widgetsOrder.indexOf(b)));
+    state = state.copyWith(visibleWidgets: next);
+    await _persist();
+  }
+
+  Future<void> resetToDefault() async {
+    state = DashboardConfig.defaultConfig();
+    await _persist();
+  }
+}
+
+final dashboardConfigProvider =
+    StateNotifierProvider<DashboardConfigController, DashboardConfig>((ref) {
+  return DashboardConfigController();
+});
+
+/// Persisted UI locale override. `null` means "follow system".
+class LocaleController extends StateNotifier<Locale?> {
+  LocaleController() : super(null) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null && stored.isNotEmpty) {
+      state = Locale(stored);
+    }
+  }
+
+  static const _key = 'appLocale';
+
+  Future<void> set(Locale? locale) async {
+    state = locale;
+    if (locale == null) {
+      await AppStorage.writeString(_key, '');
+    } else {
+      await AppStorage.writeString(_key, locale.languageCode);
+    }
+  }
+}
+
+final localeProvider =
+    StateNotifierProvider<LocaleController, Locale?>((ref) {
+  return LocaleController();
+});
+
+/// PIN-code lock. Stores a 4-digit code in plaintext (low-security: this is a
+/// privacy gate against casual snooping, not a cryptographic vault).
+class PinLockController extends StateNotifier<PinLockState> {
+  PinLockController()
+      : super(PinLockState(
+          pin: AppStorage.readString(_pinKey),
+          // Always start locked if a PIN is set.
+          locked: AppStorage.readString(_pinKey)?.isNotEmpty ?? false,
+        ));
+
+  static const _pinKey = 'pinCode';
+
+  Future<void> setPin(String? pin) async {
+    if (pin == null || pin.isEmpty) {
+      await AppStorage.box.delete(_pinKey);
+      state = PinLockState(pin: null, locked: false);
+    } else {
+      await AppStorage.writeString(_pinKey, pin);
+      state = PinLockState(pin: pin, locked: state.locked);
+    }
+  }
+
+  void lock() {
+    if (state.pin != null && state.pin!.isNotEmpty) {
+      state = PinLockState(pin: state.pin, locked: true);
+    }
+  }
+
+  bool tryUnlock(String input) {
+    if (state.pin == null) {
+      state = PinLockState(pin: null, locked: false);
+      return true;
+    }
+    if (input == state.pin) {
+      state = PinLockState(pin: state.pin, locked: false);
+      return true;
+    }
+    return false;
+  }
+}
+
+class PinLockState {
+  PinLockState({required this.pin, required this.locked});
+  final String? pin;
+  final bool locked;
+
+  bool get hasPin => pin != null && pin!.isNotEmpty;
+}
+
+final pinLockProvider =
+    StateNotifierProvider<PinLockController, PinLockState>((ref) {
+  return PinLockController();
+});

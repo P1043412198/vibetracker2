@@ -1,0 +1,85 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+// Phase 10: optional release-keystore signing.
+// Drop a `key.properties` next to this file (or place it at android/key.properties)
+// to sign release builds with a real upload key. Layout:
+//
+//   storeFile=/absolute/path/to/upload-keystore.jks
+//   storePassword=...
+//   keyAlias=upload
+//   keyPassword=...
+//
+// If `key.properties` is missing, release builds fall back to the bundled
+// debug key so `flutter build apk --release` keeps working for development.
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    namespace = "ai.vibesight.tracker"
+    // Phase 13: bumped to 36 because file_picker → androidx.core 1.17 chain
+    // requires it (backward-compatible with previous targetSdk).
+    compileSdk = 36
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications requires core library desugaring for
+        // java.time.* on minSdk 23.
+        coreLibraryDesugaringEnabled = true
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17
+    }
+
+    defaultConfig {
+        applicationId = "ai.vibesight.tracker"
+        minSdkVersion = flutter.minSdkVersion
+        targetSdk = 34
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            release {
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
+                storeFile = keystoreProperties["storeFile"] ? file(keystoreProperties["storeFile"]) : null
+                storePassword = keystoreProperties["storePassword"]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Use the upload keystore when configured; otherwise fall back to
+            // the bundled debug key so dogfooding builds still succeed.
+            signingConfig = keystorePropertiesFile.exists()
+                ? signingConfigs.release
+                : signingConfigs.debug
+            // R8 is on by default in AGP 8.x; supply -dontwarn rules for
+            // optional MLKit text-recognition scripts we don't bundle.
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    // Required by core library desugaring (see compileOptions above).
+    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"
+}
