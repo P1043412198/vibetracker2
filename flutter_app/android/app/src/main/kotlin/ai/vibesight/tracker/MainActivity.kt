@@ -15,7 +15,7 @@ import java.util.Locale
  * (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) handoffs are forwarded into Flutter
  * and saved into the chat inbox.
  *
- * Supported MIME types: `text/plain`, `image/*`, `video/*`. Media files are
+ * Supported MIME types: text/plain, any image, any video. Media files are
  * copied into the app's private `filesDir/inbox_media/` so the source URI's
  * grant lifecycle doesn't matter — Flutter then renders them straight from
  * disk via `Image.file` / system video viewer.
