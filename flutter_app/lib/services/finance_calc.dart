@@ -1183,34 +1183,23 @@ BalanceForecast forecastBalance({
 }
 
 /// Returns the per-day "сколько можно безопасно тратить" allowance for
-/// every day in the month. The value at index `i` is the allowance computed
-/// as if today were day `i+1`: `max(0, balance(d) - upcomingCommits) /
-/// daysToNextIncome`. This drives the per-day infographic that shows the
-/// allowance evolving across the whole month.
+/// every day in the month. The value at index `i` is the **period-constant**
+/// daily allowance for the cashflow period that contains day `i+1`. This
+/// keeps the per-day infographic 1:1 with the per-period table immediately
+/// below it: every day inside the same period gets the same number, and the
+/// number you read off a bar matches exactly the row beneath. Negative
+/// period values (the user is in deficit until the next income) are clamped
+/// to 0.
 List<num> perDayAllowance(CashflowResult cashflow) {
   final timeline = cashflow.timeline;
   if (timeline.isEmpty) return const [];
   final daysInMonth = timeline.length;
-
-  int nextIncomeDay(int d) {
-    for (var x = d + 1; x <= daysInMonth; x++) {
-      if (timeline[x - 1].income > 0) return x;
+  final out = List<num>.filled(daysInMonth, 0);
+  for (final p in cashflow.periods) {
+    final daily = p.dailyAllowance < 0 ? 0 : p.dailyAllowance;
+    for (var d = p.startDay; d <= p.endDay && d <= daysInMonth; d++) {
+      out[d - 1] = daily;
     }
-    return daysInMonth + 1;
-  }
-
-  final out = <num>[];
-  for (var d = 1; d <= daysInMonth; d++) {
-    final endBal = timeline[d - 1].balance;
-    final nextInc = nextIncomeDay(d);
-    final upper = nextInc <= daysInMonth ? nextInc - 1 : daysInMonth;
-    var commits = 0.0;
-    for (var x = d + 1; x <= upper; x++) {
-      commits += timeline[x - 1].expense.toDouble();
-    }
-    final daysAhead = math.max(1, upper - d + 1);
-    final available = endBal.toDouble() - commits;
-    out.add(available > 0 ? available / daysAhead : 0);
   }
   return out;
 }

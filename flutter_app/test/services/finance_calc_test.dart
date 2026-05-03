@@ -281,7 +281,8 @@ void main() {
   });
 
   group('Phase 19 — perDayAllowance', () {
-    test('non-zero on every day, decreases between income spikes', () {
+    test('every day inside a period shares one constant allowance, '
+        'matching the cashflow.periods entry 1:1', () {
       final cf = buildCashflow(
         month: DateTime(2025, 5, 1),
         plan: samplePlan(),
@@ -290,13 +291,33 @@ void main() {
       );
       final allow = perDayAllowance(cf);
       expect(allow.length, 31);
-      // Day 1 starts in the red (rent due), allowance = 0.
-      expect(allow[0], 0);
-      // After the salary on day 16 there are 14 days till the advance and
-      // the running balance is 300 → ~21.43/day.
-      expect(allow[15], closeTo(300 / 14, 0.5));
-      // Last day of month: balance 1100 over the remaining day → 1100.
-      expect(allow.last, 1100);
+
+      // Period 1 (days 1–15): -1000 / 15 = -66.67 → clamped to 0.
+      for (var d = 0; d < 15; d++) {
+        expect(allow[d], 0,
+            reason: 'day ${d + 1} should be 0 (deficit period clamped)');
+      }
+      // Period 2 (days 16–29): (300 - (-1000)) / 14 = 92.857.
+      for (var d = 15; d < 29; d++) {
+        expect(allow[d], closeTo(1300 / 14, 0.001),
+            reason: 'day ${d + 1} should match period 16-29 daily');
+      }
+      // Period 3 (day 30): (1100 - 300) / 1 = 800 — the advance is paid.
+      expect(allow[29], closeTo(800, 0.001));
+      // Period 4 (day 31): no balance change → 0.
+      expect(allow[30], 0);
+
+      // The bar values must equal the period.dailyAllowance for the
+      // period containing the day (negative clamped to 0). This is what
+      // makes the per-day chart consistent with the period table on the
+      // same card and with the per-week breakdown.
+      for (final p in cf.periods) {
+        final expected = p.dailyAllowance < 0 ? 0 : p.dailyAllowance;
+        for (var d = p.startDay; d <= p.endDay && d <= 31; d++) {
+          expect(allow[d - 1], expected,
+              reason: 'day $d (period ${p.label})');
+        }
+      }
     });
   });
 
