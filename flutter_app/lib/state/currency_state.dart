@@ -22,6 +22,24 @@ class CurrencyRatesController extends StateNotifier<Map<String, num>> {
         state = _defaults;
       }
     }
+    // Phase 18: auto-refresh from NBRB when rates are missing or stale
+    // (older than 12h) so users don't have to tap the refresh button on a
+    // fresh install. Failures are swallowed silently — the persisted /
+    // default rates remain in state.
+    _maybeAutoRefresh();
+  }
+
+  Future<void> _maybeAutoRefresh() async {
+    try {
+      final lastIso = AppStorage.readString(_updatedAtKey);
+      final lastTs = lastIso == null ? null : DateTime.tryParse(lastIso);
+      final stale = lastTs == null ||
+          DateTime.now().difference(lastTs) > const Duration(hours: 12);
+      if (!stale) return;
+      await refreshFromNbrb();
+    } catch (_) {
+      // Network failure / parse error — keep persisted/default rates.
+    }
   }
 
   static const _key = 'fxRates';

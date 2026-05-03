@@ -18,28 +18,58 @@ class PasswordsPage extends ConsumerStatefulWidget {
 
 class _PasswordsPageState extends ConsumerState<PasswordsPage> {
   String _search = '';
-  String _activeCategory = 'all';
+
+  /// Currently opened folder. `null` means the root (categories list); a
+  /// string value means we're viewing the entries of that category. Special
+  /// value `__all__` shows everything (used by the search field).
+  String? _openedCategory;
+
+  static const _allKey = '__all__';
+  static const _uncategorisedKey = '__none__';
 
   @override
   Widget build(BuildContext context) {
     final passwords = ref.watch(passwordsProvider);
 
-    final categories = passwords
-        .map((p) => p.category)
-        .where((c) => c != null && c.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    // Group by category (null/empty → "Без категории")
+    final byCategory = <String, List<PasswordEntry>>{};
+    for (final p in passwords) {
+      final key = (p.category != null && p.category!.isNotEmpty)
+          ? p.category!
+          : _uncategorisedKey;
+      (byCategory[key] ??= []).add(p);
+    }
+    final categoryOrder = byCategory.keys.toList()
+      ..sort((a, b) {
+        if (a == _uncategorisedKey) return 1;
+        if (b == _uncategorisedKey) return -1;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
 
-    final filtered = passwords.where((p) {
+    final searching = _search.trim().isNotEmpty;
+
+    // While searching, ignore selected folder and search across all entries.
+    Iterable<PasswordEntry> visible;
+    if (searching) {
+      visible = passwords;
+    } else if (_openedCategory == null) {
+      visible = const [];
+    } else if (_openedCategory == _allKey) {
+      visible = passwords;
+    } else if (_openedCategory == _uncategorisedKey) {
+      visible = passwords.where(
+          (p) => p.category == null || p.category!.isEmpty);
+    } else {
+      visible = passwords.where((p) => p.category == _openedCategory);
+    }
+
+    final filtered = visible.where((p) {
       final q = _search.toLowerCase();
-      final matchesSearch = q.isEmpty ||
-          p.title.toLowerCase().contains(q) ||
+      if (q.isEmpty) return true;
+      return p.title.toLowerCase().contains(q) ||
           (p.username?.toLowerCase().contains(q) ?? false) ||
-          (p.url?.toLowerCase().contains(q) ?? false);
-      final matchesCat =
-          _activeCategory == 'all' || p.category == _activeCategory;
-      return matchesSearch && matchesCat;
+          (p.url?.toLowerCase().contains(q) ?? false) ||
+          (p.category?.toLowerCase().contains(q) ?? false);
     }).toList()
       ..sort((a, b) {
         if ((a.isPinned ?? false) && !(b.isPinned ?? false)) return -1;
@@ -47,13 +77,32 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage> {
         return b.updatedAt.compareTo(a.updatedAt);
       });
 
+    final showCategoryGrid = !searching && _openedCategory == null;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
+        leading: (!showCategoryGrid && !searching)
+            ? IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => setState(() => _openedCategory = null),
+              )
+            : null,
+        title: Row(
           children: [
-            Icon(Icons.shield_outlined, size: 22),
-            SizedBox(width: 8),
-            Text('Пароли и 2FA'),
+            const Icon(Icons.shield_outlined, size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                showCategoryGrid
+                    ? 'Пароли и 2FA'
+                    : (_openedCategory == _allKey
+                        ? 'Все пароли'
+                        : (_openedCategory == _uncategorisedKey
+                            ? 'Без категории'
+                            : (_openedCategory ?? 'Пароли и 2FA'))),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
       ),
@@ -64,11 +113,11 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Search
+          // Search (always available)
           TextField(
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search, size: 20),
-              hintText: 'Поиск паролей...',
+              hintText: 'Поиск паролей…',
               isDense: true,
               border: OutlineInputBorder(),
               contentPadding:
@@ -76,73 +125,87 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage> {
             ),
             onChanged: (v) => setState(() => _search = v),
           ),
-          const SizedBox(height: 12),
-
-          // Category chips
-          SizedBox(
-            height: 34,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                _catChip('all', 'Все'),
-                ...categories.map((c) => _catChip(c!, c)),
-              ],
-            ),
-          ),
           const SizedBox(height: 16),
 
-          if (filtered.isEmpty)
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 48),
-                child: Column(
-                  children: [
-                    Icon(Icons.key_outlined,
-                        size: 48, color: Colors.grey.withAlpha(60)),
-                    const SizedBox(height: 12),
-                    const Text('Нет сохранённых паролей',
-                        style: TextStyle(color: Colors.grey)),
-                  ],
+          // ROOT VIEW: only category cards, not individual passwords.
+          if (showCategoryGrid) ...[
+            if (passwords.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Text('Нет сохранённых паролей',
+                      style: TextStyle(color: Colors.grey)),
                 ),
+              )
+            else ...[
+              _CategoryTile(
+                icon: Icons.all_inclusive,
+                label: 'Все пароли',
+                count: passwords.length,
+                onTap: () =>
+                    setState(() => _openedCategory = _allKey),
               ),
-            ),
-
-          ...filtered.map((entry) => _PasswordCard(
-                entry: entry,
-                onEdit: () => _openEditor(context, entry: entry),
-                onDelete: () => _confirmDelete(context, entry),
-                onTogglePin: () {
-                  ref.read(passwordsProvider.notifier).update(
-                        entry.id,
-                        (old) => PasswordEntry(
-                          id: old.id,
-                          title: old.title,
-                          username: old.username,
-                          password: old.password,
-                          url: old.url,
-                          totpSecret: old.totpSecret,
-                          notes: old.notes,
-                          category: old.category,
-                          createdAt: old.createdAt,
-                          updatedAt: old.updatedAt,
-                          isPinned: !(old.isPinned ?? false),
-                        ),
-                      );
-                },
-              )),
+              const SizedBox(height: 8),
+              for (final key in categoryOrder)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _CategoryTile(
+                    icon: key == _uncategorisedKey
+                        ? Icons.folder_off_outlined
+                        : Icons.folder_outlined,
+                    label: key == _uncategorisedKey
+                        ? 'Без категории'
+                        : key,
+                    count: byCategory[key]?.length ?? 0,
+                    onTap: () =>
+                        setState(() => _openedCategory = key),
+                  ),
+                ),
+            ],
+          ] else ...[
+            // FOLDER VIEW (or search): list passwords inside the folder.
+            if (filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 48),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.key_outlined,
+                          size: 48,
+                          color: Colors.grey.withValues(alpha: 0.4)),
+                      const SizedBox(height: 12),
+                      const Text('Ничего не найдено',
+                          style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ...filtered.map((entry) => _PasswordCard(
+                    entry: entry,
+                    onEdit: () => _openEditor(context, entry: entry),
+                    onDelete: () => _confirmDelete(context, entry),
+                    onTogglePin: () {
+                      ref.read(passwordsProvider.notifier).update(
+                            entry.id,
+                            (old) => PasswordEntry(
+                              id: old.id,
+                              title: old.title,
+                              username: old.username,
+                              password: old.password,
+                              url: old.url,
+                              totpSecret: old.totpSecret,
+                              notes: old.notes,
+                              category: old.category,
+                              createdAt: old.createdAt,
+                              updatedAt: old.updatedAt,
+                              isPinned: !(old.isPinned ?? false),
+                            ),
+                          );
+                    },
+                  )),
+          ],
         ],
-      ),
-    );
-  }
-
-  Widget _catChip(String id, String label) {
-    final sel = _activeCategory == id;
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: ChoiceChip(
-        label: Text(label, style: const TextStyle(fontSize: 12)),
-        selected: sel,
-        onSelected: (_) => setState(() => _activeCategory = id),
       ),
     );
   }
@@ -803,6 +866,43 @@ class _PasswordEditorState extends State<_PasswordEditor> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Phase 18: clickable category folder tile shown on the root view of
+/// "Пароли" so the entries don't immediately render until a folder is
+/// opened.
+class _CategoryTile extends StatelessWidget {
+  const _CategoryTile({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor:
+              Theme.of(context).colorScheme.primaryContainer,
+          child: Icon(icon,
+              color: Theme.of(context).colorScheme.onPrimaryContainer),
+        ),
+        title: Text(label,
+            style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text('Записей: $count',
+            style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
     );
   }
 }

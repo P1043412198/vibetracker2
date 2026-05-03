@@ -65,12 +65,12 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     );
 
     // Phase 14: schedule-aware cashflow with loans included.
-    final loans = ref.watch(loansProvider);
     final planCurrency = plan?.currency ?? baseCurrency;
     // Sum of all active loan monthly payments converted into the plan
     // currency. Active = balance > 0 AND monthlyPayment > 0.
     num loansMonthlyPayments = 0;
-    for (final l in loans) {
+    final loansForPayments = ref.read(loansProvider);
+    for (final l in loansForPayments) {
       if (l.balance <= 0 || l.monthlyPayment <= 0) continue;
       loansMonthlyPayments +=
           convert(l.monthlyPayment, l.currency, planCurrency);
@@ -94,12 +94,26 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     // Static "плановая" сумма (used for the "Запланированные расходы" row).
     final totalPlannedExpense =
         categoryPlanTotal + scheduledExpensesTotal + loansMonthlyPayments;
+
+    // Phase 18: free-funds carry-over from previous month (when enabled).
+    final loans = ref.watch(loansProvider);
+    final prevLoansMonthlyPayments = loansMonthlyPayments;
+    final carryEnabled = plan?.freeFundsCarryover ?? false;
+    final carryIn = carryEnabled
+        ? computeMonthLeftoverFree(
+            plan: prevPlan,
+            facts: prevFacts,
+            loansMonthlyPayments: prevLoansMonthlyPayments,
+          )
+        : 0;
+
     final freeFunds = computeFreeFunds(
       plannedIncome: plan?.plannedIncome ?? 0,
       scheduledIncomeTotal: scheduledIncomeTotal,
       plannedExpense: committed.total,
       actualIncome: facts.income,
       actualExpense: facts.expense,
+      carryIn: carryIn,
     );
     final daysLeft = daysLeftInMonth(_month);
     final allowance = dailyAllowance(freeFunds.free, daysLeft);
@@ -115,6 +129,13 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             loans: loans,
             planCurrency: planCurrency,
             convert: convert,
+          );
+    final breakdown = cashflow == null
+        ? null
+        : buildFreeFundsBreakdown(
+            cashflow: cashflow,
+            month: _month,
+            today: DateTime.now(),
           );
 
     return ListView(
@@ -145,14 +166,18 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
           actualIncome: facts.income,
           actualExpense: facts.expense,
           freeFunds: freeFunds.free,
+          carryIn: carryIn,
           dailyAllowance: allowance,
           weeklyAllowance: weekly,
           daysLeft: daysLeft,
           currency: baseCurrency,
           fmt: fmt,
           rollover: plan?.rollover ?? false,
+          freeFundsCarryover: plan?.freeFundsCarryover ?? false,
           onEditIncome: () => _editIncome(plan, monthKey),
           onToggleRollover: () => _toggleRollover(plan, monthKey),
+          onToggleFreeFundsCarryover: () =>
+              _toggleFreeFundsCarryover(plan, monthKey),
         ),
         const SizedBox(height: 12),
         _IncomeScheduleCard(
@@ -180,6 +205,42 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
             fmt: fmt,
             today: DateTime.now(),
             month: _month,
+          ),
+        ],
+        if (breakdown != null && breakdown.weeks.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _FreeFundsByWeekCard(
+            breakdown: breakdown,
+            currency: planCurrency,
+            fmt: fmt,
+            today: DateTime.now(),
+          ),
+        ],
+        if (breakdown != null && breakdown.days.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _FreeFundsByWeekdayCard(
+            breakdown: breakdown,
+            currency: planCurrency,
+            fmt: fmt,
+            today: DateTime.now(),
+          ),
+        ],
+        if (plan != null && plan.categoryPlans.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _PlanVsFactCard(
+            categoryPlans: plan.categoryPlans,
+            actualByCategory: facts.expenseByCategory,
+            currency: baseCurrency,
+            fmt: fmt,
+          ),
+          const SizedBox(height: 12),
+          _ExpenseShareCard(
+            categoryPlans: plan.categoryPlans,
+            scheduledExpenses:
+                plan.scheduledExpenses ?? const <ScheduledExpense>[],
+            loansMonthlyPayments: loansMonthlyPayments,
+            currency: baseCurrency,
+            fmt: fmt,
           ),
         ],
         const SizedBox(height: 16),
@@ -286,6 +347,11 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
 
   Future<void> _toggleRollover(MonthlyBudgetPlan? plan, String monthKey) async {
     await _upsertPlan(plan, monthKey, toggleRollover: true);
+  }
+
+  Future<void> _toggleFreeFundsCarryover(
+      MonthlyBudgetPlan? plan, String monthKey) async {
+    await _upsertPlan(plan, monthKey, toggleFreeFundsCarryover: true);
   }
 
   Future<void> _toggleExcludedAccount(
@@ -532,6 +598,7 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     num? plannedIncome,
     List<CategoryPlan>? categoryPlans,
     bool toggleRollover = false,
+    bool toggleFreeFundsCarryover = false,
     List<String>? excludedAccountIds,
     List<IncomeEntry>? incomes,
     List<ScheduledExpense>? scheduledExpenses,
@@ -546,6 +613,9 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
       freeFundsTarget: plan?.freeFundsTarget,
       rollover:
           toggleRollover ? !(plan?.rollover ?? false) : plan?.rollover,
+      freeFundsCarryover: toggleFreeFundsCarryover
+          ? !(plan?.freeFundsCarryover ?? false)
+          : plan?.freeFundsCarryover,
       notes: plan?.notes,
       excludedAccountIds:
           excludedAccountIds ?? plan?.excludedAccountIds,
@@ -685,14 +755,17 @@ class _PlanSummaryCard extends StatelessWidget {
     required this.actualIncome,
     required this.actualExpense,
     required this.freeFunds,
+    required this.carryIn,
     required this.dailyAllowance,
     required this.weeklyAllowance,
     required this.daysLeft,
     required this.currency,
     required this.fmt,
     required this.rollover,
+    required this.freeFundsCarryover,
     required this.onEditIncome,
     required this.onToggleRollover,
+    required this.onToggleFreeFundsCarryover,
   });
 
   final num plannedIncome;
@@ -703,14 +776,17 @@ class _PlanSummaryCard extends StatelessWidget {
   final num actualIncome;
   final num actualExpense;
   final num freeFunds;
+  final num carryIn;
   final num dailyAllowance;
   final num weeklyAllowance;
   final int daysLeft;
   final String currency;
   final NumberFormat fmt;
   final bool rollover;
+  final bool freeFundsCarryover;
   final VoidCallback onEditIncome;
   final VoidCallback onToggleRollover;
+  final VoidCallback onToggleFreeFundsCarryover;
 
   @override
   Widget build(BuildContext context) {
@@ -796,15 +872,32 @@ class _PlanSummaryCard extends StatelessWidget {
               label: 'В неделю',
               valueText: '${fmt.format(weeklyAllowance)} $currency',
             ),
+            if (carryIn > 0) ...[
+              const SizedBox(height: 4),
+              _PlanRow(
+                label: '+ Перенос с прошлого месяца',
+                valueText: '${fmt.format(carryIn)} $currency',
+                valueColor: const Color(0xFF22C55E),
+              ),
+            ],
             const SizedBox(height: 12),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('Перенос остатка'),
+              title: const Text('Перенос лимитов по категориям'),
               subtitle: const Text(
-                  'Неизрасходованный лимит прошлого месяца прибавляется к лимиту этого'),
+                  'Неизрасходованный лимит прошлого месяца прибавляется к этому'),
               value: rollover,
               onChanged: (_) => onToggleRollover(),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('Перенос свободных средств'),
+              subtitle: const Text(
+                  'Непотраченный остаток прошлого месяца переходит на текущий'),
+              value: freeFundsCarryover,
+              onChanged: (_) => onToggleFreeFundsCarryover(),
             ),
           ],
         ),
@@ -1624,6 +1717,597 @@ class _CashflowCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Per-week breakdown card: how much free funds is left in each Mon-Sun
+/// stretch of the month, with a bar chart and a list of weeks.
+class _FreeFundsByWeekCard extends StatelessWidget {
+  const _FreeFundsByWeekCard({
+    required this.breakdown,
+    required this.currency,
+    required this.fmt,
+    required this.today,
+  });
+
+  final FreeFundsBreakdown breakdown;
+  final String currency;
+  final NumberFormat fmt;
+  final DateTime today;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final weeks = breakdown.weeks;
+    final maxAbs = weeks.fold<double>(
+        0,
+        (a, w) => math.max(
+            a, (w.endBalance - w.startBalance).abs().toDouble()));
+    final ySpan = (maxAbs == 0 ? 100 : maxAbs * 1.25).toDouble();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.view_week_outlined, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Свободные средства по неделям',
+                  style: Theme.of(context).textTheme.titleSmall),
+            ]),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 140,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  minY: -ySpan,
+                  maxY: ySpan,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (v) => FlLine(
+                      color: scheme.outlineVariant.withValues(alpha: 0.4),
+                      strokeWidth: 0.5,
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 38,
+                        getTitlesWidget: (v, _) => Text(v.toInt().toString(),
+                            style: const TextStyle(fontSize: 10)),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0 || i >= weeks.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Text('Н${weeks[i].index}',
+                              style: const TextStyle(fontSize: 10));
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  barGroups: [
+                    for (var i = 0; i < weeks.length; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barRods: [
+                          BarChartRodData(
+                            toY: (weeks[i].endBalance - weeks[i].startBalance)
+                                .toDouble(),
+                            color: (weeks[i].endBalance -
+                                            weeks[i].startBalance) >=
+                                        0
+                                ? scheme.primary
+                                : const Color(0xFFEF4444),
+                            width: 18,
+                            borderRadius:
+                                const BorderRadius.all(Radius.circular(4)),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final w in weeks)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 70,
+                      child: Text(
+                        'Нед. ${w.index}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '${DateFormat('d').format(w.startDate)}–${DateFormat('d MMM', 'ru').format(w.endDate)} · '
+                        '${w.daysInclusive} дн. · '
+                        '${fmt.format(w.dailyAllowance)} $currency/день',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    Text(
+                      '${fmt.format(w.endBalance - w.startBalance)} $currency',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: (w.endBalance - w.startBalance) >= 0
+                              ? const Color(0xFF22C55E)
+                              : const Color(0xFFEF4444)),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Per-day-of-week card: shows Mon-Sun of the current week with the
+/// suggested daily allowance and end-of-day running balance.
+class _FreeFundsByWeekdayCard extends StatelessWidget {
+  const _FreeFundsByWeekdayCard({
+    required this.breakdown,
+    required this.currency,
+    required this.fmt,
+    required this.today,
+  });
+
+  final FreeFundsBreakdown breakdown;
+  final String currency;
+  final NumberFormat fmt;
+  final DateTime today;
+
+  static const _names = [
+    'Пн',
+    'Вт',
+    'Ср',
+    'Чт',
+    'Пт',
+    'Сб',
+    'Вс',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final days = breakdown.days;
+    final todayKey = DateFormat('yyyy-MM-dd').format(today);
+    final maxAllowance = days.fold<double>(
+        0, (a, d) => math.max(a, d.allowance.abs().toDouble()));
+    final yMax = (maxAllowance == 0 ? 50 : maxAllowance * 1.25).toDouble();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.calendar_view_week_outlined, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Свободные средства по дням недели',
+                  style: Theme.of(context).textTheme.titleSmall),
+            ]),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 130,
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  minY: 0,
+                  maxY: yMax,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (v) => FlLine(
+                      color: scheme.outlineVariant.withValues(alpha: 0.4),
+                      strokeWidth: 0.5,
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 36,
+                        getTitlesWidget: (v, _) => Text(v.toInt().toString(),
+                            style: const TextStyle(fontSize: 10)),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0 || i >= _names.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Text(_names[i],
+                              style: const TextStyle(fontSize: 10));
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  barGroups: [
+                    for (var i = 0; i < days.length; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barRods: [
+                          BarChartRodData(
+                            toY: math.max(0, days[i].allowance.toDouble()),
+                            color: DateFormat('yyyy-MM-dd')
+                                        .format(days[i].date) ==
+                                    todayKey
+                                ? scheme.tertiary
+                                : scheme.primary,
+                            width: 14,
+                            borderRadius:
+                                const BorderRadius.all(Radius.circular(4)),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (var i = 0; i < days.length; i++)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 70,
+                      child: Text(
+                        '${_names[i]} ${DateFormat('d.MM').format(days[i].date)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: DateFormat('yyyy-MM-dd')
+                                      .format(days[i].date) ==
+                                  todayKey
+                              ? scheme.tertiary
+                              : null,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        days[i].income > 0 || days[i].expense > 0
+                            ? 'доход ${fmt.format(days[i].income)} · '
+                                'расход ${fmt.format(days[i].expense)}'
+                            : 'обычный день',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                    Text(
+                      '${fmt.format(days[i].allowance)} $currency',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Plan vs. Fact stacked-bar chart: for every category with a planned
+/// limit, show a "planned" bar and an "actual" bar side-by-side so the
+/// user can see at a glance where they're under / over budget.
+class _PlanVsFactCard extends StatelessWidget {
+  const _PlanVsFactCard({
+    required this.categoryPlans,
+    required this.actualByCategory,
+    required this.currency,
+    required this.fmt,
+  });
+
+  final List<CategoryPlan> categoryPlans;
+  final Map<String, num> actualByCategory;
+  final String currency;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final cats = [...categoryPlans]..sort((a, b) => b.planned.compareTo(a.planned));
+    final maxV = cats.fold<double>(0, (a, c) {
+      final p = c.planned.toDouble();
+      final f = (actualByCategory[c.category] ?? 0).toDouble();
+      return math.max(a, math.max(p, f));
+    });
+    final yMax = (maxV == 0 ? 100 : maxV * 1.2).toDouble();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.bar_chart, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('План vs Факт по категориям',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const Spacer(),
+              _LegendDot(color: scheme.primary, label: 'План'),
+              const SizedBox(width: 8),
+              _LegendDot(
+                  color: const Color(0xFFEF4444), label: 'Факт'),
+            ]),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: math.max(120.0, cats.length * 28.0),
+              child: BarChart(
+                BarChartData(
+                  alignment: BarChartAlignment.spaceAround,
+                  minY: 0,
+                  maxY: yMax,
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (v) => FlLine(
+                      color: scheme.outlineVariant.withValues(alpha: 0.4),
+                      strokeWidth: 0.5,
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 38,
+                        getTitlesWidget: (v, _) => Text(v.toInt().toString(),
+                            style: const TextStyle(fontSize: 10)),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 36,
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0 || i >= cats.length) {
+                            return const SizedBox.shrink();
+                          }
+                          final name = cats[i].category;
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              name.length > 6
+                                  ? '${name.substring(0, 6)}…'
+                                  : name,
+                              style: const TextStyle(fontSize: 9),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  barGroups: [
+                    for (var i = 0; i < cats.length; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barsSpace: 2,
+                        barRods: [
+                          BarChartRodData(
+                            toY: cats[i].planned.toDouble(),
+                            color: scheme.primary,
+                            width: 8,
+                            borderRadius:
+                                const BorderRadius.all(Radius.circular(2)),
+                          ),
+                          BarChartRodData(
+                            toY: (actualByCategory[cats[i].category] ?? 0)
+                                .toDouble(),
+                            color: const Color(0xFFEF4444),
+                            width: 8,
+                            borderRadius:
+                                const BorderRadius.all(Radius.circular(2)),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            for (final c in cats)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(c.category,
+                          style: const TextStyle(fontSize: 12)),
+                    ),
+                    Text(
+                      '${fmt.format(actualByCategory[c.category] ?? 0)} / ${fmt.format(c.planned)} $currency',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: (actualByCategory[c.category] ?? 0) > c.planned
+                            ? const Color(0xFFEF4444)
+                            : null,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Donut showing the composition of planned expenses for the month
+/// (categories + scheduled bills + loan payments). Helps spot over-allocated
+/// buckets at a glance.
+class _ExpenseShareCard extends StatelessWidget {
+  const _ExpenseShareCard({
+    required this.categoryPlans,
+    required this.scheduledExpenses,
+    required this.loansMonthlyPayments,
+    required this.currency,
+    required this.fmt,
+  });
+
+  final List<CategoryPlan> categoryPlans;
+  final List<ScheduledExpense> scheduledExpenses;
+  final num loansMonthlyPayments;
+  final String currency;
+  final NumberFormat fmt;
+
+  static const _palette = [
+    Color(0xFF6D5CFF),
+    Color(0xFF22C55E),
+    Color(0xFFF59E0B),
+    Color(0xFFEF4444),
+    Color(0xFF3B82F6),
+    Color(0xFFA855F7),
+    Color(0xFF14B8A6),
+    Color(0xFFF97316),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final entries = <_ShareEntry>[];
+    for (final cp in categoryPlans) {
+      if (cp.planned <= 0) continue;
+      entries.add(_ShareEntry(label: cp.category, value: cp.planned));
+    }
+    if (scheduledExpenses.isNotEmpty) {
+      final s =
+          scheduledExpenses.fold<num>(0, (a, e) => a + e.amount);
+      if (s > 0) {
+        entries.add(_ShareEntry(label: 'По датам', value: s));
+      }
+    }
+    if (loansMonthlyPayments > 0) {
+      entries.add(_ShareEntry(
+          label: 'Кредиты', value: loansMonthlyPayments));
+    }
+    entries.sort((a, b) => b.value.compareTo(a.value));
+    final total = entries.fold<num>(0, (a, e) => a + e.value);
+    if (total <= 0) return const SizedBox.shrink();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.donut_small, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text('Структура расходов плана',
+                  style: Theme.of(context).textTheme.titleSmall),
+            ]),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 160,
+              child: PieChart(
+                PieChartData(
+                  centerSpaceRadius: 38,
+                  sectionsSpace: 2,
+                  sections: [
+                    for (var i = 0; i < entries.length; i++)
+                      PieChartSectionData(
+                        value: entries[i].value.toDouble(),
+                        color: _palette[i % _palette.length],
+                        radius: 38,
+                        title: total == 0
+                            ? ''
+                            : '${(entries[i].value * 100 / total).round()}%',
+                        titleStyle: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (var i = 0; i < entries.length; i++)
+                  _LegendDot(
+                    color: _palette[i % _palette.length],
+                    label:
+                        '${entries[i].label} · ${fmt.format(entries[i].value)} $currency',
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareEntry {
+  _ShareEntry({required this.label, required this.value});
+  final String label;
+  final num value;
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration:
+              BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: const TextStyle(fontSize: 11)),
+      ],
     );
   }
 }

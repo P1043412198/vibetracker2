@@ -328,6 +328,7 @@ class MonthlyBudgetPlan {
     this.currency,
     this.freeFundsTarget,
     this.rollover,
+    this.freeFundsCarryover,
     this.notes,
     this.excludedAccountIds,
     this.incomes,
@@ -341,6 +342,12 @@ class MonthlyBudgetPlan {
   final List<CategoryPlan> categoryPlans;
   final num? freeFundsTarget;
   final bool? rollover;
+
+  /// Phase 18: when true, leftover free funds from the previous month are
+  /// rolled into this month's free-funds pool. This is independent of
+  /// per-category [rollover] (which only carries unused category limit).
+  final bool? freeFundsCarryover;
+
   final String? notes;
   final String createdAt;
   final String updatedAt;
@@ -365,6 +372,7 @@ class MonthlyBudgetPlan {
     List<CategoryPlan>? categoryPlans,
     num? freeFundsTarget,
     bool? rollover,
+    bool? freeFundsCarryover,
     String? notes,
     List<String>? excludedAccountIds,
     List<IncomeEntry>? incomes,
@@ -379,6 +387,7 @@ class MonthlyBudgetPlan {
         categoryPlans: categoryPlans ?? this.categoryPlans,
         freeFundsTarget: freeFundsTarget ?? this.freeFundsTarget,
         rollover: rollover ?? this.rollover,
+        freeFundsCarryover: freeFundsCarryover ?? this.freeFundsCarryover,
         notes: notes ?? this.notes,
         excludedAccountIds: excludedAccountIds ?? this.excludedAccountIds,
         incomes: incomes ?? this.incomes,
@@ -395,6 +404,8 @@ class MonthlyBudgetPlan {
         'categoryPlans': categoryPlans.map((e) => e.toJson()).toList(),
         if (freeFundsTarget != null) 'freeFundsTarget': freeFundsTarget,
         if (rollover != null) 'rollover': rollover,
+        if (freeFundsCarryover != null)
+          'freeFundsCarryover': freeFundsCarryover,
         if (notes != null) 'notes': notes,
         if (excludedAccountIds != null && excludedAccountIds!.isNotEmpty)
           'excludedAccountIds': excludedAccountIds,
@@ -420,6 +431,7 @@ class MonthlyBudgetPlan {
             .toList(),
         freeFundsTarget: json['freeFundsTarget'] as num?,
         rollover: json['rollover'] as bool?,
+        freeFundsCarryover: json['freeFundsCarryover'] as bool?,
         notes: json['notes'] as String?,
         excludedAccountIds: (json['excludedAccountIds'] as List?)
             ?.map((e) => e.toString())

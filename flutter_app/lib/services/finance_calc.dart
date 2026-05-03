@@ -180,14 +180,48 @@ FreeFunds computeFreeFunds({
   required num actualExpense,
   num scheduledIncomeTotal = 0,
   num plannedExpense = 0,
+  num carryIn = 0,
 }) {
   final plannedTotal = plannedIncome > scheduledIncomeTotal
       ? plannedIncome
       : scheduledIncomeTotal;
-  final ref = plannedTotal > 0 ? plannedTotal : actualIncome;
+  final ref = (plannedTotal > 0 ? plannedTotal : actualIncome) + carryIn;
   final committed =
       actualExpense > plannedExpense ? actualExpense : plannedExpense;
   return FreeFunds(incomeRef: ref, free: ref - committed);
+}
+
+/// Computes how many free funds were left over from a given month plan +
+/// facts, in the plan currency. Used to feed [computeFreeFunds.carryIn] for
+/// the next month when [MonthlyBudgetPlan.freeFundsCarryover] is enabled.
+///
+/// Mirrors `computeFreeFunds` but always clamped at zero (only positive
+/// leftovers carry forward; negative "overspend" does not bleed into next
+/// month's plan).
+num computeMonthLeftoverFree({
+  required MonthlyBudgetPlan? plan,
+  required MonthFacts facts,
+  required num loansMonthlyPayments,
+}) {
+  if (plan == null) return 0;
+  final scheduledIncomeTotal =
+      (plan.incomes ?? const <IncomeEntry>[]).fold<num>(0, (s, e) => s + e.amount);
+  final committed = computeCommittedExpense(
+    categoryPlans: plan.categoryPlans,
+    actualByCategory: facts.expenseByCategory,
+    totalActualExpense: facts.expense,
+    scheduledExpenses:
+        plan.scheduledExpenses ?? const <ScheduledExpense>[],
+    loansMonthlyPayments: loansMonthlyPayments,
+  );
+  final res = computeFreeFunds(
+    plannedIncome: plan.plannedIncome,
+    scheduledIncomeTotal: scheduledIncomeTotal,
+    plannedExpense: committed.total,
+    actualIncome: facts.income,
+    actualExpense: facts.expense,
+  );
+  return res.free > 0 ? res.free : 0;
 }
 
 num dailyAllowance(num freeFunds, int daysLeft) {
@@ -200,6 +234,178 @@ num dailyAllowance(num freeFunds, int daysLeft) {
 /// days are left in the month.
 num weeklyAllowance(num freeFunds, int daysLeft) {
   return dailyAllowance(freeFunds, daysLeft) * 7;
+}
+
+/// =============================================================
+/// Phase 18: per-day-of-week + per-week breakdowns of free funds
+/// =============================================================
+
+/// Per-day-of-week aggregate of free-funds allowance for the **current**
+/// (or selected) week, derived from the cashflow timeline. Each entry
+/// captures a calendar day inside the week with its income/expense and the
+/// running free-funds balance at end-of-day, plus the suggested allowance
+/// for that day.
+class FreeFundsDay {
+  FreeFundsDay({
+    required this.date,
+    required this.weekday,
+    required this.income,
+    required this.expense,
+    required this.endBalance,
+    required this.allowance,
+  });
+  final DateTime date;
+  final int weekday; // DateTime.monday..sunday
+  final num income;
+  final num expense;
+  final num endBalance;
+
+  /// Suggested free-funds allowance for this day, taken from the period this
+  /// day belongs to (so allowance changes after each scheduled cashflow
+  /// event).
+  final num allowance;
+}
+
+/// One ISO-week segment inside the month: the seven (or fewer at month
+/// boundaries) days that fall into the same Mon-Sun stretch.
+class FreeFundsWeek {
+  FreeFundsWeek({
+    required this.index,
+    required this.startDay,
+    required this.endDay,
+    required this.startDate,
+    required this.endDate,
+    required this.income,
+    required this.expense,
+    required this.startBalance,
+    required this.endBalance,
+    required this.daysInclusive,
+    required this.dailyAllowance,
+  });
+  final int index; // 1-based week-of-month
+  final int startDay;
+  final int endDay;
+  final DateTime startDate;
+  final DateTime endDate;
+  final num income;
+  final num expense;
+  final num startBalance;
+  final num endBalance;
+  final int daysInclusive;
+
+  /// `(endBalance - startBalance) / daysInclusive` — how much free funds is
+  /// left per day inside this week, i.e. the suggested daily allowance
+  /// across this week.
+  final num dailyAllowance;
+
+  num get weeklyTotal => endBalance - startBalance + daysInclusive * 0;
+}
+
+class FreeFundsBreakdown {
+  FreeFundsBreakdown({required this.days, required this.weeks});
+  final List<FreeFundsDay> days;
+  final List<FreeFundsWeek> weeks;
+}
+
+/// Slice [cashflow] into Mon-Sun weeks (clipped to the month) and a list of
+/// [FreeFundsDay] entries for the **current** week. Caller must pass the
+/// resolved [today] so the "current week" anchor is deterministic in tests.
+FreeFundsBreakdown buildFreeFundsBreakdown({
+  required CashflowResult cashflow,
+  required DateTime month,
+  DateTime? today,
+}) {
+  final timeline = cashflow.timeline;
+  if (timeline.isEmpty) {
+    return FreeFundsBreakdown(days: const [], weeks: const []);
+  }
+  final daysInMonth = timeline.length;
+  final periodFor = <int, CashflowPeriod?>{};
+  for (var d = 1; d <= daysInMonth; d++) {
+    periodFor[d] = cashflow.periods.cast<CashflowPeriod?>().firstWhere(
+          (p) => p != null && d >= p.startDay && d <= p.endDay,
+          orElse: () => null,
+        );
+  }
+
+  // ---------- per-day-of-week list (anchor = current week) ----------
+  DateTime anchor;
+  final isCurrentMonth = today != null &&
+      today.year == month.year &&
+      today.month == month.month;
+  if (isCurrentMonth) {
+    anchor = DateTime(today.year, today.month, today.day);
+  } else {
+    anchor = DateTime(month.year, month.month, 1);
+  }
+  final monday = anchor.subtract(
+      Duration(days: (anchor.weekday - DateTime.monday) % 7));
+  final days = <FreeFundsDay>[];
+  for (var i = 0; i < 7; i++) {
+    final date = monday.add(Duration(days: i));
+    if (date.year != month.year || date.month != month.month) {
+      days.add(FreeFundsDay(
+        date: date,
+        weekday: date.weekday,
+        income: 0,
+        expense: 0,
+        endBalance: 0,
+        allowance: 0,
+      ));
+      continue;
+    }
+    final tlIdx = date.day - 1;
+    final cd = timeline[tlIdx];
+    final p = periodFor[date.day];
+    days.add(FreeFundsDay(
+      date: date,
+      weekday: date.weekday,
+      income: cd.income,
+      expense: cd.expense,
+      endBalance: cd.balance,
+      allowance: p?.dailyAllowance ?? 0,
+    ));
+  }
+
+  // ---------- per-week aggregates inside the month ----------
+  final weeks = <FreeFundsWeek>[];
+  var weekIdx = 0;
+  var d = 1;
+  while (d <= daysInMonth) {
+    final dStart = DateTime(month.year, month.month, d);
+    // Last day in this week (Sunday) clipped to month.
+    final daysToSunday = (DateTime.sunday - dStart.weekday + 7) % 7;
+    var endDay = d + daysToSunday;
+    if (endDay > daysInMonth) endDay = daysInMonth;
+    final dEnd = DateTime(month.year, month.month, endDay);
+    final startBal = d == 1 ? 0 : timeline[d - 2].balance;
+    final endBal = timeline[endDay - 1].balance;
+    num inc = 0;
+    num exp = 0;
+    for (var x = d; x <= endDay; x++) {
+      inc += timeline[x - 1].income;
+      exp += timeline[x - 1].expense;
+    }
+    final daysInWeek = endDay - d + 1;
+    final daily = daysInWeek > 0 ? (endBal - startBal) / daysInWeek : 0;
+    weekIdx++;
+    weeks.add(FreeFundsWeek(
+      index: weekIdx,
+      startDay: d,
+      endDay: endDay,
+      startDate: dStart,
+      endDate: dEnd,
+      income: inc,
+      expense: exp,
+      startBalance: startBal,
+      endBalance: endBal,
+      daysInclusive: daysInWeek,
+      dailyAllowance: daily,
+    ));
+    d = endDay + 1;
+  }
+
+  return FreeFundsBreakdown(days: days, weeks: weeks);
 }
 
 /// Breakdown of how much money is **really committed** for the month. This
