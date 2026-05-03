@@ -185,14 +185,15 @@ class SettingsPage extends ConsumerWidget {
           const SizedBox(height: 24),
           Text(t.settingsData, style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
+          const _BackupReminderBanner(),
           Card(
             child: Column(
               children: [
                 ListTile(
                   leading: const Icon(Icons.cloud_upload_outlined),
-                  title: const Text('Экспорт всех данных (JSON)'),
+                  title: const Text('Экспорт всех данных (ZIP)'),
                   subtitle: const Text(
-                      'Сохранить резервную копию: задачи, привычки, финансы, тренировки и заметки.'),
+                      'Полный бэкап: финансы, привычки, инбокс с картинками/видео, фото целей, чеки.'),
                   onTap: () async {
                     try {
                       final path = await BackupService.exportToFile();
@@ -214,9 +215,9 @@ class SettingsPage extends ConsumerWidget {
                 ),
                 ListTile(
                   leading: const Icon(Icons.cloud_download_outlined),
-                  title: const Text('Импорт данных из JSON'),
+                  title: const Text('Импорт из бэкапа (ZIP / JSON)'),
                   subtitle: const Text(
-                      'Восстановить из резервной копии. Текущие данные будут заменены.'),
+                      'Восстановить из резервной копии. ZIP вернёт и медиа, старый JSON — только данные.'),
                   onTap: () async {
                     final mode = await showDialog<bool>(
                       context: context,
@@ -449,6 +450,113 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
                     : null,
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BackupReminderBanner extends StatefulWidget {
+  const _BackupReminderBanner();
+
+  @override
+  State<_BackupReminderBanner> createState() => _BackupReminderBannerState();
+}
+
+class _BackupReminderBannerState extends State<_BackupReminderBanner> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final last = BackupService.lastExportAt();
+    final now = DateTime.now();
+    final daysSince = last == null ? null : now.difference(last).inDays;
+    final overdue = daysSince == null || daysSince >= 14;
+
+    final scheme = Theme.of(context).colorScheme;
+    final cs = overdue ? scheme.errorContainer : scheme.secondaryContainer;
+    final fg = overdue ? scheme.onErrorContainer : scheme.onSecondaryContainer;
+
+    final String headline;
+    final String subline;
+    if (last == null) {
+      headline = 'Сделай первый бэкап';
+      subline =
+          'Если телефон сломается или приложение удалится, без бэкапа данные пропадут.';
+    } else if (overdue) {
+      headline = 'Последний бэкап $daysSince дн. назад';
+      subline = 'Стоит сделать новый — добавь привычку раз в 1–2 недели.';
+    } else {
+      headline = 'Бэкап в порядке';
+      subline = 'Последний экспорт $daysSince дн. назад.';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: cs,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(
+            overdue ? Icons.warning_amber_rounded : Icons.verified_outlined,
+            color: fg,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  headline,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(color: fg, fontWeight: FontWeight.w600),
+                ),
+                if (subline.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subline,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: fg.withValues(alpha: 0.85)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.tonal(
+            onPressed: _busy
+                ? null
+                : () async {
+                    setState(() => _busy = true);
+                    final messenger = ScaffoldMessenger.of(context);
+                    try {
+                      await BackupService.exportToFile();
+                    } catch (e) {
+                      if (mounted) {
+                        messenger.showSnackBar(
+                          SnackBar(content: Text('Бэкап не удался: $e')),
+                        );
+                      }
+                    } finally {
+                      if (mounted) setState(() => _busy = false);
+                    }
+                  },
+            child: _busy
+                ? const SizedBox(
+                    height: 16,
+                    width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Сейчас'),
           ),
         ],
       ),

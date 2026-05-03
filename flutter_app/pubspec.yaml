@@ -56,6 +56,9 @@ dependencies:
   # Phase 8: Passwords & TOTP
   crypto: ^3.0.6
 
+  # Data safety: ZIP-archive backup with media files alongside Hive JSON
+  archive: ^3.6.1
+
   # Phase 13: open YouTube/article links + JSON backup file picker
   url_launcher: ^6.3.1
   file_picker: ^8.1.4
