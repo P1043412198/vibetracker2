@@ -581,7 +581,7 @@ Future<void> _editLoan(
                 ]),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  initialValue: currency,
+                  value: currency,
                   decoration: const InputDecoration(labelText: 'Валюта'),
                   items: const [
                     DropdownMenuItem(value: 'BYN', child: Text('BYN')),
@@ -596,7 +596,7 @@ Future<void> _editLoan(
                 Consumer(builder: (_, ref2, __) {
                   final accs = ref2.watch(accountsProvider);
                   return DropdownButtonFormField<String?>(
-                    initialValue: accountId,
+                    value: accountId,
                     decoration: const InputDecoration(
                         labelText: 'С какого счёта платишь'),
                     items: [

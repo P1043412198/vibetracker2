@@ -27,7 +27,7 @@ android {
     // Phase 13: bumped to 36 because file_picker → androidx.core 1.17 chain
     // requires it (backward-compatible with previous targetSdk).
     compileSdk = 36
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

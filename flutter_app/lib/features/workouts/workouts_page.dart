@@ -895,7 +895,7 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
                         );
                       }
                       return DropdownButtonFormField<String?>(
-                        initialValue: programId,
+                        value: programId,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Программа (папка)',
