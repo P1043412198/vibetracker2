@@ -101,6 +101,8 @@ class SphereDetailsPage extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: 16),
+          _CategoriesCard(sphere: sphere),
+          const SizedBox(height: 16),
           _NotesCard(sphere: sphere),
           const SizedBox(height: 16),
           _LinkedTasksCard(sphere: sphere, tasks: tasks),
@@ -329,6 +331,192 @@ class _Header extends StatelessWidget {
   }
 }
 
+class _CategoriesCard extends ConsumerStatefulWidget {
+  const _CategoriesCard({required this.sphere});
+  final Sphere sphere;
+
+  @override
+  ConsumerState<_CategoriesCard> createState() => _CategoriesCardState();
+}
+
+class _CategoriesCardState extends ConsumerState<_CategoriesCard> {
+  @override
+  Widget build(BuildContext context) {
+    final cats = [...?widget.sphere.categories];
+    final notes = [...?widget.sphere.notesList];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Категории',
+                      style:
+                          Theme.of(context).textTheme.titleMedium),
+                ),
+                IconButton.filledTonal(
+                  tooltip: 'Добавить категорию',
+                  icon: const Icon(Icons.add),
+                  onPressed: () => _addOrEdit(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            if (cats.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                    'Тут можно разбить сферу на подкатегории (напр. «EN» / «BY» / «семья»).'),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final c in cats)
+                    InputChip(
+                      avatar: c.icon != null && c.icon!.isNotEmpty
+                          ? Text(c.icon!,
+                              style: const TextStyle(fontSize: 14))
+                          : const Icon(Icons.folder_outlined, size: 16),
+                      label: Text(
+                        '${c.title} · ${notes.where((n) => n.categoryId == c.id).length}',
+                      ),
+                      onPressed: () => _addOrEdit(context, edit: c),
+                      onDeleted: () => _delete(c),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addOrEdit(BuildContext context, {SphereCategory? edit}) async {
+    final controller = TextEditingController(text: edit?.title ?? '');
+    String icon = edit?.icon ?? '';
+    final result = await showModalBottomSheet<SphereCategory?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 8,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(edit == null ? 'Новая категория' : 'Изменить категорию',
+                      style: Theme.of(ctx).textTheme.titleLarge),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Название',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final ic in _sphereIcons)
+                        InkWell(
+                          onTap: () => setState(() {
+                            icon = icon == ic ? '' : ic;
+                          }),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: icon == ic
+                                  ? Theme.of(ctx)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.18)
+                                  : Theme.of(ctx)
+                                      .colorScheme
+                                      .surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child:
+                                Text(ic, style: const TextStyle(fontSize: 20)),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () {
+                      final t = controller.text.trim();
+                      if (t.isEmpty) return;
+                      final next = (edit ??
+                              SphereCategory(
+                                id: const Uuid().v4(),
+                                title: t,
+                                createdAt:
+                                    DateTime.now().toIso8601String(),
+                              ))
+                          .copyWith(
+                        title: t,
+                        icon: icon.isEmpty ? null : icon,
+                        clearIcon: icon.isEmpty,
+                      );
+                      Navigator.of(ctx).pop(next);
+                    },
+                    child: const Text('Сохранить'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (result == null) return;
+    final list = [...?widget.sphere.categories];
+    final idx = list.indexWhere((c) => c.id == result.id);
+    if (idx == -1) {
+      list.add(result);
+    } else {
+      list[idx] = result;
+    }
+    await ref.read(spheresProvider.notifier).update(
+          widget.sphere.id,
+          (s) => s.copyWith(categories: list),
+        );
+  }
+
+  Future<void> _delete(SphereCategory cat) async {
+    final list = [...?widget.sphere.categories]
+      ..removeWhere((c) => c.id == cat.id);
+    final notes = (widget.sphere.notesList ?? [])
+        .map((n) => n.categoryId == cat.id
+            ? n.copyWith(clearCategoryId: true)
+            : n)
+        .toList();
+    await ref.read(spheresProvider.notifier).update(
+          widget.sphere.id,
+          (s) => s.copyWith(categories: list, notesList: notes),
+        );
+  }
+}
+
 class _NotesCard extends ConsumerStatefulWidget {
   const _NotesCard({required this.sphere});
   final Sphere sphere;
@@ -340,6 +528,8 @@ class _NotesCard extends ConsumerStatefulWidget {
 class _NotesCardState extends ConsumerState<_NotesCard> {
   final _newNote = TextEditingController();
   bool _asCheckbox = false;
+  String? _filterCategoryId;
+  String? _newNoteCategoryId;
 
   @override
   void dispose() {
@@ -349,7 +539,11 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
 
   @override
   Widget build(BuildContext context) {
-    final notes = [...?widget.sphere.notesList];
+    final cats = [...?widget.sphere.categories];
+    var notes = [...?widget.sphere.notesList];
+    if (_filterCategoryId != null) {
+      notes = notes.where((n) => n.categoryId == _filterCategoryId).toList();
+    }
     notes.sort((a, b) {
       final pa = a.isPinned == true ? 0 : 1;
       final pb = b.isPinned == true ? 0 : 1;
@@ -379,6 +573,33 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
                 ),
               ],
             ),
+            if (cats.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      selected: _filterCategoryId == null,
+                      label: const Text('Все'),
+                      onSelected: (_) =>
+                          setState(() => _filterCategoryId = null),
+                    ),
+                    for (final c in cats) ...[
+                      const SizedBox(width: 6),
+                      ChoiceChip(
+                        selected: _filterCategoryId == c.id,
+                        label: Text(
+                          c.icon == null ? c.title : '${c.icon} ${c.title}',
+                        ),
+                        onSelected: (_) =>
+                            setState(() => _filterCategoryId = c.id),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             Row(
               children: [
@@ -410,6 +631,40 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
                 ),
               ],
             ),
+            if (cats.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.folder_outlined, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: DropdownButton<String?>(
+                      isExpanded: true,
+                      value: _newNoteCategoryId ?? _filterCategoryId,
+                      hint: const Text('Без категории'),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Без категории'),
+                        ),
+                        for (final c in cats)
+                          DropdownMenuItem<String?>(
+                            value: c.id,
+                            child: Text(
+                              c.icon == null
+                                  ? c.title
+                                  : '${c.icon} ${c.title}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => _newNoteCategoryId = v),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             if (notes.isEmpty)
               const Padding(
@@ -434,6 +689,7 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
       createdAt: DateTime.now().toIso8601String(),
       isCheckbox: _asCheckbox ? true : null,
       isChecked: _asCheckbox ? false : null,
+      categoryId: _newNoteCategoryId ?? _filterCategoryId,
     );
     final next = [...?widget.sphere.notesList, note];
     ref.read(spheresProvider.notifier).update(
@@ -455,6 +711,7 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
       content: '',
       createdAt: DateTime.now().toIso8601String(),
       photoUrl: path,
+      categoryId: _newNoteCategoryId ?? _filterCategoryId,
     );
     final next = [...?widget.sphere.notesList, note];
     await ref.read(spheresProvider.notifier).update(

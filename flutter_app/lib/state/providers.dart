@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/finance.dart';
+import '../models/financial_plan_month.dart';
 import '../models/goal.dart';
 import '../models/habit.dart';
 import '../models/misc.dart';
@@ -174,6 +175,24 @@ final monthlyBudgetPlansProvider = StateNotifierProvider<
     MonthlyBudgetPlansController, List<MonthlyBudgetPlan>>((ref) {
   return MonthlyBudgetPlansController();
 });
+
+class FinancialPlanMonthsController
+    extends JsonListController<FinancialPlanMonth> {
+  FinancialPlanMonthsController()
+      : super(
+          storageKey: 'financialPlanMonths',
+          fromJson: FinancialPlanMonth.fromJson,
+          toJson: (p) => p.toJson(),
+        );
+
+  @override
+  String idOf(FinancialPlanMonth item) => item.id;
+}
+
+final financialPlanMonthsProvider = StateNotifierProvider<
+    FinancialPlanMonthsController, List<FinancialPlanMonth>>(
+  (ref) => FinancialPlanMonthsController(),
+);
 
 class SavingsGoalsController extends JsonListController<SavingsGoal> {
   SavingsGoalsController()

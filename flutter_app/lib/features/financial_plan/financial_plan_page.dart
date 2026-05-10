@@ -1,544 +1,431 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
-import '../../models/financial_plan.dart';
-import '../../services/financial_plan_service.dart';
-import '../../state/financial_plan_state.dart';
+import '../../models/financial_plan_month.dart';
 import '../../state/providers.dart';
-import 'widgets/calendar_grid.dart';
-import 'widgets/donuts.dart';
-import 'widgets/income_waterfall.dart';
-import 'widgets/kpi_strip.dart';
-import 'widgets/line_charts.dart';
-import 'widgets/sankey_section.dart';
-import 'widgets/scenario_widgets.dart';
-import 'widgets/section_card.dart';
+import 'financial_plan_helpers.dart';
 
-/// Main «Финансовый план» page — 18 sections rebuilt from a [FinancialPlanReport].
+/// Brand-new flexible Financial Plan home page.
+///
+/// Replaces the old 18-section template. The page now lists every monthly
+/// plan the user has created (newest first), highlights the current
+/// real-world month and lets the user create a new month from scratch
+/// (optionally cloning a previous month).
 class FinancialPlanPage extends ConsumerWidget {
   const FinancialPlanPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watch(financialPlanConfigProvider);
-    final plans = ref.watch(monthlyBudgetPlansProvider);
-    final loans = ref.watch(loansProvider);
-    final accounts = ref.watch(accountsProvider);
-
-    final report = const FinancialPlanService().buildFinancialPlan(
-      config: config,
-      plans: plans,
-      loans: loans,
-      accounts: accounts,
-    );
+    final months = [...ref.watch(financialPlanMonthsProvider)]
+      ..sort((a, b) => b.monthKey.compareTo(a.monthKey));
+    final nowKey = monthKeyForDate(DateTime.now());
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Финансовый план'),
-        actions: [
-          IconButton(
-            tooltip: 'Настройки сценариев',
-            icon: const Icon(Icons.tune),
-            onPressed: () => context.push('/financial-plan/settings'),
-          ),
-        ],
       ),
-      body: ListView(
-        children: [
-          _Cover(report: report),
-          _IncomeWaterfallSection(report: report),
-          _SankeySection(report: report),
-          _ExpenseStructureSection(report: report),
-          _NextMonthsSection(report: report),
-          _DailyBalanceSection(report: report),
-          _WeeklyFlowSection(report: report),
-          _ScenarioCompareSection(report: report),
-          _ScenarioTableSection(report: report),
-          _CalendarSection(report: report),
-          _HeatmapSection(report: report),
-          _BasketSection(report: report),
-          _TrajectorySection(report: report),
-          _ProgressBarsSection(report: report),
-          _PortfolioSection(report: report),
-          _ActionPlanSection(report: report),
-          _ScatterSection(report: report),
-          _RulesSection(report: report),
-          const SizedBox(height: 32),
-        ],
+      body: months.isEmpty
+          ? _EmptyState(
+              onCreate: () => _createMonth(context, ref, copyFromId: null))
+          : ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+              itemCount: months.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, i) => _MonthTile(
+                month: months[i],
+                isCurrent: months[i].monthKey == nowKey,
+                onCopy: () => _createMonth(
+                  context,
+                  ref,
+                  copyFromId: months[i].id,
+                ),
+              ),
+            ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _createMonth(context, ref, copyFromId: null),
+        icon: const Icon(Icons.add),
+        label: const Text('Новый месяц'),
       ),
     );
   }
-}
 
-// ---------------------------------------------------------------------------
-//  Section widgets
-// ---------------------------------------------------------------------------
-
-class _Cover extends StatelessWidget {
-  const _Cover({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = report.config;
-    return SectionCard(
-      index: 0,
-      title: 'Месяц ${_monthName(c.month.month)} · обложка',
-      caption:
-          'Цель: \$${(c.goalCurrency == 'USD' ? c.goalAmount : c.goalAmount / c.usdRate).round()}'
-          ' (${c.goalAmount.round()} ${c.goalCurrency}).'
-          ' Курс: ${c.usdRate.toStringAsFixed(2)} BYN/\$.',
-      color: const Color(0xFF1E3A8A),
-      child: KpiStrip(
-        kpis: report.kpis,
-        titles: const [
-          'Придёт в день ЗП',
-          'Придёт авансом',
-          'Фикс. расходы',
-          'В доллар на цель',
-        ],
+  Future<void> _createMonth(
+    BuildContext context,
+    WidgetRef ref, {
+    required String? copyFromId,
+  }) async {
+    final result = await showModalBottomSheet<_NewMonthResult>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetCtx) => _NewMonthSheet(
+        existing: ref.read(financialPlanMonthsProvider),
+        suggestion: nextEmptyMonthKey(ref.read(financialPlanMonthsProvider)),
       ),
     );
-  }
-}
+    if (result == null) return;
 
-class _IncomeWaterfallSection extends StatelessWidget {
-  const _IncomeWaterfallSection({required this.report});
-  final FinancialPlanReport report;
+    final source = copyFromId != null
+        ? ref
+            .read(financialPlanMonthsProvider)
+            .firstWhere((m) => m.id == copyFromId)
+        : null;
 
-  @override
-  Widget build(BuildContext context) {
-    final inc = report.income;
-    return SectionCard(
-      index: 1,
-      title: 'Доходы — водопадная декомпозиция',
-      caption:
-          'Грязная ${inc.gross.round()} → чистая ${inc.net.round()} → на руки ${inc.netRemainder.round()}.',
-      color: const Color(0xFF1E3A8A),
-      footnote:
-          '13% подоход + 1% ФСЗН (символически) + 1% профсоюз ≈ ${(inc.gross - inc.net).round()} BYN удержаний.',
-      child: IncomeWaterfall(income: inc),
+    final id = const Uuid().v4();
+    final now = DateTime.now().toIso8601String();
+    final scenarios = source != null
+        ? source.scenarios
+            .map((s) => FinPlanScenario(
+                  id: const Uuid().v4(),
+                  name: s.name,
+                  color: s.color,
+                  notes: s.notes,
+                  sections: s.sections
+                      .map((sec) => FinPlanSection(
+                            id: const Uuid().v4(),
+                            title: sec.title,
+                            kind: sec.kind,
+                            icon: sec.icon,
+                            color: sec.color,
+                            notes: sec.notes,
+                            items: sec.items
+                                .map((it) => FinPlanItem(
+                                      id: const Uuid().v4(),
+                                      label: it.label,
+                                      amount: it.amount,
+                                      currency: it.currency,
+                                      day: it.day,
+                                      recurring: it.recurring,
+                                      linkedCategory: it.linkedCategory,
+                                      linkedSphereId: it.linkedSphereId,
+                                      linkedSphereCategoryId:
+                                          it.linkedSphereCategoryId,
+                                      notes: it.notes,
+                                      done: false,
+                                    ))
+                                .toList(),
+                          ))
+                      .toList(),
+                ))
+            .toList()
+        : [
+            FinPlanScenario(
+              id: const Uuid().v4(),
+              name: 'Базовый',
+              color: 0xFF6D5CFF,
+              sections: const [],
+            ),
+          ];
+
+    final plan = FinancialPlanMonth(
+      id: id,
+      monthKey: result.monthKey,
+      title: result.title,
+      scenarios: scenarios,
+      activeScenarioId: scenarios.first.id,
+      createdAt: now,
+      updatedAt: now,
     );
+    await ref.read(financialPlanMonthsProvider.notifier).add(plan);
+    if (!context.mounted) return;
+    context.push('/financial-plan/month/${plan.id}');
   }
 }
 
-class _SankeySection extends StatelessWidget {
-  const _SankeySection({required this.report});
-  final FinancialPlanReport report;
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.onCreate});
+  final VoidCallback onCreate;
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      index: 2,
-      title: 'Sankey · доход → расходы',
-      color: const Color(0xFF14B8A6),
-      caption: 'Куда уходят деньги: каждая ленточка — реальная сумма.',
-      child: SankeySection(data: report.sankey),
-    );
-  }
-}
-
-class _ExpenseStructureSection extends StatelessWidget {
-  const _ExpenseStructureSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = report.expenses.combined;
-    final total = report.expenses.total;
-    return SectionCard(
-      index: 3,
-      title: 'Структура расходов · ${total.round()} BYN',
-      color: const Color(0xFFF97316),
-      caption:
-          'Регулярные ${report.expenses.totalRecurring.round()} BYN, разовые ${report.expenses.totalOneOff.round()} BYN.',
-      child: DonutWithBars(
-        items: items,
-        donutLabel: '${total.round()} BYN',
-      ),
-    );
-  }
-}
-
-class _NextMonthsSection extends StatelessWidget {
-  const _NextMonthsSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      index: 4,
-      title: 'Этот месяц vs следующие',
-      color: const Color(0xFFF59E0B),
-      caption:
-          'Сценарий: разовые расходы исчезают → бюджет перетекает в еду + USD.',
-      child: LayoutBuilder(builder: (context, constraints) {
-        final wide = constraints.maxWidth >= 700;
-        final left = Column(
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Этот месяц',
-                style: TextStyle(fontWeight: FontWeight.w600)),
+            Container(
+              width: 88,
+              height: 88,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: scheme.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text('📊', style: TextStyle(fontSize: 44)),
+            ),
+            const SizedBox(height: 18),
+            Text('Создай первый план',
+                style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            DonutChart(items: report.nextMonthsExpenses.thisMonth.combined),
+            Text(
+              'Никаких готовых шаблонов. Создавай план на любой месяц '
+              '— добавляй свои секции, свои статьи и сценарии «А/В/С». '
+              'Сравнивай, копируй из прошлого, видь факт по транзакциям.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: onCreate,
+              icon: const Icon(Icons.add),
+              label: const Text('Создать план месяца'),
+            ),
           ],
-        );
-        final right = Column(
-          children: [
-            const Text('Следующие месяцы',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            DonutChart(items: report.nextMonthsExpenses.nextMonth.combined),
-          ],
-        );
-        if (!wide) {
-          return Column(children: [left, const SizedBox(height: 16), right]);
-        }
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [Expanded(child: left), Expanded(child: right)],
-        );
-      }),
-    );
-  }
-}
-
-class _DailyBalanceSection extends StatelessWidget {
-  const _DailyBalanceSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final tracks = report.dailyBalance.scenarios
-        .map((t) => MultiLineTrack(
-              label: t.label,
-              color: t.colorValue,
-              points: t.points,
-            ))
-        .toList();
-    final markers = report.dailyBalance.markers
-        .map((m) => MultiLineMarker(
-              x: m.dayOffset.toDouble(),
-              label: m.label,
-              color: m.colorValue,
-            ))
-        .toList();
-    final xLabels = List.generate(report.dailyBalance.days, (i) {
-      final date = report.dailyBalance.start.add(Duration(days: i));
-      return '${date.day}.${date.month}';
-    });
-    return SectionCard(
-      index: 5,
-      title: '60 дней баланса · 3 сценария',
-      color: const Color(0xFF22C55E),
-      caption: 'Линия — баланс счёта по дням. Чем выше — тем больше остаётся.',
-      child: MultiLineChart(
-        tracks: tracks,
-        xLabels: xLabels,
-        markers: markers,
-        height: 280,
+        ),
       ),
     );
   }
 }
 
-class _WeeklyFlowSection extends StatelessWidget {
-  const _WeeklyFlowSection({required this.report});
-  final FinancialPlanReport report;
+class _MonthTile extends ConsumerWidget {
+  const _MonthTile({
+    required this.month,
+    required this.isCurrent,
+    required this.onCopy,
+  });
+
+  final FinancialPlanMonth month;
+  final bool isCurrent;
+  final VoidCallback onCopy;
 
   @override
-  Widget build(BuildContext context) {
-    final w = report.weeklyFlow;
-    return SectionCard(
-      index: 6,
-      title: 'Доход vs расход по неделям',
-      color: const Color(0xFFEF4444),
-      caption: 'Если зелёный бар выше красного — неделя в плюсе.',
-      child: GroupedBars(
-        labels: w.weekLabels,
-        groups: [
-          GroupedBarSet(label: 'Доход', color: const Color(0xFF22C55E), values: w.income),
-          GroupedBarSet(label: 'Расход', color: const Color(0xFFEF4444), values: w.expense),
-        ],
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final activeScenario = month.scenarios.firstWhere(
+      (s) => s.id == month.activeScenarioId,
+      orElse: () => month.scenarios.first,
     );
-  }
-}
-
-class _ScenarioCompareSection extends StatelessWidget {
-  const _ScenarioCompareSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      index: 7,
-      title: 'Сравнение сценариев · копилка/еда/комфорт',
-      color: const Color(0xFF14B8A6),
-      child: ScenarioCompareTriple(items: report.scenarioCompare),
-    );
-  }
-}
-
-class _ScenarioTableSection extends StatelessWidget {
-  const _ScenarioTableSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      index: 8,
-      title: 'Полная таблица сценариев',
-      color: const Color(0xFF1E3A8A),
-      child: ScenarioTable(items: report.scenarioCompare),
-    );
-  }
-}
-
-class _CalendarSection extends StatelessWidget {
-  const _CalendarSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      index: 9,
-      title:
-          'Календарь ${_monthName(report.config.month.month)} ${report.config.month.year}',
-      color: const Color(0xFF6366F1),
-      caption: 'Зарплата/аренда — спецметки. Цвет ячейки = тип события.',
-      child: CalendarGrid(calendar: report.calendar, heatmap: false),
-    );
-  }
-}
-
-class _HeatmapSection extends StatelessWidget {
-  const _HeatmapSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      index: 10,
-      title: 'Тепловая карта трат',
-      color: const Color(0xFFFB923C),
-      caption: 'Чем темнее ячейка — тем больше потрачено в этот день.',
-      child: CalendarGrid(calendar: report.heatmap, heatmap: true),
-    );
-  }
-}
-
-class _BasketSection extends StatelessWidget {
-  const _BasketSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final b = report.basket;
-    return SectionCard(
-      index: 11,
-      title: 'Продуктовая корзина · ${b.totalByn.round()} BYN/нед',
-      color: const Color(0xFF22C55E),
-      caption: 'Шаблон от стоимости еды на день в выбранном сценарии.',
-      child: Column(
-        children: [
-          DonutWithBars(
-            items: b.groups
-                .map((g) => ExpenseItem(
-                      id: g.label,
-                      label: g.label,
-                      amount: g.amount,
-                      color: g.color,
-                      recurring: true,
-                    ))
-                .toList(),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: b.items
-                .map((it) => Chip(
-                      backgroundColor: it.colorValue.withValues(alpha: 0.15),
-                      side: BorderSide(color: it.colorValue),
-                      label: Text(
-                        '${it.label} · ${it.amount.round()} BYN',
-                        style: TextStyle(color: it.colorValue, fontSize: 11),
+    final transactions = ref.watch(transactionsProvider);
+    final summary = computeSummary(activeScenario, transactions, month.monthKey);
+    final color = Color(activeScenario.color);
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.push('/financial-plan/month/${month.id}'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _shortMonth(month.monthKey),
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w800,
                       ),
-                    ))
-                .toList(),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                month.title.isEmpty
+                                    ? humanMonth(month.monthKey)
+                                    : month.title,
+                                style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (isCurrent)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: scheme.primary
+                                      .withValues(alpha: 0.18),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'сейчас',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: scheme.primary),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${month.scenarios.length} сценари${_plural(month.scenarios.length)} · '
+                          'активный: ${activeScenario.name}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    onSelected: (v) async {
+                      if (v == 'copy') {
+                        onCopy();
+                      } else if (v == 'delete') {
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Удалить план?'),
+                            content: Text(
+                                'План «${humanMonth(month.monthKey)}» будет удалён.'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Отмена'),
+                              ),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                    backgroundColor: Colors.red),
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Удалить'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (ok == true) {
+                          await ref
+                              .read(financialPlanMonthsProvider.notifier)
+                              .remove(month.id);
+                        }
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                          value: 'copy',
+                          child: Text('Скопировать в новый месяц')),
+                      PopupMenuItem(value: 'delete', child: Text('Удалить')),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MetricChip(
+                      label: 'Доход',
+                      value: summary.income,
+                      color: const Color(0xFF22C55E),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MetricChip(
+                      label: 'Расход',
+                      value: summary.expense,
+                      color: const Color(0xFFEF4444),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _MetricChip(
+                      label: 'Сбережения',
+                      value: summary.savings,
+                      color: const Color(0xFF6366F1),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
-}
 
-class _TrajectorySection extends StatelessWidget {
-  const _TrajectorySection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = report.trajectory;
-    final tracks = t.tracks
-        .map((tr) => MultiLineTrack(
-              label: '${tr.label} (${tr.monthsToGoal} мес)',
-              color: tr.colorValue,
-              points: tr.points,
-            ))
-        .toList();
-    final xLabels =
-        List.generate(t.months, (i) => 'M${(i + 1).toString().padLeft(2, '0')}');
-    return SectionCard(
-      index: 12,
-      title: 'Долгосрочная траектория · цель \$${t.goalUsd.round()}',
-      color: const Color(0xFFA855F7),
-      caption: 'Точка пересечения линии с пунктиром = месяц достижения цели.',
-      child: MultiLineChart(
-        tracks: tracks,
-        xLabels: xLabels,
-        goalY: t.goalUsd,
-        height: 300,
-      ),
-    );
-  }
-}
-
-class _ProgressBarsSection extends StatelessWidget {
-  const _ProgressBarsSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      index: 13,
-      title: 'Прогресс к цели · 6 vs 12 vs ∞',
-      color: const Color(0xFF14B8A6),
-      caption: 'Тёмный сегмент — за 6 мес, светлее — за 12 мес.',
-      child: ProgressBarsToGoal(
-        items: report.progress,
-        boosters: const [
-          'Кэшбэк (Halva, Whitebird) → +30–50 BYN/мес',
-          'Подработка 5 ч/нед → +200–300 BYN/мес',
-          'Сдвинуть зал на 1 мес → −100 BYN',
-          'Открыть депозит на 6 мес: +5–10% к остатку',
-        ],
-      ),
-    );
-  }
-}
-
-class _PortfolioSection extends StatelessWidget {
-  const _PortfolioSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final p = report.portfolio;
-    final donutItems = p.allocations
-        .map((s) => ExpenseItem(
-              id: s.instrumentId,
-              label: '${s.label} · ${s.percent.round()}%',
-              amount: s.amountUsd,
-              color: s.color,
-              recurring: true,
-            ))
-        .toList();
-    return SectionCard(
-      index: 14,
-      title: 'Портфель · \$${p.totalUsd.round()}',
-      color: const Color(0xFF1E3A8A),
-      caption: 'Распределение по 12 инструментам Беларуси и квартальные взносы.',
-      child: Column(
-        children: [
-          DonutWithBars(items: donutItems),
-          const SizedBox(height: 16),
-          QuarterlyBars(
-            values: p.quarterly,
-            goalY: p.totalUsd,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionPlanSection extends StatelessWidget {
-  const _ActionPlanSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      index: 15,
-      title: 'Что делать прямо сейчас · 10 шагов',
-      color: const Color(0xFF22C55E),
-      caption:
-          'Список генерируется правилами: кредит >18% → шаг рефинанса, овердрафт → закрыть и т.д.',
-      child: ActionStepsList(steps: report.actionPlan),
-    );
-  }
-}
-
-class _ScatterSection extends StatelessWidget {
-  const _ScatterSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionCard(
-      index: 16,
-      title: 'Карта риск/доходность БРБ',
-      color: const Color(0xFF6366F1),
-      caption: 'Sweet spot — депозиты и облигации Минфина: низкий риск + 9–12%.',
-      child: RiskReturnScatterChart(scatter: report.scatter),
-    );
-  }
-}
-
-class _RulesSection extends StatelessWidget {
-  const _RulesSection({required this.report});
-  final FinancialPlanReport report;
-
-  @override
-  Widget build(BuildContext context) {
-    final rules = const [
-      '1. Авто-сохранение: \$ покупаются СРАЗУ в день ЗП.',
-      '2. Любой кредит со ставкой выше 18% — рефинансировать.',
-      '3. Не больше 30% от чистой ЗП на кредитные платежи.',
-      '4. Резерв 1 месяц расходов — на отдельном счёте.',
-      '5. Цель в твёрдой валюте, не в BYN.',
-      '6. Регулярные ≥ 50% портфеля держим в депозитах/облигациях.',
-      '7. Раз в квартал — пересмотр сценариев и портфеля.',
+  String _shortMonth(String monthKey) {
+    final parts = monthKey.split('-');
+    if (parts.length != 2) return monthKey;
+    final monthNum = int.tryParse(parts[1]);
+    if (monthNum == null) return monthKey;
+    final names = [
+      'янв', 'фев', 'мар', 'апр', 'май', 'июн',
+      'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
     ];
-    return SectionCard(
-      index: 17,
-      title: 'Инструменты + 7 правил',
-      color: const Color(0xFFEF4444),
-      caption: 'Правила всегда применяются автоматически на следующих расчётах.',
+    return names[(monthNum - 1).clamp(0, 11)];
+  }
+
+  String _plural(int n) {
+    final mod10 = n % 10;
+    final mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 14) return 'ев';
+    if (mod10 == 1) return 'й';
+    if (mod10 >= 2 && mod10 <= 4) return 'я';
+    return 'ев';
+  }
+}
+
+class _MetricChip extends StatelessWidget {
+  const _MetricChip({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final r in rules)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Text(r, style: const TextStyle(fontSize: 13)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
             ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            children: brbInstruments
-                .map((i) => Chip(
-                      backgroundColor: Color(i.color).withValues(alpha: 0.15),
-                      side: BorderSide(color: Color(i.color)),
-                      label: Text(
-                        '${i.shortName} · ${i.yieldFromPct.round()}–${i.yieldToPct.round()}%',
-                        style: TextStyle(color: Color(i.color), fontSize: 11),
-                      ),
-                    ))
-                .toList(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              NumberFormat.currency(
+                locale: 'ru',
+                symbol: '',
+                decimalDigits: 0,
+              ).format(value),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
           ),
         ],
       ),
@@ -546,10 +433,103 @@ class _RulesSection extends StatelessWidget {
   }
 }
 
-String _monthName(int m) {
-  const names = [
-    '', 'январь', 'февраль', 'март', 'апрель', 'май', 'июнь',
-    'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь',
-  ];
-  return m >= 1 && m <= 12 ? names[m] : '';
+class _NewMonthResult {
+  _NewMonthResult({required this.monthKey, required this.title});
+  final String monthKey;
+  final String title;
+}
+
+class _NewMonthSheet extends StatefulWidget {
+  const _NewMonthSheet({required this.existing, required this.suggestion});
+
+  final List<FinancialPlanMonth> existing;
+  final String suggestion;
+
+  @override
+  State<_NewMonthSheet> createState() => _NewMonthSheetState();
+}
+
+class _NewMonthSheetState extends State<_NewMonthSheet> {
+  late String _monthKey = widget.suggestion;
+  final _titleController = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final taken = {for (final p in widget.existing) p.monthKey};
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 8,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Новый план месяца',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 12),
+          Text('Месяц', style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: _pickMonth,
+            child: InputDecorator(
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_month, size: 18),
+                  const SizedBox(width: 8),
+                  Text(humanMonth(_monthKey)),
+                  const Spacer(),
+                  if (taken.contains(_monthKey))
+                    const Text('уже создан',
+                        style: TextStyle(color: Colors.orange)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _titleController,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: 'Название (необязательно)',
+              hintText: 'Например: «Май — отпуск»',
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: taken.contains(_monthKey)
+                ? null
+                : () => Navigator.of(context).pop(_NewMonthResult(
+                      monthKey: _monthKey,
+                      title: _titleController.text.trim(),
+                    )),
+            child: const Text('Создать'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickMonth() async {
+    final initial = parseMonthKey(_monthKey) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(initial.year - 5),
+      lastDate: DateTime(initial.year + 5),
+      helpText: 'Выбери месяц плана',
+      initialEntryMode: DatePickerEntryMode.calendar,
+    );
+    if (picked == null) return;
+    setState(() => _monthKey = monthKeyForDate(picked));
+  }
 }

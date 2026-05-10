@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/enums.dart';
 import '../../models/habit.dart';
 import '../../models/misc.dart';
+import '../../models/sphere.dart';
 import '../../models/task.dart';
 import '../../services/link_preview_service.dart';
 import '../../state/providers.dart';
@@ -315,6 +316,306 @@ class _InboxPageState extends ConsumerState<InboxPage> {
     );
   }
 
+  /// Move one or more inbox items to a destination chosen by the user.
+  /// Pops a single sheet asking what to do (задача / привычка / заметка /
+  /// сфера / категория сферы) then routes accordingly.
+  Future<void> _promoteMany(List<InboxItem> items) async {
+    if (items.isEmpty) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text(
+                items.length == 1
+                    ? 'Перенести в…'
+                    : 'Перенести ${items.length} в…',
+                style: Theme.of(sheetCtx).textTheme.titleMedium,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.task_alt),
+              title: const Text('В задачи'),
+              onTap: () => Navigator.of(sheetCtx).pop('task'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.eco),
+              title: const Text('В привычки'),
+              onTap: () => Navigator.of(sheetCtx).pop('habit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.note_alt_outlined),
+              title: const Text('В заметки'),
+              subtitle: const Text('Бытовые заметки (Общее)'),
+              onTap: () => Navigator.of(sheetCtx).pop('note'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bubble_chart_outlined),
+              title: const Text('В сферу'),
+              subtitle: const Text('Станет заметкой внутри сферы'),
+              onTap: () => Navigator.of(sheetCtx).pop('sphere'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_outlined),
+              title: const Text('В категорию сферы'),
+              onTap: () => Navigator.of(sheetCtx).pop('sphere-cat'),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (action == null) return;
+
+    switch (action) {
+      case 'task':
+        for (final item in items) {
+          await _promoteToTask(item);
+        }
+        break;
+      case 'habit':
+        for (final item in items) {
+          await _promoteToHabit(item);
+        }
+        break;
+      case 'note':
+        await _promoteToHouseholdNotes(items);
+        break;
+      case 'sphere':
+        await _promoteToSphere(items, withCategory: false);
+        break;
+      case 'sphere-cat':
+        await _promoteToSphere(items, withCategory: true);
+        break;
+    }
+    if (mounted) setState(_selectedIds.clear);
+  }
+
+  Future<void> _promoteToHouseholdNotes(List<InboxItem> items) async {
+    final notes = ref.read(householdNotesProvider);
+    final cats = <String>{
+      'Из инбокса',
+      for (final n in notes) n.category,
+    }.toList()
+      ..sort();
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Категория заметки'),
+        children: [
+          for (final c in cats)
+            SimpleDialogOption(
+              child: Text(c),
+              onPressed: () => Navigator.of(ctx).pop(c),
+            ),
+          SimpleDialogOption(
+            child: const Text('+ Новая…'),
+            onPressed: () async {
+              final controller = TextEditingController();
+              final v = await showDialog<String>(
+                context: ctx,
+                builder: (innerCtx) => AlertDialog(
+                  title: const Text('Новая категория'),
+                  content: TextField(
+                      controller: controller, autofocus: true),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(innerCtx),
+                        child: const Text('Отмена')),
+                    FilledButton(
+                        onPressed: () => Navigator.pop(
+                            innerCtx, controller.text.trim()),
+                        child: const Text('Создать')),
+                  ],
+                ),
+              );
+              if (!ctx.mounted) return;
+              if (v != null && v.isNotEmpty) Navigator.of(ctx).pop(v);
+            },
+          ),
+        ],
+      ),
+    );
+    if (selected == null) return;
+    final notifier = ref.read(householdNotesProvider.notifier);
+    final now = DateTime.now().toIso8601String();
+    for (final item in items) {
+      final body = item.url == null
+          ? item.content
+          : '${item.content}${item.content.isEmpty ? '' : '\n\n'}${item.url}';
+      final firstLine = item.content.split('\n').first;
+      await notifier.add(HouseholdNote(
+        id: const Uuid().v4(),
+        title: firstLine.isEmpty
+            ? (item.linkTitle ?? item.linkDomain ?? 'Из инбокса')
+            : firstLine,
+        body: body,
+        category: selected,
+        createdAt: now,
+      ));
+      await _delete(item);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(items.length == 1
+          ? 'Перенесено в заметки «$selected»'
+          : 'Перенесено ${items.length} в заметки «$selected»')),
+    );
+  }
+
+  Future<void> _promoteToSphere(
+    List<InboxItem> items, {
+    required bool withCategory,
+  }) async {
+    final spheres = ref.read(spheresProvider);
+    if (spheres.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Сначала создай хотя бы одну сферу жизни')),
+      );
+      return;
+    }
+    final sphere = await showModalBottomSheet<Sphere>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetCtx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text('Выбери сферу',
+                  style: Theme.of(sheetCtx).textTheme.titleMedium),
+            ),
+            for (final s in spheres)
+              ListTile(
+                leading: Text(s.icon ?? '✨',
+                    style: const TextStyle(fontSize: 22)),
+                title: Text(s.title,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  'заметок: ${s.notesList?.length ?? 0} · категорий: ${s.categories?.length ?? 0}',
+                ),
+                onTap: () => Navigator.of(sheetCtx).pop(s),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (sphere == null) return;
+
+    String? categoryId;
+    if (withCategory) {
+      final cats = sphere.categories ?? const <SphereCategory>[];
+      if (cats.isEmpty) {
+        // Offer to create one inline.
+        if (!mounted) return;
+        final controller = TextEditingController();
+        final newName = await showDialog<String>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title:
+                const Text('В сфере пока нет категорий'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(
+                  labelText: 'Название новой категории'),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Отмена')),
+              FilledButton(
+                onPressed: () =>
+                    Navigator.pop(ctx, controller.text.trim()),
+                child: const Text('Создать'),
+              ),
+            ],
+          ),
+        );
+        if (newName == null || newName.isEmpty) return;
+        final cat = SphereCategory(
+          id: const Uuid().v4(),
+          title: newName,
+          createdAt: DateTime.now().toIso8601String(),
+        );
+        await ref.read(spheresProvider.notifier).update(
+              sphere.id,
+              (s) => s.copyWith(
+                categories: [...?s.categories, cat],
+              ),
+            );
+        categoryId = cat.id;
+      } else {
+        if (!mounted) return;
+        final picked = await showModalBottomSheet<SphereCategory>(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (sheetCtx) => SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  child: Text('Выбери категорию',
+                      style: Theme.of(sheetCtx).textTheme.titleMedium),
+                ),
+                for (final c in cats)
+                  ListTile(
+                    leading: Text(c.icon ?? '📁',
+                        style: const TextStyle(fontSize: 20)),
+                    title: Text(c.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    onTap: () => Navigator.of(sheetCtx).pop(c),
+                  ),
+              ],
+            ),
+          ),
+        );
+        if (picked == null) return;
+        categoryId = picked.id;
+      }
+    }
+
+    final notifier = ref.read(spheresProvider.notifier);
+    for (final item in items) {
+      final body = item.url == null
+          ? item.content
+          : '${item.content}${item.content.isEmpty ? '' : '\n\n'}${item.url}';
+      final note = SphereNote(
+        id: const Uuid().v4(),
+        content: body,
+        createdAt: DateTime.now().toIso8601String(),
+        photoUrl: item.hasMedia && item.isImage ? item.mediaPath : null,
+        categoryId: categoryId,
+      );
+      await notifier.update(
+        sphere.id,
+        (s) => s.copyWith(notesList: [...?s.notesList, note]),
+      );
+      await _delete(item);
+    }
+    if (!mounted) return;
+    final dest = withCategory
+        ? '«${sphere.title}» → ${(sphere.categories ?? []).where((c) => c.id == categoryId).map((c) => c.title).firstOrNull ?? ''}'
+        : '«${sphere.title}»';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(items.length == 1
+            ? 'Перенесено в сферу $dest'
+            : 'Перенесено ${items.length} в сферу $dest'),
+      ),
+    );
+  }
+
   /// Toggle a single id in the selection set. Pressing on an already-
   /// selected bubble removes it; pressing the last one drops back to
   /// normal mode automatically (because the AppBar reads [_isSelecting]).
@@ -434,19 +735,13 @@ class _InboxPageState extends ConsumerState<InboxPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.task_alt),
-              title: const Text('В задачи'),
+              leading: const Icon(Icons.drive_file_move_outline),
+              title: const Text('Перенести в…'),
+              subtitle: const Text(
+                  'Задача / привычка / заметка / сфера'),
               onTap: () {
                 Navigator.of(sheetCtx).pop();
-                _promoteToTask(item);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.eco),
-              title: const Text('В привычки'),
-              onTap: () {
-                Navigator.of(sheetCtx).pop();
-                _promoteToHabit(item);
+                _promoteMany([item]);
               },
             ),
             ListTile(
@@ -548,6 +843,17 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                   tooltip: 'Выбрать все',
                   icon: const Icon(Icons.select_all),
                   onPressed: () => _selectAllVisible(items),
+                ),
+                IconButton(
+                  tooltip: 'Перенести в…',
+                  icon: const Icon(Icons.drive_file_move_outline),
+                  onPressed: () {
+                    final list = ref.read(inboxProvider);
+                    final picked = list
+                        .where((e) => _selectedIds.contains(e.id))
+                        .toList();
+                    _promoteMany(picked);
+                  },
                 ),
                 IconButton(
                   tooltip: allPinned ? 'Открепить' : 'Закрепить',
