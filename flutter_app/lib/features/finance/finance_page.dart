@@ -97,6 +97,11 @@ class _FinancePageState extends ConsumerState<FinancePage>
             icon: const Icon(Icons.school_outlined),
             onPressed: () => context.push('/tools'),
           ),
+          IconButton(
+            tooltip: 'Финансовый план',
+            icon: const Icon(Icons.insights_outlined),
+            onPressed: () => context.push('/financial-plan'),
+          ),
         ],
         bottom: TabBar(
           controller: _controller,

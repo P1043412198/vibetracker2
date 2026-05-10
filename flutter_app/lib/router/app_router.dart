@@ -9,6 +9,8 @@ import '../features/dashboard/dashboard_settings_page.dart';
 import '../features/finance/finance_page.dart';
 import '../features/finance/loans_page.dart';
 import '../features/finance/receipt_gallery_page.dart';
+import '../features/financial_plan/financial_plan_page.dart';
+import '../features/financial_plan/financial_plan_settings_page.dart';
 import '../features/goals/goal_details_page.dart';
 import '../features/goals/goals_page.dart';
 import '../features/habits/habit_details_page.dart';
@@ -103,6 +105,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'loans',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: LoansPage()),
+          ),
+          GoRoute(
+            path: '/financial-plan',
+            name: 'financial-plan',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: FinancialPlanPage()),
+            routes: [
+              GoRoute(
+                path: 'settings',
+                name: 'financial-plan-settings',
+                builder: (_, __) => const FinancialPlanSettingsPage(),
+              ),
+            ],
           ),
           GoRoute(
             path: '/workouts',
