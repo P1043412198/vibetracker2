@@ -90,7 +90,6 @@ dependencies:
   geolocator: ^13.0.2
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
-  pedometer_2: ^5.0.4
 
 dev_dependencies:
   flutter_test:
