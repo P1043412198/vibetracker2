@@ -1,3 +1,4 @@
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -67,34 +68,39 @@ class _VibesightAppState extends ConsumerState<VibesightApp>
     final overrideLocale = ref.watch(localeProvider);
     final pinLock = ref.watch(pinLockProvider);
 
-    return MaterialApp.router(
-      title: 'Vibesight Tracker',
-      debugShowCheckedModeBanner: false,
-      themeMode: themeMode,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
-      routerConfig: router,
-      locale: overrideLocale ?? const Locale('ru'),
-      supportedLocales: AppLocalizations.supportedLocales,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      builder: (context, child) {
-        if (pinLock.locked && pinLock.hasPin) {
-          return Stack(
-            children: [
-              if (child != null)
-                ExcludeFocus(
-                  child: ExcludeSemantics(child: IgnorePointer(child: child)),
-                ),
-              const Positioned.fill(child: PinLockScreen()),
-            ],
-          );
-        }
-        return child ?? const SizedBox.shrink();
+    return DynamicColorBuilder(
+      builder: (lightDynamic, darkDynamic) {
+        return MaterialApp.router(
+          title: 'Vibesight Tracker',
+          debugShowCheckedModeBanner: false,
+          themeMode: themeMode,
+          theme: AppTheme.light(dynamicScheme: lightDynamic),
+          darkTheme: AppTheme.dark(dynamicScheme: darkDynamic),
+          routerConfig: router,
+          locale: overrideLocale ?? const Locale('ru'),
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          builder: (context, child) {
+            if (pinLock.locked && pinLock.hasPin) {
+              return Stack(
+                children: [
+                  if (child != null)
+                    ExcludeFocus(
+                      child:
+                          ExcludeSemantics(child: IgnorePointer(child: child)),
+                    ),
+                  const Positioned.fill(child: PinLockScreen()),
+                ],
+              );
+            }
+            return child ?? const SizedBox.shrink();
+          },
+        );
       },
     );
   }

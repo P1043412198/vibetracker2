@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/financial_plan_month.dart';
 import '../../state/providers.dart';
 import 'financial_plan_helpers.dart';
+import 'widgets/finplan_charts.dart';
 
 /// Brand-new flexible Financial Plan home page.
 ///
@@ -14,13 +16,21 @@ import 'financial_plan_helpers.dart';
 /// plan the user has created (newest first), highlights the current
 /// real-world month and lets the user create a new month from scratch
 /// (optionally cloning a previous month).
-class FinancialPlanPage extends ConsumerWidget {
+class FinancialPlanPage extends ConsumerStatefulWidget {
   const FinancialPlanPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FinancialPlanPage> createState() => _FinancialPlanPageState();
+}
+
+class _FinancialPlanPageState extends ConsumerState<FinancialPlanPage> {
+  late int _year = DateTime.now().year;
+
+  @override
+  Widget build(BuildContext context) {
     final months = [...ref.watch(financialPlanMonthsProvider)]
       ..sort((a, b) => b.monthKey.compareTo(a.monthKey));
+    final transactions = ref.watch(transactionsProvider);
     final nowKey = monthKeyForDate(DateTime.now());
 
     return Scaffold(
@@ -30,19 +40,32 @@ class FinancialPlanPage extends ConsumerWidget {
       body: months.isEmpty
           ? _EmptyState(
               onCreate: () => _createMonth(context, ref, copyFromId: null))
-          : ListView.separated(
+          : ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-              itemCount: months.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, i) => _MonthTile(
-                month: months[i],
-                isCurrent: months[i].monthKey == nowKey,
-                onCopy: () => _createMonth(
-                  context,
-                  ref,
-                  copyFromId: months[i].id,
+              children: [
+                YearOverviewCard(
+                  transactions: transactions,
+                  plans: months,
+                  year: _year,
+                  onYearChanged: (y) => setState(() => _year = y),
                 ),
-              ),
+                const SizedBox(height: 12),
+                for (var i = 0; i < months.length; i++) ...[
+                  _MonthTile(
+                    month: months[i],
+                    isCurrent: months[i].monthKey == nowKey,
+                    onCopy: () => _createMonth(
+                      context,
+                      ref,
+                      copyFromId: months[i].id,
+                    ),
+                  )
+                      .animate()
+                      .fadeIn(duration: 280.ms, delay: (60 * i).ms)
+                      .slideY(begin: 0.08, end: 0),
+                  if (i != months.length - 1) const SizedBox(height: 12),
+                ],
+              ],
             ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _createMonth(context, ref, copyFromId: null),

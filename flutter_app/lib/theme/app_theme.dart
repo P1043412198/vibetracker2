@@ -1,3 +1,4 @@
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:flutter/material.dart';
 
 /// Light/dark themes inspired by the React app's "premium nav + dashboard
@@ -7,21 +8,30 @@ class AppTheme {
   static const Color _surfaceLight = Color(0xFFF6F7FB);
   static const Color _surfaceDark = Color(0xFF0E1117);
 
-  static ThemeData light() {
-    final scheme = ColorScheme.fromSeed(
+  /// Builds the light theme. If [dynamicScheme] is provided (Android 12+
+  /// wallpaper-based colors via `dynamic_color`), it's harmonised with the
+  /// brand seed; otherwise the fallback seed-based scheme is used.
+  static ThemeData light({ColorScheme? dynamicScheme}) {
+    final base = ColorScheme.fromSeed(
       seedColor: _seed,
       brightness: Brightness.light,
       surface: _surfaceLight,
     );
+    final scheme = dynamicScheme != null
+        ? dynamicScheme.harmonized().copyWith(surface: _surfaceLight)
+        : base;
     return _build(scheme);
   }
 
-  static ThemeData dark() {
-    final scheme = ColorScheme.fromSeed(
+  static ThemeData dark({ColorScheme? dynamicScheme}) {
+    final base = ColorScheme.fromSeed(
       seedColor: _seed,
       brightness: Brightness.dark,
       surface: _surfaceDark,
     );
+    final scheme = dynamicScheme != null
+        ? dynamicScheme.harmonized().copyWith(surface: _surfaceDark)
+        : base;
     return _build(scheme);
   }
 

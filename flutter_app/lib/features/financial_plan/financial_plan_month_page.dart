@@ -8,6 +8,7 @@ import '../../models/finance.dart';
 import '../../models/financial_plan_month.dart';
 import '../../state/providers.dart';
 import 'financial_plan_helpers.dart';
+import 'widgets/finplan_charts.dart';
 
 /// Detail page for a single [FinancialPlanMonth]. Shows the scenario picker,
 /// the roadmap progress strip, and the editable list of sections.
@@ -69,6 +70,18 @@ class FinancialPlanMonthPage extends ConsumerWidget {
           _RoadmapCard(plan: plan, summary: summary, fact: fact),
           const SizedBox(height: 12),
           _ScenarioStrip(plan: plan),
+          const SizedBox(height: 12),
+          FinPlanAnalytics(
+            plan: plan,
+            scenario: activeScenario,
+            summary: summary,
+            transactions: transactions,
+            fact: fact,
+          ),
+          if (plan.scenarios.length >= 2) ...[
+            const SizedBox(height: 12),
+            ScenarioComparisonChart(plan: plan),
+          ],
           const SizedBox(height: 12),
           if (activeScenario.sections.isEmpty)
             _EmptySectionsCard(
