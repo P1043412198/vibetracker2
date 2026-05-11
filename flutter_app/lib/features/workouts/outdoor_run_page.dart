@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -7,12 +8,28 @@ import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/misc.dart';
 import '../../state/providers.dart';
+
+/// Outdoor running screen with GPS tracking, live stats and route planning.
+///
+/// The screen has four explicit phases:
+///   - [_Phase.idle]      — just opened, no run in progress, no plan drawn.
+///   - [_Phase.planning]  — user taps the map to drop waypoints for a planned
+///                          route. The total planned distance is shown live.
+///   - [_Phase.running]   — GPS-tracked run is active.
+///   - [_Phase.paused]    — run paused but not finished.
+///
+/// Live stats (distance, time, pace, steps, calories) are **only** shown
+/// once the user has actually pressed «Начать пробежку». Before that, the
+/// stat panel renders placeholders so the user does not think the timer is
+/// already counting (#15 follow-up bug report).
+enum _Phase { idle, planning, running, paused }
 
 class OutdoorRunPage extends ConsumerStatefulWidget {
   const OutdoorRunPage({super.key});
@@ -24,12 +41,18 @@ class OutdoorRunPage extends ConsumerStatefulWidget {
 class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
   final MapController _mapCtrl = MapController();
 
+  _Phase _phase = _Phase.idle;
+
   // GPS state
   StreamSubscription<Position>? _posSub;
   final List<LatLng> _routePoints = [];
   LatLng? _currentPos;
-  bool _tracking = false;
-  bool _paused = false;
+
+  // Planned route
+  final List<LatLng> _plannedWaypoints = [];
+  List<LatLng> _plannedPath = [];
+  double _plannedDistanceMeters = 0;
+  bool _snappingRoute = false;
 
   // Stats
   double _distanceMeters = 0;
@@ -49,6 +72,11 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
       _distanceKm > 0 ? (_elapsedSeconds / 60) / _distanceKm : 0;
   double get _speedKmH =>
       _elapsedSeconds > 0 ? _distanceKm / (_elapsedSeconds / 3600) : 0;
+
+  bool get _hasStarted =>
+      _phase == _Phase.running || _phase == _Phase.paused;
+  bool get _isPlanning => _phase == _Phase.planning;
+  bool get _hasPlan => _plannedWaypoints.length >= 2;
 
   @override
   void initState() {
@@ -80,7 +108,8 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
       }
       return;
     }
-    // Get initial position
+    // Get initial position (used to centre the map only — NOT counted as
+    // run start, see #15 follow-up).
     try {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(
@@ -96,11 +125,140 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
     } catch (_) {}
   }
 
+  // ─────────────────── Planning ───────────────────
+
+  void _enterPlanning() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _phase = _Phase.planning;
+    });
+  }
+
+  void _exitPlanning() {
+    setState(() {
+      _phase = _Phase.idle;
+    });
+  }
+
+  void _onPlanningTap(LatLng point) {
+    if (!_isPlanning) return;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _plannedWaypoints.add(point);
+      _recomputePlannedPathStraight();
+    });
+  }
+
+  void _undoLastWaypoint() {
+    if (_plannedWaypoints.isEmpty) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _plannedWaypoints.removeLast();
+      _recomputePlannedPathStraight();
+    });
+  }
+
+  void _clearPlan() {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _plannedWaypoints.clear();
+      _plannedPath = [];
+      _plannedDistanceMeters = 0;
+    });
+  }
+
+  void _recomputePlannedPathStraight() {
+    _plannedPath = List.of(_plannedWaypoints);
+    _plannedDistanceMeters = _polylineLengthMeters(_plannedPath);
+  }
+
+  double _polylineLengthMeters(List<LatLng> points) {
+    if (points.length < 2) return 0;
+    const dist = Distance();
+    double total = 0;
+    for (var i = 1; i < points.length; i++) {
+      total += dist.as(LengthUnit.Meter, points[i - 1], points[i]);
+    }
+    return total;
+  }
+
+  /// Optional: snap-to-roads via the public OSRM demo endpoint
+  /// (router.project-osrm.org). Falls back to straight lines silently if
+  /// the network is unavailable or the request fails — the run feature
+  /// itself never depends on this. Profile: `foot`.
+  Future<void> _snapPlannedRouteToRoads() async {
+    if (_plannedWaypoints.length < 2) return;
+    setState(() => _snappingRoute = true);
+    try {
+      final coords = _plannedWaypoints
+          .map((p) => '${p.longitude},${p.latitude}')
+          .join(';');
+      final uri = Uri.parse(
+          'https://router.project-osrm.org/route/v1/foot/$coords?overview=full&geometries=geojson');
+      final resp = await http
+          .get(uri, headers: {'User-Agent': 'com.vibesight.tracker'})
+          .timeout(const Duration(seconds: 8));
+      if (resp.statusCode == 200) {
+        final body = jsonDecode(resp.body) as Map<String, dynamic>;
+        final routes = body['routes'] as List?;
+        if (routes != null && routes.isNotEmpty) {
+          final geom =
+              (routes.first as Map)['geometry'] as Map<String, dynamic>?;
+          final raw = geom?['coordinates'] as List?;
+          if (raw != null && raw.isNotEmpty) {
+            final snapped = raw
+                .whereType<List>()
+                .map((c) => LatLng(
+                      (c[1] as num).toDouble(),
+                      (c[0] as num).toDouble(),
+                    ))
+                .toList();
+            final distance = (routes.first as Map)['distance'];
+            if (mounted) {
+              setState(() {
+                _plannedPath = snapped;
+                _plannedDistanceMeters = distance is num
+                    ? distance.toDouble()
+                    : _polylineLengthMeters(snapped);
+              });
+            }
+            return;
+          }
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Не удалось проложить по дорогам — '
+                  'используются прямые линии.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Нет связи с сервером маршрутов — '
+                  'используются прямые линии.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _snappingRoute = false);
+    }
+  }
+
+  void _confirmPlan() {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _phase = _Phase.idle;
+    });
+  }
+
+  // ─────────────────── Run lifecycle ───────────────────
+
   void _startRun() {
     HapticFeedback.mediumImpact();
     setState(() {
-      _tracking = true;
-      _paused = false;
+      _phase = _Phase.running;
       _distanceMeters = 0;
       _steps = 0;
       _elapsedSeconds = 0;
@@ -114,7 +272,7 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
     }
 
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!_paused) {
+      if (_phase == _Phase.running) {
         setState(() => _elapsedSeconds++);
       }
     });
@@ -128,7 +286,7 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
   }
 
   void _onPosition(Position pos) {
-    if (_paused) return;
+    if (_phase != _Phase.running) return;
     final newPoint = LatLng(pos.latitude, pos.longitude);
 
     setState(() {
@@ -154,34 +312,35 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
 
   void _pauseRun() {
     HapticFeedback.lightImpact();
-    setState(() => _paused = true);
+    setState(() => _phase = _Phase.paused);
   }
 
   void _resumeRun() {
     HapticFeedback.lightImpact();
-    setState(() => _paused = false);
+    setState(() => _phase = _Phase.running);
   }
 
   Future<void> _stopRun() async {
     HapticFeedback.heavyImpact();
     _posSub?.cancel();
+    _posSub = null;
     _timer?.cancel();
-    setState(() {
-      _tracking = false;
-      _paused = false;
-    });
-
-    // Save the session
+    _timer = null;
+    final stoppedAt = DateTime.now();
     final session = RunSession(
       id: const Uuid().v4(),
-      startedAt: _startTime?.toIso8601String() ?? DateTime.now().toIso8601String(),
-      finishedAt: DateTime.now().toIso8601String(),
+      startedAt: _startTime?.toIso8601String() ?? stoppedAt.toIso8601String(),
+      finishedAt: stoppedAt.toIso8601String(),
       distanceMeters: _distanceMeters,
       steps: _steps,
       caloriesBurned: _calories,
       durationSeconds: _elapsedSeconds,
       route: _routePoints.map((p) => [p.latitude, p.longitude]).toList(),
     );
+
+    setState(() {
+      _phase = _Phase.idle;
+    });
 
     await ref.read(runSessionsProvider.notifier).add(session);
 
@@ -234,6 +393,12 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
               label: 'Калории',
               value: '${session.caloriesBurned} ккал',
             ),
+            if (_plannedDistanceMeters > 0)
+              _ResultRow(
+                icon: Icons.flag_outlined,
+                label: 'Запланировано',
+                value: '${(_plannedDistanceMeters / 1000).toStringAsFixed(2)} км',
+              ),
           ],
         ),
         actions: [
@@ -250,8 +415,8 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
     final h = d.inHours;
     final m = d.inMinutes % 60;
     final s = d.inSeconds % 60;
-    if (h > 0) return '${h}ч ${m}м ${s}с';
-    return '${m}м ${s}с';
+    if (h > 0) return '$hч $mм $sс';
+    return '$mм $sс';
   }
 
   @override
@@ -273,7 +438,7 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
         leading: const BackButton(),
         title: const Text('Бег на улице'),
         actions: [
-          if (sessions.isNotEmpty)
+          if (sessions.isNotEmpty && !_hasStarted)
             IconButton(
               tooltip: 'История',
               icon: const Icon(Icons.history),
@@ -283,6 +448,18 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
       ),
       body: Column(
         children: [
+          if (_isPlanning) _PlanningBanner(
+            waypoints: _plannedWaypoints.length,
+            distanceMeters: _plannedDistanceMeters,
+            snapping: _snappingRoute,
+            onUndo: _plannedWaypoints.isEmpty ? null : _undoLastWaypoint,
+            onClear: _plannedWaypoints.isEmpty ? null : _clearPlan,
+            onSnap: _plannedWaypoints.length >= 2 && !_snappingRoute
+                ? _snapPlannedRouteToRoads
+                : null,
+            onDone: _plannedWaypoints.length >= 2 ? _confirmPlan : null,
+            onCancel: _exitPlanning,
+          ),
           // Map area
           Expanded(
             flex: 3,
@@ -293,6 +470,9 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
                   options: MapOptions(
                     initialCenter: _currentPos ?? const LatLng(53.9, 27.56),
                     initialZoom: 16,
+                    onTap: _isPlanning
+                        ? (_, point) => _onPlanningTap(point)
+                        : null,
                   ),
                   children: [
                     TileLayer(
@@ -300,6 +480,19 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.vibesight.tracker',
                     ),
+                    if (_plannedPath.length >= 2)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _plannedPath,
+                            strokeWidth: 5,
+                            color: scheme.tertiary
+                                .withValues(alpha: 0.85),
+                            pattern: StrokePattern.dashed(
+                                segments: const [10, 6]),
+                          ),
+                        ],
+                      ),
                     if (_routePoints.length >= 2)
                       PolylineLayer(
                         polylines: [
@@ -308,6 +501,36 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
                             strokeWidth: 4,
                             color: scheme.primary,
                           ),
+                        ],
+                      ),
+                    if (_plannedWaypoints.isNotEmpty)
+                      MarkerLayer(
+                        markers: [
+                          for (var i = 0;
+                              i < _plannedWaypoints.length;
+                              i++)
+                            Marker(
+                              point: _plannedWaypoints[i],
+                              width: 24,
+                              height: 24,
+                              child: Container(
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: scheme.tertiary,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                      color: Colors.white, width: 2),
+                                ),
+                                child: Text(
+                                  '${i + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     if (_currentPos != null)
@@ -366,22 +589,31 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
             ),
             child: Column(
               children: [
+                _PhaseChip(
+                  phase: _phase,
+                  plannedDistanceMeters: _plannedDistanceMeters,
+                ),
+                const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _StatTile(
                       icon: Icons.straighten,
-                      value: _distanceKm.toStringAsFixed(2),
+                      value: _hasStarted
+                          ? _distanceKm.toStringAsFixed(2)
+                          : '—',
                       unit: 'км',
                     ),
                     _StatTile(
                       icon: Icons.timer_outlined,
-                      value: _formatDuration(dur),
+                      value: _hasStarted ? _formatDuration(dur) : '—',
                       unit: '',
                     ),
                     _StatTile(
                       icon: Icons.speed,
-                      value: _speedKmH.toStringAsFixed(1),
+                      value: _hasStarted
+                          ? _speedKmH.toStringAsFixed(1)
+                          : '—',
                       unit: 'км/ч',
                     ),
                   ],
@@ -392,19 +624,19 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
                   children: [
                     _StatTile(
                       icon: Icons.directions_walk,
-                      value: '$_steps',
+                      value: _hasStarted ? '$_steps' : '—',
                       unit: 'шагов',
                     ),
                     _StatTile(
                       icon: Icons.local_fire_department,
-                      value: '$_calories',
+                      value: _hasStarted ? '$_calories' : '—',
                       unit: 'ккал',
                     ),
                     _StatTile(
                       icon: Icons.trending_up,
-                      value: _paceMinPerKm > 0
+                      value: _hasStarted && _paceMinPerKm > 0
                           ? '${_paceMinPerKm.floor()}:${((_paceMinPerKm % 1) * 60).round().toString().padLeft(2, '0')}'
-                          : '--',
+                          : '—',
                       unit: 'мин/км',
                     ),
                   ],
@@ -412,47 +644,16 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
                 const SizedBox(height: 16),
 
                 // Control buttons
-                if (!_tracking)
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _startRun,
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Начать пробежку'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                    ),
-                  )
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _paused
-                            ? FilledButton.icon(
-                                onPressed: _resumeRun,
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text('Продолжить'),
-                              )
-                            : OutlinedButton.icon(
-                                onPressed: _pauseRun,
-                                icon: const Icon(Icons.pause),
-                                label: const Text('Пауза'),
-                              ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _stopRun,
-                          icon: const Icon(Icons.stop),
-                          label: const Text('Завершить'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.red,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                _ControlRow(
+                  phase: _phase,
+                  hasPlan: _hasPlan,
+                  onPlan: !_hasStarted ? _enterPlanning : null,
+                  onClearPlan: !_hasStarted && _hasPlan ? _clearPlan : null,
+                  onStart: !_hasStarted ? _startRun : null,
+                  onPause: _phase == _Phase.running ? _pauseRun : null,
+                  onResume: _phase == _Phase.paused ? _resumeRun : null,
+                  onStop: _hasStarted ? _stopRun : null,
+                ),
                 const SizedBox(height: 8),
               ],
             ),
@@ -470,156 +671,395 @@ class _OutdoorRunPageState extends ConsumerState<OutdoorRunPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (_, scrollCtrl) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const Icon(Icons.history),
-                  const SizedBox(width: 8),
-                  Text('История пробежек (${sorted.length})',
-                      style: Theme.of(context).textTheme.titleMedium),
-                ],
-              ),
-            ),
-            if (sorted.length >= 2) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: SizedBox(
-                  height: 120,
-                  child: _HistoryChart(sessions: sorted),
-                ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            Expanded(
-              child: ListView.builder(
-                controller: scrollCtrl,
-                itemCount: sorted.length,
-                itemBuilder: (_, i) {
-                  final s = sorted[i];
-                  DateTime? dt;
-                  try {
-                    dt = DateTime.parse(s.startedAt);
-                  } catch (_) {}
-                  final pace = s.avgPaceMinPerKm;
-                  final pMin = pace.floor();
-                  final pSec = ((pace - pMin) * 60).round();
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor:
-                          Theme.of(context).colorScheme.primaryContainer,
-                      child: Icon(Icons.directions_run,
-                          color: Theme.of(context).colorScheme.primary),
-                    ),
-                    title: Text(
-                        '${s.distanceKm.toStringAsFixed(2)} км — ${_formatDuration(Duration(seconds: s.durationSeconds))}'),
-                    subtitle: Text(
-                      '${dt != null ? dateFmt.format(dt) : s.startedAt} • '
-                      '${s.steps} шагов • ${s.caloriesBurned} ккал • '
-                      '$pMin:${pSec.toString().padLeft(2, '0')} мин/км',
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.map_outlined, size: 20),
-                      tooltip: 'Маршрут',
-                      onPressed: s.route.length >= 2
-                          ? () => _showRouteDialog(context, s)
-                          : null,
+      showDragHandle: true,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.85,
+          maxChildSize: 0.95,
+          builder: (_, scroll) {
+            return ListView.builder(
+              controller: scroll,
+              itemCount: sorted.length + 2,
+              itemBuilder: (_, i) {
+                if (i == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.history),
+                        const SizedBox(width: 8),
+                        Text('История пробежек',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge),
+                        const Spacer(),
+                        Text('${sorted.length}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium),
+                      ],
                     ),
                   );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+                }
+                if (i == 1) {
+                  return _RunHistoryChart(sessions: sorted);
+                }
+                final s = sorted[i - 2];
+                final pace = s.avgPaceMinPerKm;
+                final paceMin = pace.floor();
+                final paceSec = ((pace - paceMin) * 60).round();
+                final dur = Duration(seconds: s.durationSeconds);
+                return ListTile(
+                  leading: const Icon(Icons.directions_run),
+                  title: Text(
+                      '${s.distanceKm.toStringAsFixed(2)} км · '
+                      '${_formatDuration(dur)}'),
+                  subtitle: Text(
+                      '${dateFmt.format(DateTime.parse(s.startedAt))} · '
+                      'темп $paceMin:${paceSec.toString().padLeft(2, '0')} мин/км · '
+                      '${s.caloriesBurned} ккал'),
+                  trailing: s.route.length >= 2
+                      ? IconButton(
+                          icon: const Icon(Icons.map_outlined),
+                          tooltip: 'Маршрут',
+                          onPressed: () =>
+                              _showRouteDialog(context, s),
+                        )
+                      : null,
+                  onLongPress: () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (dctx) => AlertDialog(
+                        title: const Text('Удалить пробежку?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () =>
+                                Navigator.of(dctx).pop(false),
+                            child: const Text('Отмена'),
+                          ),
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                                backgroundColor: Colors.red),
+                            onPressed: () =>
+                                Navigator.of(dctx).pop(true),
+                            child: const Text('Удалить'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (ok == true) {
+                      await ref
+                          .read(runSessionsProvider.notifier)
+                          .remove(s.id);
+                    }
+                  },
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
   void _showRouteDialog(BuildContext context, RunSession session) {
     final points = session.route
         .map((p) => LatLng(p[0], p[1]))
-        .toList();
+        .toList(growable: false);
     if (points.isEmpty) return;
-    final center = points[points.length ~/ 2];
-
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        child: SizedBox(
-          height: 400,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  'Маршрут — ${session.distanceKm.toStringAsFixed(2)} км',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              Expanded(
-                child: FlutterMap(
-                  options: MapOptions(
-                    initialCenter: center,
-                    initialZoom: 15,
+      builder: (ctx) {
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: double.infinity,
+            height: 420,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCameraFit: CameraFit.bounds(
+                    bounds: LatLngBounds.fromPoints(points),
+                    padding: const EdgeInsets.all(24),
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.vibesight.tracker',
-                    ),
-                    PolylineLayer(
-                      polylines: [
-                        Polyline(
-                          points: points,
-                          strokeWidth: 4,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ],
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: points.first,
-                          width: 16,
-                          height: 16,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.green,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                        Marker(
-                          point: points.last,
-                          width: 16,
-                          height: 16,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.vibesight.tracker',
+                  ),
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: points,
+                        strokeWidth: 4,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PhaseChip extends StatelessWidget {
+  const _PhaseChip({required this.phase, required this.plannedDistanceMeters});
+  final _Phase phase;
+  final double plannedDistanceMeters;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (label, icon, color) = switch (phase) {
+      _Phase.idle => (
+          plannedDistanceMeters > 0
+              ? 'Готов · план ${(plannedDistanceMeters / 1000).toStringAsFixed(2)} км'
+              : 'Готов — нажми «Начать»',
+          Icons.play_circle_outline,
+          scheme.primary,
+        ),
+      _Phase.planning => (
+          'Прокладывание маршрута — тапай по карте',
+          Icons.edit_location_alt_outlined,
+          scheme.tertiary,
+        ),
+      _Phase.running => (
+          'Идёт пробежка',
+          Icons.directions_run,
+          scheme.primary,
+        ),
+      _Phase.paused => (
+          'Пауза',
+          Icons.pause_circle_outline,
+          scheme.error,
+        ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlanningBanner extends StatelessWidget {
+  const _PlanningBanner({
+    required this.waypoints,
+    required this.distanceMeters,
+    required this.snapping,
+    required this.onUndo,
+    required this.onClear,
+    required this.onSnap,
+    required this.onDone,
+    required this.onCancel,
+  });
+
+  final int waypoints;
+  final double distanceMeters;
+  final bool snapping;
+  final VoidCallback? onUndo;
+  final VoidCallback? onClear;
+  final VoidCallback? onSnap;
+  final VoidCallback? onDone;
+  final VoidCallback? onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+      color: scheme.tertiaryContainer,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.edit_location_alt_outlined,
+                  size: 18, color: scheme.onTertiaryContainer),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  waypoints == 0
+                      ? 'Тапни по карте, чтобы поставить точки маршрута.'
+                      : 'Точек: $waypoints · ${(distanceMeters / 1000).toStringAsFixed(2)} км',
+                  style: TextStyle(
+                    color: scheme.onTertiaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Закрыть'),
+              IconButton(
+                tooltip: 'Отмена',
+                icon: const Icon(Icons.close),
+                onPressed: onCancel,
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              TextButton.icon(
+                icon: const Icon(Icons.undo, size: 16),
+                label: const Text('Отменить точку'),
+                onPressed: onUndo,
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.delete_outline, size: 16),
+                label: const Text('Очистить'),
+                onPressed: onClear,
+              ),
+              TextButton.icon(
+                icon: snapping
+                    ? const SizedBox(
+                        width: 12,
+                        height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.alt_route, size: 16),
+                label: const Text('По дорогам'),
+                onPressed: onSnap,
+              ),
+              const SizedBox(width: 4),
+              FilledButton.icon(
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('Готово'),
+                onPressed: onDone,
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _ControlRow extends StatelessWidget {
+  const _ControlRow({
+    required this.phase,
+    required this.hasPlan,
+    required this.onPlan,
+    required this.onClearPlan,
+    required this.onStart,
+    required this.onPause,
+    required this.onResume,
+    required this.onStop,
+  });
+
+  final _Phase phase;
+  final bool hasPlan;
+  final VoidCallback? onPlan;
+  final VoidCallback? onClearPlan;
+  final VoidCallback? onStart;
+  final VoidCallback? onPause;
+  final VoidCallback? onResume;
+  final VoidCallback? onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    if (phase == _Phase.planning) {
+      return const SizedBox.shrink();
+    }
+    if (phase == _Phase.idle) {
+      return Column(
+        children: [
+          if (!hasPlan)
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onPlan,
+                icon: const Icon(Icons.edit_location_alt_outlined),
+                label: const Text('Проложить маршрут'),
+              ),
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onPlan,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Изменить маршрут'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Удалить маршрут',
+                  onPressed: onClearPlan,
+                  icon: const Icon(Icons.delete_outline),
+                ),
+              ],
+            ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onStart,
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Начать пробежку'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    // running or paused
+    return Row(
+      children: [
+        Expanded(
+          child: phase == _Phase.paused
+              ? FilledButton.icon(
+                  onPressed: onResume,
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Продолжить'),
+                )
+              : OutlinedButton.icon(
+                  onPressed: onPause,
+                  icon: const Icon(Icons.pause),
+                  label: const Text('Пауза'),
+                ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: onStop,
+            icon: const Icon(Icons.stop),
+            label: const Text('Завершить'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -630,6 +1070,7 @@ class _StatTile extends StatelessWidget {
     required this.value,
     required this.unit,
   });
+
   final IconData icon;
   final String value;
   final String unit;
@@ -638,15 +1079,20 @@ class _StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: 2),
-        Text(value,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+        ),
         if (unit.isNotEmpty)
-          Text(unit,
-              style: TextStyle(
-                  fontSize: 11,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text(
+            unit,
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
       ],
     );
   }
@@ -658,6 +1104,7 @@ class _ResultRow extends StatelessWidget {
     required this.label,
     required this.value,
   });
+
   final IconData icon;
   final String label;
   final String value;
@@ -668,90 +1115,60 @@ class _ResultRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(width: 8),
-          Text(label),
-          const Spacer(),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 12),
+          Expanded(child: Text(label)),
+          Text(value,
+              style: const TextStyle(fontWeight: FontWeight.w700)),
         ],
       ),
     );
   }
 }
 
-class _HistoryChart extends StatelessWidget {
-  const _HistoryChart({required this.sessions});
+class _RunHistoryChart extends StatelessWidget {
+  const _RunHistoryChart({required this.sessions});
   final List<RunSession> sessions;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final recent = sessions.take(10).toList().reversed.toList();
-    final maxKm = recent.fold<double>(
-        0, (m, s) => math.max(m, s.distanceKm));
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        maxY: maxKm <= 0 ? 1 : maxKm * 1.2,
-        gridData: const FlGridData(show: false),
-        borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          leftTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false)),
-          topTitles: const AxisTitles(
-              sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 20,
-              getTitlesWidget: (v, _) {
-                final i = v.toInt();
-                if (i < 0 || i >= recent.length) {
-                  return const SizedBox.shrink();
-                }
-                DateTime? dt;
-                try {
-                  dt = DateTime.parse(recent[i].startedAt);
-                } catch (_) {}
-                return Text(
-                  dt != null ? DateFormat('d/MM').format(dt) : '',
-                  style: const TextStyle(fontSize: 8),
-                );
-              },
-            ),
-          ),
-        ),
-        barGroups: [
-          for (var i = 0; i < recent.length; i++)
-            BarChartGroupData(
-              x: i,
-              barRods: [
-                BarChartRodData(
-                  toY: recent[i].distanceKm,
-                  color: scheme.primary,
-                  width: 14,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(4)),
+    if (sessions.isEmpty) return const SizedBox.shrink();
+    final asc = [...sessions]
+      ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+    final last = asc.take(20).toList();
+    final spots = <FlSpot>[];
+    double maxY = 0;
+    for (var i = 0; i < last.length; i++) {
+      final km = last[i].distanceKm;
+      spots.add(FlSpot(i.toDouble(), km));
+      maxY = math.max(maxY, km);
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: SizedBox(
+        height: 140,
+        child: LineChart(
+          LineChartData(
+            minY: 0,
+            maxY: maxY <= 0 ? 1 : maxY * 1.2,
+            gridData: const FlGridData(show: false),
+            titlesData: const FlTitlesData(show: false),
+            borderData: FlBorderData(show: false),
+            lineBarsData: [
+              LineChartBarData(
+                spots: spots,
+                isCurved: true,
+                color: Theme.of(context).colorScheme.primary,
+                belowBarData: BarAreaData(
+                  show: true,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.15),
                 ),
-              ],
-              showingTooltipIndicators: [0],
-            ),
-        ],
-        barTouchData: BarTouchData(
-          touchTooltipData: BarTouchTooltipData(
-            tooltipPadding: const EdgeInsets.all(4),
-            tooltipMargin: 4,
-            getTooltipItem: (group, groupIdx, rod, rodIdx) {
-              return BarTooltipItem(
-                '${rod.toY.toStringAsFixed(1)} км',
-                const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white),
-              );
-            },
+                dotData: const FlDotData(show: true),
+              ),
+            ],
           ),
         ),
       ),

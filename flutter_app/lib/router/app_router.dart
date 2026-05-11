@@ -25,6 +25,7 @@ import '../features/search/global_search_page.dart';
 import '../features/security/pin_setup_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/shopping_list/shopping_list_page.dart';
+import '../features/spheres/sphere_category_page.dart';
 import '../features/spheres/sphere_details_page.dart';
 import '../features/spheres/spheres_page.dart';
 import '../features/tasks/tasks_page.dart';
@@ -61,6 +62,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                 name: 'sphere-details',
                 builder: (context, state) =>
                     SphereDetailsPage(id: state.pathParameters['id'] ?? ''),
+                routes: [
+                  GoRoute(
+                    path: 'category/:categoryId',
+                    name: 'sphere-category',
+                    builder: (context, state) => SphereCategoryPage(
+                      sphereId: state.pathParameters['id'] ?? '',
+                      categoryId: state.pathParameters['categoryId'] ?? '',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

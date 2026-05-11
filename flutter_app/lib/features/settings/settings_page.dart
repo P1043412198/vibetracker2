@@ -489,7 +489,73 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          const _GeminiModelPicker(),
         ],
+      ),
+    );
+  }
+}
+
+/// Lets the user override the Gemini model used for all AI features.
+/// Defaults to [AiService.defaultModel] when nothing is selected. We expose
+/// this because Google retires individual versions (e.g. 1.5-flash-latest
+/// → HTTP 404 starting April 2025) and users want to switch without an app
+/// update.
+class _GeminiModelPicker extends StatefulWidget {
+  const _GeminiModelPicker();
+
+  @override
+  State<_GeminiModelPicker> createState() => _GeminiModelPickerState();
+}
+
+class _GeminiModelPickerState extends State<_GeminiModelPicker> {
+  static const _options = <String>[
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+  ];
+
+  late String _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = AiService.currentModel;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = {..._options, _selected}.toList();
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'Модель Gemini',
+        border: OutlineInputBorder(),
+        helperText: 'По умолчанию gemini-2.5-flash. Старые версии вроде '
+            '1.5-flash-latest Google убрала.',
+        helperMaxLines: 3,
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: _selected,
+          items: [
+            for (final m in items)
+              DropdownMenuItem(value: m, child: Text(m)),
+          ],
+          onChanged: (v) async {
+            if (v == null) return;
+            final messenger = ScaffoldMessenger.of(context);
+            await AiService.setModel(v);
+            if (!mounted) return;
+            setState(() => _selected = v);
+            messenger.showSnackBar(
+              SnackBar(content: Text('Модель: $v')),
+            );
+          },
+        ),
       ),
     );
   }

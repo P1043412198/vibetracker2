@@ -236,6 +236,137 @@ num weeklyAllowance(num freeFunds, int daysLeft) {
   return dailyAllowance(freeFunds, daysLeft) * 7;
 }
 
+/// "Live" view of the daily budget that reflects what the user has
+/// **actually** spent so far this month — instead of the planned/committed
+/// projection used by [dailyAllowance]/[computeFreeFunds].
+///
+/// Why a separate calculation?
+/// * `computeFreeFunds` is conservative: it always assumes the user will
+///   spend at least the planned amount in every budgeted category, so an
+///   under-spend on day N does NOT raise day N+1's allowance. That made
+///   users feel the daily figure was "frozen" even when they were saving.
+/// * The live formula instead treats `categoryPlans` purely as caps and
+///   only subtracts what was actually spent so far + obligations the user
+///   hasn't met yet (future scheduled dated expenses and loan payments,
+///   which usually only fire on a specific day).
+///
+/// `incomeRef` is the same reference the rest of the screen uses
+/// (`max(plannedIncome, scheduledIncomeTotal)` or `actualIncome` when both
+/// are zero). `carryIn` is the optional leftover from the previous month.
+/// All numbers must already be in the plan currency.
+class LiveDailyBudget {
+  LiveDailyBudget({
+    required this.remaining,
+    required this.daily,
+    required this.weekly,
+    required this.spentToday,
+    required this.dailyTarget,
+    required this.todayLeft,
+  });
+
+  /// Money still available to spend until the end of the month, after
+  /// subtracting actual expenses to date and future fixed obligations.
+  final num remaining;
+
+  /// `remaining / daysLeftInclToday` — what the user can spend per day,
+  /// recalculated every time a new transaction lands.
+  final num daily;
+
+  /// `daily * 7`.
+  final num weekly;
+
+  /// Sum of actual expenses with `date == today` in the plan currency.
+  final num spentToday;
+
+  /// The target the user was supposed to spend today (= [daily] before
+  /// today's expenses are subtracted). Used to colour the "today" tile.
+  final num dailyTarget;
+
+  /// How much of today's target is still unspent. Negative when the user
+  /// has already overshot today's allowance.
+  final num todayLeft;
+}
+
+LiveDailyBudget computeLiveDailyBudget({
+  required DateTime today,
+  required DateTime month,
+  required num incomeRef,
+  required num carryIn,
+  required num actualExpense,
+  required num spentToday,
+  required Iterable<ScheduledExpense> scheduledExpenses,
+  required num loansMonthlyPayments,
+  required int daysLeftInclToday,
+}) {
+  final inSameMonth = today.year == month.year && today.month == month.month;
+  num futureCommitted = 0;
+  for (final e in scheduledExpenses) {
+    if (!inSameMonth) {
+      futureCommitted += e.amount;
+      continue;
+    }
+    if (e.day > today.day) futureCommitted += e.amount;
+  }
+  // Loans are assumed to come due once a month — when we don't know the day,
+  // treat them as still upcoming until the last day of the month.
+  if (inSameMonth && today.day < DateTime(month.year, month.month + 1, 0).day) {
+    futureCommitted += loansMonthlyPayments;
+  } else if (!inSameMonth) {
+    futureCommitted += loansMonthlyPayments;
+  }
+
+  final available = incomeRef + carryIn - actualExpense - futureCommitted;
+  final remaining = available > 0 ? available : 0;
+  final daily =
+      daysLeftInclToday > 0 ? remaining / daysLeftInclToday : remaining;
+  // The "target for today" is what daily would have been BEFORE we
+  // subtracted today's spending — we add `spentToday` back so the figure
+  // describes the original day-budget, then show how much of it is left.
+  final dailyTarget = daysLeftInclToday > 0
+      ? ((available + spentToday) > 0
+          ? (available + spentToday) / daysLeftInclToday
+          : 0)
+      : 0;
+  return LiveDailyBudget(
+    remaining: remaining,
+    daily: daily,
+    weekly: daily * 7,
+    spentToday: spentToday,
+    dailyTarget: dailyTarget,
+    todayLeft: dailyTarget - spentToday,
+  );
+}
+
+/// Sum of expense transactions dated on [day], converted into [currency].
+/// `excludedAccountIds` matches the same filter applied elsewhere on the
+/// monthly-plan tab (accounts the user opted out of the plan).
+num spentOnDate({
+  required DateTime day,
+  required Iterable<Transaction> transactions,
+  required Iterable<Account> accounts,
+  required String currency,
+  required num Function(num amount, String from, String to) convert,
+  Set<String>? excludedAccountIds,
+}) {
+  final dayKey =
+      '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+  num total = 0;
+  final accountById = {for (final a in accounts) a.id: a};
+  for (final t in transactions) {
+    if (t.type != TransactionType.expense) continue;
+    if (!t.date.startsWith(dayKey)) continue;
+    if (excludedAccountIds != null &&
+        t.accountId != null &&
+        excludedAccountIds.contains(t.accountId)) {
+      continue;
+    }
+    final txCurrency =
+        accountById[t.accountId]?.currency ?? currency;
+    total += convert(t.amount, txCurrency, currency);
+  }
+  return total;
+}
+
 /// =============================================================
 /// Phase 18: per-day-of-week + per-week breakdowns of free funds
 /// =============================================================

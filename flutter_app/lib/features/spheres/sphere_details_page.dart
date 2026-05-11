@@ -15,7 +15,7 @@ import '../../state/providers.dart';
 import '../../state/settings_state.dart';
 import '../../widgets/ai_response_sheet.dart';
 
-const _spherePalette = [
+const kSpherePalette = [
   Color(0xFF6D5CFF),
   Color(0xFFEC4899),
   Color(0xFFF59E0B),
@@ -26,7 +26,7 @@ const _spherePalette = [
   Color(0xFF8B5CF6),
 ];
 
-const _sphereIcons = [
+const kSphereIcons = [
   '✨',
   '💼',
   '🏠',
@@ -40,6 +40,9 @@ const _sphereIcons = [
   '🧠',
   '🎯',
 ];
+
+const _spherePalette = kSpherePalette;
+const _sphereIcons = kSphereIcons;
 
 class SphereDetailsPage extends ConsumerWidget {
   const SphereDetailsPage({super.key, required this.id});
@@ -456,24 +459,19 @@ class _CategoriesCardState extends ConsumerState<_CategoriesCard> {
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 6),
                 child: Text(
-                    'Тут можно разбить сферу на подкатегории (напр. «EN» / «BY» / «семья»).'),
+                    'Каждая категория — это отдельный раздел со своей страницей и заметками (напр. «EN» / «BY» / «семья»).'),
               )
             else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              Column(
                 children: [
                   for (final c in cats)
-                    InputChip(
-                      avatar: c.icon != null && c.icon!.isNotEmpty
-                          ? Text(c.icon!,
-                              style: const TextStyle(fontSize: 14))
-                          : const Icon(Icons.folder_outlined, size: 16),
-                      label: Text(
-                        '${c.title} · ${notes.where((n) => n.categoryId == c.id).length}',
-                      ),
-                      onPressed: () => _addOrEdit(context, edit: c),
-                      onDeleted: () => _delete(c),
+                    _CategoryListTile(
+                      sphereId: widget.sphere.id,
+                      category: c,
+                      notesCount:
+                          notes.where((n) => n.categoryId == c.id).length,
+                      onEdit: () => _addOrEdit(context, edit: c),
+                      onDelete: () => _delete(c),
                     ),
                 ],
               ),
@@ -601,6 +599,116 @@ class _CategoriesCardState extends ConsumerState<_CategoriesCard> {
           widget.sphere.id,
           (s) => s.copyWith(categories: list, notesList: notes),
         );
+  }
+}
+
+/// Row for a single category inside [_CategoriesCard]. Tap opens the full
+/// category page; the trailing icon button shows a tiny menu for editing or
+/// deleting (the old InputChip behaviour, kept for parity).
+class _CategoryListTile extends StatelessWidget {
+  const _CategoryListTile({
+    required this.sphereId,
+    required this.category,
+    required this.notesCount,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final String sphereId;
+  final SphereCategory category;
+  final int notesCount;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => context.pushNamed(
+            'sphere-category',
+            pathParameters: {
+              'id': sphereId,
+              'categoryId': category.id,
+            },
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    (category.icon == null || category.icon!.isEmpty)
+                        ? '📁'
+                        : category.icon!,
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        category.title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        '$notesCount заметок',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (v) {
+                    if (v == 'edit') onEdit();
+                    if (v == 'delete') onDelete();
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Изменить'),
+                        dense: true,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Удалить'),
+                        dense: true,
+                      ),
+                    ),
+                  ],
+                ),
+                const Icon(Icons.chevron_right, size: 22),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -760,7 +868,7 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
                     'Тут будут идеи, фото и чек-листы по этой сфере жизни.'),
               )
             else
-              for (final note in notes) _NoteTile(sphere: widget.sphere, note: note),
+              for (final note in notes) SphereNoteTile(sphere: widget.sphere, note: note),
           ],
         ),
       ),
@@ -808,8 +916,8 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
   }
 }
 
-class _NoteTile extends ConsumerWidget {
-  const _NoteTile({required this.sphere, required this.note});
+class SphereNoteTile extends ConsumerWidget {
+  const SphereNoteTile({super.key, required this.sphere, required this.note});
   final Sphere sphere;
   final SphereNote note;
 

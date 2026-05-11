@@ -14,9 +14,34 @@ import 'storage.dart';
 class AiService {
   AiService._();
 
-  static const _model = 'gemini-1.5-flash-latest';
+  /// Default Gemini model.
+  ///
+  /// `gemini-1.5-flash-latest` was retired in April 2025 — Google now
+  /// returns HTTP 404 for that name on `v1beta`. We default to the
+  /// generally-available `gemini-2.5-flash` (fast, supports JSON output)
+  /// and let the user override it from Settings via `geminiModel`.
+  static const _defaultModel = 'gemini-2.5-flash';
   static const _endpointBase =
       'https://generativelanguage.googleapis.com/v1beta/models';
+
+  /// Effective model name — user override if set, otherwise the default.
+  static String get _model {
+    final raw = AppStorage.readString('geminiModel');
+    if (raw == null || raw.trim().isEmpty) return _defaultModel;
+    return raw.trim();
+  }
+
+  static Future<void> setModel(String? model) async {
+    final trimmed = model?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      await AppStorage.remove('geminiModel');
+    } else {
+      await AppStorage.writeString('geminiModel', trimmed);
+    }
+  }
+
+  static String get defaultModel => _defaultModel;
+  static String get currentModel => _model;
 
   static String? get apiKey {
     final raw = AppStorage.readString('geminiApiKey');
