@@ -86,6 +86,12 @@ dependencies:
   # Wave 2: AI ecosystem — markdown rendering for LLM responses
   flutter_markdown: ^0.7.6
 
+  # Outdoor running: GPS tracking + map
+  geolocator: ^13.0.2
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  pedometer_2: ^5.0.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

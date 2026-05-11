@@ -413,6 +413,23 @@ final plannedWorkoutsProvider = StateNotifierProvider<
   return PlannedWorkoutsController();
 });
 
+class RunSessionsController extends JsonListController<RunSession> {
+  RunSessionsController()
+      : super(
+          storageKey: 'runSessions',
+          fromJson: RunSession.fromJson,
+          toJson: (r) => r.toJson(),
+        );
+
+  @override
+  String idOf(RunSession item) => item.id;
+}
+
+final runSessionsProvider =
+    StateNotifierProvider<RunSessionsController, List<RunSession>>((ref) {
+  return RunSessionsController();
+});
+
 /// Pomodoro state — persisted as a single JSON map (not a list).
 class PomodoroController extends StateNotifier<PomodoroState> {
   PomodoroController()
