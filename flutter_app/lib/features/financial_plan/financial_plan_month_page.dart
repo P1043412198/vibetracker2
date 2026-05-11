@@ -8,7 +8,11 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/finance.dart';
 import '../../models/financial_plan_month.dart';
+import '../../services/ai_service.dart';
+import '../../services/gemini_service.dart';
 import '../../state/providers.dart';
+import '../../state/settings_state.dart';
+import '../../widgets/ai_response_sheet.dart';
 import 'financial_plan_helpers.dart';
 import 'services/finplan_export.dart';
 import 'widgets/finplan_charts.dart';
@@ -57,14 +61,26 @@ class FinancialPlanMonthPage extends ConsumerWidget {
                 ? null
                 : () => context.push('/financial-plan/compare/${plan.id}'),
           ),
+          if (_isAiAvailable(ref))
+            IconButton(
+              tooltip: 'Финансовый коуч (AI)',
+              icon: Icon(Icons.auto_awesome,
+                  color: Theme.of(context).colorScheme.primary),
+              onPressed: () => _showFinCoach(
+                  context, plan, activeScenario, summary, fact),
+            ),
           PopupMenuButton<String>(
             onSelected: (v) => _onAction(
                 context, ref, plan, activeScenario, transactions, v),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'rename', child: Text('Переименовать')),
-              PopupMenuItem(value: 'change-month', child: Text('Сменить месяц')),
-              PopupMenuItem(value: 'export-pdf', child: Text('Экспорт в PDF')),
-              PopupMenuItem(value: 'delete', child: Text('Удалить план')),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'rename', child: Text('Переименовать')),
+              const PopupMenuItem(value: 'change-month', child: Text('Сменить месяц')),
+              const PopupMenuItem(value: 'export-pdf', child: Text('Экспорт в PDF')),
+              if (_isAiAvailable(ref))
+                const PopupMenuItem(
+                    value: 'ai-explain',
+                    child: Text('Объяснить план (AI)')),
+              const PopupMenuItem(value: 'delete', child: Text('Удалить план')),
             ],
           ),
         ],
@@ -207,7 +223,52 @@ class FinancialPlanMonthPage extends ConsumerWidget {
           if (context.mounted) Navigator.of(context).pop();
         }
         break;
+      case 'ai-explain':
+        final s = computeSummary(
+            activeScenario, transactions, plan.monthKey);
+        final f = factForMonth(transactions, plan.monthKey);
+        _showFinCoach(context, plan, activeScenario, s, f);
+        break;
     }
+  }
+
+  bool _isAiAvailable(WidgetRef ref) {
+    final key = AiService.apiKey;
+    return key != null && key.isNotEmpty && ref.read(aiEnabledProvider);
+  }
+
+  void _showFinCoach(
+    BuildContext context,
+    FinancialPlanMonth plan,
+    FinPlanScenario scenario,
+    FinPlanSummary summary,
+    MonthFact fact,
+  ) {
+    final sections = scenario.sections.map((s) => {
+          'name': s.title,
+          'kind': s.kind.name,
+          'planned': s.items.fold<double>(0, (sum, it) => sum + it.amount),
+          'items': s.items.map((i) => {
+                'name': i.label,
+                'amount': i.amount,
+              }).toList(),
+        }).toList();
+
+    showAiResponseSheet(
+      context: context,
+      title: 'Финансовый коуч — ${humanMonth(plan.monthKey)}',
+      icon: Icons.psychology,
+      future: GeminiService.coachMonth(
+        monthLabel: humanMonth(plan.monthKey),
+        planIncome: summary.income,
+        planExpense: summary.expense,
+        planSavings: summary.savings,
+        planDebt: summary.debt,
+        factIncome: fact.income,
+        factExpense: fact.expense,
+        sections: sections,
+      ),
+    );
   }
 
   Future<void> _addSection(

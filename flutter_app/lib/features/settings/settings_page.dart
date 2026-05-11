@@ -180,7 +180,13 @@ class SettingsPage extends ConsumerWidget {
               style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
           Card(
-            child: _GeminiKeyTile(),
+            child: Column(
+              children: [
+                _AiEnabledTile(),
+                const Divider(height: 1),
+                _GeminiKeyTile(),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           Text(t.settingsData, style: Theme.of(context).textTheme.labelLarge),
@@ -350,6 +356,34 @@ class _LocaleOption {
   final String label;
 }
 
+class _AiEnabledTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(aiEnabledProvider);
+    final hasKey = (ref.watch(geminiKeyProvider) ?? '').isNotEmpty;
+    return SwitchListTile(
+      secondary: Icon(
+        Icons.auto_awesome,
+        color: enabled && hasKey
+            ? Theme.of(context).colorScheme.primary
+            : null,
+      ),
+      title: const Text('AI-функции'),
+      subtitle: Text(
+        hasKey
+            ? (enabled
+                ? 'Классификатор, финкоуч, парсер чеков, сводки'
+                : 'Выключены — AI не вызывается')
+            : 'Задай ключ Gemini ниже',
+      ),
+      value: enabled && hasKey,
+      onChanged: hasKey
+          ? (v) => ref.read(aiEnabledProvider.notifier).set(v)
+          : null,
+    );
+  }
+}
+
 class _GeminiKeyTile extends ConsumerStatefulWidget {
   @override
   ConsumerState<_GeminiKeyTile> createState() => _GeminiKeyTileState();
@@ -399,8 +433,9 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Используется AI-генератором тренировок. Ключ хранится локально, '
-            'на устройстве (Hive). Получить: aistudio.google.com/apikey',
+            'Используется для AI-функций: классификатор инбокса, финкоуч, парсер '
+            'чеков, сводки по сферам. Ключ хранится локально (Hive). '
+            'Получить: aistudio.google.com/apikey',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),

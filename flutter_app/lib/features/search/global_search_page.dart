@@ -4,7 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../models/sphere.dart';
+import '../../services/ai_service.dart';
+import '../../services/gemini_service.dart';
 import '../../state/providers.dart';
+import '../../state/settings_state.dart';
+import '../../widgets/ai_response_sheet.dart';
 
 /// Global cross-entity search page.
 ///
@@ -47,6 +51,13 @@ class _GlobalSearchPageState extends ConsumerState<GlobalSearchPage> {
           style: const TextStyle(fontSize: 18),
         ),
         actions: [
+          if (_query.isNotEmpty && _isAiAvailable)
+            IconButton(
+              tooltip: 'Спросить AI',
+              icon: Icon(Icons.auto_awesome,
+                  color: Theme.of(context).colorScheme.primary),
+              onPressed: () => _aiSearch(),
+            ),
           if (_query.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.close),
@@ -257,6 +268,46 @@ class _GlobalSearchPageState extends ConsumerState<GlobalSearchPage> {
     }
 
     return out;
+  }
+
+  bool get _isAiAvailable {
+    final key = AiService.apiKey;
+    return key != null && key.isNotEmpty && ref.read(aiEnabledProvider);
+  }
+
+  void _aiSearch() {
+    final q = _query.trim();
+    if (q.isEmpty) return;
+
+    final contextData = <String, dynamic>{
+      'tasks': ref
+          .read(tasksProvider)
+          .take(20)
+          .map((t) => {'title': t.title, 'date': t.date, 'done': t.completed})
+          .toList(),
+      'inbox': ref
+          .read(inboxProvider)
+          .take(20)
+          .map((i) => {'content': i.content, 'date': i.createdAt})
+          .toList(),
+      'spheres': ref
+          .read(spheresProvider)
+          .map((s) => {'title': s.title, 'notes': s.notesList?.length ?? 0})
+          .toList(),
+      'transactions': ref
+          .read(transactionsProvider)
+          .take(30)
+          .map((t) =>
+              {'category': t.category, 'amount': t.amount, 'date': t.date})
+          .toList(),
+    };
+
+    showAiResponseSheet(
+      context: context,
+      title: 'AI поиск: «$q»',
+      icon: Icons.auto_awesome,
+      future: GeminiService.naturalSearch(query: q, context: contextData),
+    );
   }
 
   bool _matches(String haystack, String needle) =>

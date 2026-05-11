@@ -177,6 +177,26 @@ final localeProvider =
   return LocaleController();
 });
 
+/// AI features on/off toggle (default: on when key is present).
+class AiEnabledController extends StateNotifier<bool> {
+  AiEnabledController() : super(true) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) state = stored == 'true';
+  }
+
+  static const _key = 'aiEnabled';
+
+  Future<void> set(bool enabled) async {
+    state = enabled;
+    await AppStorage.writeString(_key, enabled.toString());
+  }
+}
+
+final aiEnabledProvider =
+    StateNotifierProvider<AiEnabledController, bool>((ref) {
+  return AiEnabledController();
+});
+
 /// PIN-code lock. Stores a 4-digit code in plaintext (low-security: this is a
 /// privacy gate against casual snooping, not a cryptographic vault).
 class PinLockController extends StateNotifier<PinLockState> {

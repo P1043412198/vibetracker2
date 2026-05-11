@@ -8,8 +8,12 @@ import 'package:uuid/uuid.dart';
 import '../../models/enums.dart';
 import '../../models/sphere.dart';
 import '../../models/task.dart';
+import '../../services/ai_service.dart';
+import '../../services/gemini_service.dart';
 import '../../services/photo_storage.dart';
 import '../../state/providers.dart';
+import '../../state/settings_state.dart';
+import '../../widgets/ai_response_sheet.dart';
 
 const _spherePalette = [
   Color(0xFF6D5CFF),
@@ -80,6 +84,14 @@ class SphereDetailsPage extends ConsumerWidget {
                   sphere.id,
                   (s) => s.copyWith(isPinned: !(s.isPinned ?? false))),
             ),
+            if (_isAiAvailable(ref))
+              IconButton(
+                tooltip: 'Сводка по сфере (AI)',
+                icon: Icon(Icons.auto_awesome,
+                    color: Theme.of(context).colorScheme.primary),
+                onPressed: () =>
+                    _showSphereSummary(context, sphere, tasks),
+              ),
             IconButton(
               icon: const Icon(Icons.edit_outlined),
               onPressed: () => _editMeta(context, ref, sphere),
@@ -146,6 +158,42 @@ class SphereDetailsPage extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  bool _isAiAvailable(WidgetRef ref) {
+    final key = AiService.apiKey;
+    return key != null && key.isNotEmpty && ref.read(aiEnabledProvider);
+  }
+
+  void _showSphereSummary(
+    BuildContext context,
+    Sphere sphere,
+    List<TaskItem> tasks,
+  ) {
+    final notes = sphere.notesList ?? const <SphereNote>[];
+    final completedTasks = tasks.where((t) => t.completed).length;
+    showAiResponseSheet(
+      context: context,
+      title: 'Сводка: ${sphere.title}',
+      icon: Icons.psychology,
+      future: GeminiService.summarizeSphere(
+        sphereTitle: sphere.title,
+        notesCount: notes.length,
+        tasksTotal: tasks.length,
+        tasksCompleted: completedTasks,
+        habitsCount: 0,
+        categoriesCount:
+            (sphere.categories ?? const <SphereCategory>[]).length,
+        recentNotes: notes
+            .take(5)
+            .map((n) => n.content)
+            .toList(),
+        recentTasks: tasks
+            .take(5)
+            .map((t) => t.title)
+            .toList(),
       ),
     );
   }

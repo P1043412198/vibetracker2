@@ -13,12 +13,16 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
+import '../../models/finance.dart';
 import '../../models/habit.dart';
 import '../../models/misc.dart';
 import '../../models/sphere.dart';
 import '../../models/task.dart';
+import '../../services/ai_service.dart';
+import '../../services/gemini_service.dart';
 import '../../services/link_preview_service.dart';
 import '../../state/providers.dart';
+import '../../state/settings_state.dart';
 
 /// Chat-style "Сохранёнки" / inbox.
 ///
@@ -715,6 +719,182 @@ class _InboxPageState extends ConsumerState<InboxPage> {
     setState(_selectedIds.clear);
   }
 
+  bool get _isAiAvailable {
+    final key = AiService.apiKey;
+    return key != null && key.isNotEmpty && ref.read(aiEnabledProvider);
+  }
+
+  Future<void> _aiClassify(InboxItem item) async {
+    if (item.content.isEmpty) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final result = await GeminiService.classifyInbox(item.content);
+      if (!mounted) return;
+      Navigator.of(context).pop(); // dismiss spinner
+      if (result == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('AI не смог классифицировать')),
+        );
+        return;
+      }
+      final type = (result['type'] as String?) ?? 'note';
+      final title = (result['suggestedTitle'] as String?) ?? item.content;
+      final amount = result['suggestedAmount'];
+      final category = result['suggestedCategory'] as String?;
+      final confidence = result['confidence'];
+
+      final confStr = confidence != null
+          ? ' (${(confidence * 100).toStringAsFixed(0)}%)'
+          : '';
+
+      final action = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetCtx) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_awesome,
+                        color: Theme.of(sheetCtx).colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'AI: это $type$confStr',
+                        style: Theme.of(sheetCtx).textTheme.titleMedium,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (title.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text('«$title»',
+                      style: Theme.of(sheetCtx).textTheme.bodyMedium),
+                ),
+              if (amount != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 4),
+                  child: Text(
+                    'Сумма: $amount ${result['suggestedCurrency'] ?? 'BYN'}',
+                    style: Theme.of(sheetCtx).textTheme.bodySmall,
+                  ),
+                ),
+              if (category != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 2),
+                  child: Text('Категория: $category',
+                      style: Theme.of(sheetCtx).textTheme.bodySmall),
+                ),
+              const Divider(),
+              if (type == 'task' || type == 'reminder')
+                ListTile(
+                  leading: const Icon(Icons.task_alt),
+                  title: const Text('Создать задачу'),
+                  onTap: () => Navigator.of(sheetCtx).pop('task'),
+                ),
+              if (type == 'expense' || type == 'income')
+                ListTile(
+                  leading: const Icon(Icons.receipt_long),
+                  title: Text(type == 'income'
+                      ? 'Создать доход'
+                      : 'Создать расход'),
+                  onTap: () => Navigator.of(sheetCtx).pop('transaction'),
+                ),
+              if (type == 'habit')
+                ListTile(
+                  leading: const Icon(Icons.eco),
+                  title: const Text('Создать привычку'),
+                  onTap: () => Navigator.of(sheetCtx).pop('habit'),
+                ),
+              ListTile(
+                leading: const Icon(Icons.drive_file_move_outline),
+                title: const Text('Перенести в…'),
+                onTap: () => Navigator.of(sheetCtx).pop('promote'),
+              ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Отмена'),
+                onTap: () => Navigator.of(sheetCtx).pop(null),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+      if (action == null || !mounted) return;
+      switch (action) {
+        case 'task':
+          await _promoteToTask(item);
+          break;
+        case 'habit':
+          await _promoteToHabit(item);
+          break;
+        case 'transaction':
+          await _aiCreateTransaction(item, result);
+          break;
+        case 'promote':
+          await _promoteMany([item]);
+          break;
+      }
+    } on AiServiceException catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('AI ошибка: $e')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ошибка: $e')),
+      );
+    }
+  }
+
+  Future<void> _aiCreateTransaction(
+      InboxItem item, Map<String, dynamic> aiResult) async {
+    final amount = (aiResult['suggestedAmount'] as num?)?.toDouble() ?? 0;
+    final category =
+        (aiResult['suggestedCategory'] as String?) ?? 'Без категории';
+    final title =
+        (aiResult['suggestedTitle'] as String?) ?? item.content;
+    final type = aiResult['type'] == 'income'
+        ? TransactionType.income
+        : TransactionType.expense;
+    final dateStr = (aiResult['suggestedDate'] as String?) ??
+        DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+    final tx = Transaction(
+      id: const Uuid().v4(),
+      amount: amount,
+      type: type,
+      category: category,
+      date: dateStr,
+      notes: title,
+      source: 'ai-inbox',
+    );
+    await ref.read(transactionsProvider.notifier).add(tx);
+    await _delete(item);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+            '${type == TransactionType.income ? "Доход" : "Расход"}: $title — $amount'),
+      ),
+    );
+  }
+
   void _showItemMenu(InboxItem item) {
     showModalBottomSheet<void>(
       context: context,
@@ -756,6 +936,17 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                 _copy(item);
               },
             ),
+            if (_isAiAvailable)
+              ListTile(
+                leading: Icon(Icons.auto_awesome,
+                    color: Theme.of(context).colorScheme.primary),
+                title: const Text('AI классификация'),
+                subtitle: const Text('Gemini определит тип и предложит действие'),
+                onTap: () {
+                  Navigator.of(sheetCtx).pop();
+                  _aiClassify(item);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.drive_file_move_outline),
               title: const Text('Перенести в…'),

@@ -162,6 +162,25 @@ class AiService {
     return text.trim();
   }
 
+  /// Convenience: call [generateContent] and parse the response as JSON.
+  /// Strips markdown fences if the model wraps the output in ```json...```.
+  static Future<Map<String, dynamic>?> generateJson(String prompt) async {
+    final raw = await generateContent(prompt);
+    var cleaned = raw.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned
+          .replaceFirst(RegExp(r'^```\w*\n?'), '')
+          .replaceFirst(RegExp(r'\n?```$'), '');
+    }
+    try {
+      final parsed = jsonDecode(cleaned);
+      if (parsed is Map<String, dynamic>) return parsed;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   static String _truncate(String s, int max) =>
       s.length <= max ? s : '${s.substring(0, max)}…';
 }
