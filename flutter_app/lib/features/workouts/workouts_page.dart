@@ -60,6 +60,7 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Тренировки'),
         actions: [
           IconButton(

@@ -49,6 +49,7 @@ class _ToolsPageState extends State<ToolsPage> with SingleTickerProviderStateMix
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Инструменты'),
         bottom: TabBar(
           controller: _tabCtrl,

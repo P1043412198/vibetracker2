@@ -28,6 +28,7 @@ class LoansPage extends ConsumerWidget {
         loans.fold<num>(0, (a, l) => a + (l.balance > 0 ? l.balance : 0));
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Кредиты'),
         actions: [
           IconButton(

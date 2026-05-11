@@ -86,7 +86,7 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage> {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => setState(() => _openedCategory = null),
               )
-            : null,
+            : const BackButton(),
         title: Row(
           children: [
             const Icon(Icons.shield_outlined, size: 22),

@@ -300,20 +300,21 @@ class _WeeklyDoneBarChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 24,
+              reservedSize: 28,
               getTitlesWidget: (value, _) {
                 final i = value.toInt();
                 if (i < 0 || i >= weekStarts.length) {
                   return const SizedBox.shrink();
                 }
-                if (i % 2 != 0 && i != weekStarts.length - 1) {
+                // Show every 3rd label to prevent overlap
+                if (i % 3 != 0 && i != weekStarts.length - 1) {
                   return const SizedBox.shrink();
                 }
                 final ws = weekStarts[i];
                 return Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(DateFormat('dd.MM').format(ws),
-                      style: const TextStyle(fontSize: 10)),
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(DateFormat('d/MM').format(ws),
+                      style: const TextStyle(fontSize: 9)),
                 );
               },
             ),
@@ -402,16 +403,16 @@ class _RollingRateChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 22,
+              reservedSize: 28,
               interval: 7,
               getTitlesWidget: (v, _) {
                 final i = v.toInt();
                 if (i < 0 || i > 29) return const SizedBox.shrink();
                 final date = start.add(Duration(days: i));
                 return Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(DateFormat('dd.MM').format(date),
-                      style: const TextStyle(fontSize: 10)),
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(DateFormat('d/MM').format(date),
+                      style: const TextStyle(fontSize: 9)),
                 );
               },
             ),

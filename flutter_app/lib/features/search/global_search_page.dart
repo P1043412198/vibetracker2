@@ -40,6 +40,7 @@ class _GlobalSearchPageState extends ConsumerState<GlobalSearchPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: TextField(
           controller: _controller,
           autofocus: true,

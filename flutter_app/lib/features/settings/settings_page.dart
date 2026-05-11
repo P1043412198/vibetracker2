@@ -20,7 +20,10 @@ class SettingsPage extends ConsumerWidget {
     final t = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: Text(t.navSettings)),
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: Text(t.navSettings),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [

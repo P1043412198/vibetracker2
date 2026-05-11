@@ -104,6 +104,7 @@ class _WorkSchedulePageState extends ConsumerState<WorkSchedulePage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Row(
           children: [
             Icon(Icons.calendar_today, size: 22),

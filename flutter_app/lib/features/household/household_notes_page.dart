@@ -37,7 +37,10 @@ class HouseholdNotesPage extends ConsumerWidget {
     final categoryKeys = byCategory.keys.toList()..sort();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Бытовые заметки')),
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text('Бытовые заметки'),
+      ),
       body: notes.isEmpty
           ? const _Empty()
           : ListView(

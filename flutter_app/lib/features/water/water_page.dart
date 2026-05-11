@@ -66,6 +66,7 @@ class _WaterPageState extends ConsumerState<WaterPage>
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Водный баланс'),
         actions: [
           IconButton(

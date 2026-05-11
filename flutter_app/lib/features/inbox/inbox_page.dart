@@ -1089,6 +1089,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
               ],
             )
           : AppBar(
+        leading: const BackButton(),
         title: Text(_showSearch ? '' : 'Сохранёнки'),
         actions: [
           IconButton(

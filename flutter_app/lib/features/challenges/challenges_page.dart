@@ -26,7 +26,10 @@ class ChallengesPage extends ConsumerWidget {
     final checkIns = ref.watch(challengeCheckInsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Челленджи')),
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text('Челленджи'),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addChallenge(context, ref),
         icon: const Icon(Icons.add),

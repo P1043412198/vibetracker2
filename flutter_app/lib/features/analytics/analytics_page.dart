@@ -42,6 +42,7 @@ class _AnalyticsPageState extends State<AnalyticsPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Аналитика'),
         bottom: TabBar(
           controller: _tab,

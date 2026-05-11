@@ -997,7 +997,7 @@ class _TasksOverviewCard extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall),
             const SizedBox(height: 4),
             SizedBox(
-              height: 110,
+              height: 140,
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceBetween,
@@ -1016,16 +1016,17 @@ class _TasksOverviewCard extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 32,
-                        // ensure integer step so labels don't pile up.
-                        interval: math.max(1, (yMax / 4).ceilToDouble()),
+                        reservedSize: 28,
+                        interval: math.max(1, (yMax / 3).ceilToDouble()),
                         getTitlesWidget: (v, _) {
                           final i = v.toInt();
-                          if (i < 0) return const SizedBox.shrink();
+                          if (i < 0 || v != v.roundToDouble()) {
+                            return const SizedBox.shrink();
+                          }
                           return Padding(
                             padding: const EdgeInsets.only(right: 4),
                             child: Text(i.toString(),
-                                style: const TextStyle(fontSize: 10)),
+                                style: const TextStyle(fontSize: 9)),
                           );
                         },
                       ),
@@ -1033,16 +1034,23 @@ class _TasksOverviewCard extends StatelessWidget {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 22,
-                        interval: 7,
+                        reservedSize: 30,
+                        interval: 1,
                         getTitlesWidget: (v, _) {
                           final i = v.toInt();
                           if (i < 0 || i >= 30) {
                             return const SizedBox.shrink();
                           }
+                          // Show only every 7th label to avoid overlap
+                          if (i % 7 != 0 && i != 29) {
+                            return const SizedBox.shrink();
+                          }
                           final d = today.subtract(Duration(days: 29 - i));
-                          return Text(DateFormat('d.MM').format(d),
-                              style: const TextStyle(fontSize: 9));
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(DateFormat('d/MM').format(d),
+                                style: const TextStyle(fontSize: 8)),
+                          );
                         },
                       ),
                     ),

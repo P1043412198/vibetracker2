@@ -35,6 +35,7 @@ class _FinancialPlanPageState extends ConsumerState<FinancialPlanPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Финансовый план'),
       ),
       body: months.isEmpty

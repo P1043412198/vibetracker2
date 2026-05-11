@@ -88,6 +88,7 @@ class _PomodoroPageState extends ConsumerState<PomodoroPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Pomodoro'),
         actions: [
           IconButton(

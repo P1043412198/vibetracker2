@@ -38,6 +38,7 @@ class _QrReceiptScannerPageState extends ConsumerState<QrReceiptScannerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Скан QR чека'),
         actions: [
           IconButton(
