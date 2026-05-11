@@ -8,6 +8,7 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/dashboard/dashboard_settings_page.dart';
 import '../features/finance/finance_page.dart';
 import '../features/finance/loans_page.dart';
+import '../features/finance/qr_receipt_scanner_page.dart';
 import '../features/finance/receipt_gallery_page.dart';
 import '../features/financial_plan/financial_plan_compare_page.dart';
 import '../features/financial_plan/financial_plan_month_page.dart';
@@ -20,6 +21,7 @@ import '../features/inbox/inbox_page.dart';
 import '../features/household/household_notes_page.dart';
 import '../features/household/household_page.dart';
 import '../features/passwords/passwords_page.dart';
+import '../features/search/global_search_page.dart';
 import '../features/security/pin_setup_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/shopping_list/shopping_list_page.dart';
@@ -90,6 +92,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: InboxPage()),
           ),
           GoRoute(
+            path: '/search',
+            name: 'search',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: GlobalSearchPage()),
+          ),
+          GoRoute(
             path: '/finance',
             name: 'finance',
             pageBuilder: (_, __) =>
@@ -100,6 +108,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'receipts',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: ReceiptGalleryPage()),
+          ),
+          GoRoute(
+            path: '/qr-receipt',
+            name: 'qr-receipt',
+            builder: (_, __) => const QrReceiptScannerPage(),
           ),
           GoRoute(
             path: '/loans',

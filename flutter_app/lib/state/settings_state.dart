@@ -216,6 +216,13 @@ class PinLockController extends StateNotifier<PinLockState> {
     }
     return false;
   }
+
+  /// Mark the app as unlocked after a successful biometric prompt without
+  /// requiring the PIN to be re-entered. The PIN remains stored as a
+  /// fallback for devices where biometric auth is unavailable.
+  void tryUnlockBiometric() {
+    state = PinLockState(pin: state.pin, locked: false);
+  }
 }
 
 class PinLockState {

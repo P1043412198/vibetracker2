@@ -7,6 +7,7 @@ import '../../services/finance_calc.dart';
 import '../../state/currency_state.dart';
 import '../../state/providers.dart';
 import '../../state/settings_state.dart';
+import '../financial_plan/services/finplan_export.dart';
 import 'accounts_tab.dart';
 import 'charts_tab.dart';
 import 'monthly_plan_tab.dart';
@@ -93,6 +94,11 @@ class _FinancePageState extends ConsumerState<FinancePage>
             onPressed: () => context.push('/receipts'),
           ),
           IconButton(
+            tooltip: 'Сканер QR чеков',
+            icon: const Icon(Icons.qr_code_scanner),
+            onPressed: () => context.push('/qr-receipt'),
+          ),
+          IconButton(
             tooltip: 'Финансовая грамотность',
             icon: const Icon(Icons.school_outlined),
             onPressed: () => context.push('/tools'),
@@ -101,6 +107,11 @@ class _FinancePageState extends ConsumerState<FinancePage>
             tooltip: 'Финансовый план',
             icon: const Icon(Icons.insights_outlined),
             onPressed: () => context.push('/financial-plan'),
+          ),
+          IconButton(
+            tooltip: 'Экспорт транзакций в CSV',
+            icon: const Icon(Icons.download_outlined),
+            onPressed: () => exportTransactionsAsCsv(transactions),
           ),
         ],
         bottom: TabBar(

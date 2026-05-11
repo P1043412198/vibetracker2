@@ -3,10 +3,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
@@ -254,6 +256,26 @@ class _InboxPageState extends ConsumerState<InboxPage> {
 
   Future<void> _delete(InboxItem item) async {
     await ref.read(inboxProvider.notifier).remove(item.id);
+  }
+
+  /// Remove [item] and show an undo snackbar that re-inserts it if pressed.
+  /// Used by the swipe-to-delete action.
+  Future<void> _deleteWithUndo(InboxItem item) async {
+    await ref.read(inboxProvider.notifier).remove(item.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Удалено'),
+        action: SnackBarAction(
+          label: 'Отменить',
+          onPressed: () async {
+            await ref.read(inboxProvider.notifier).upsert(item);
+          },
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   Future<void> _copy(InboxItem item) async {
@@ -975,24 +997,86 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                         children: [
                           if (showDateHeader)
                             _DateChip(date: DateTime.parse(item.createdAt)),
-                          _Bubble(
-                            item: item,
-                            selected: _selectedIds.contains(item.id),
-                            selectionMode: _isSelecting,
-                            onTap: () {
-                              if (_isSelecting) {
-                                _toggleSelected(item.id);
-                              } else if (item.isLink || item.hasMedia) {
-                                _open(item);
-                              }
-                            },
-                            onLongPress: () {
-                              if (_isSelecting) {
-                                _toggleSelected(item.id);
-                              } else {
-                                _showItemMenu(item);
-                              }
-                            },
+                          Slidable(
+                            key: ValueKey('inbox-${item.id}'),
+                            groupTag: 'inbox',
+                            startActionPane: ActionPane(
+                              extentRatio: 0.55,
+                              motion: const DrawerMotion(),
+                              children: [
+                                SlidableAction(
+                                  onPressed: (_) {
+                                    HapticFeedback.selectionClick();
+                                    _promoteMany([item]);
+                                  },
+                                  backgroundColor: const Color(0xFF6366F1),
+                                  foregroundColor: Colors.white,
+                                  icon: Icons.drive_file_move_outline,
+                                  label: 'Перенести',
+                                ),
+                                SlidableAction(
+                                  onPressed: (_) {
+                                    HapticFeedback.selectionClick();
+                                    _togglePin(item);
+                                  },
+                                  backgroundColor: const Color(0xFFEAB308),
+                                  foregroundColor: Colors.white,
+                                  icon: item.pinned
+                                      ? Icons.push_pin
+                                      : Icons.push_pin_outlined,
+                                  label: item.pinned
+                                      ? 'Открепить'
+                                      : 'Закрепить',
+                                ),
+                              ],
+                            ),
+                            endActionPane: ActionPane(
+                              extentRatio: 0.55,
+                              motion: const DrawerMotion(),
+                              children: [
+                                SlidableAction(
+                                  onPressed: (_) {
+                                    HapticFeedback.selectionClick();
+                                    _toggleArchive(item);
+                                  },
+                                  backgroundColor: const Color(0xFF6B7280),
+                                  foregroundColor: Colors.white,
+                                  icon: item.archived
+                                      ? Icons.unarchive_outlined
+                                      : Icons.archive_outlined,
+                                  label: item.archived ? 'Назад' : 'В архив',
+                                ),
+                                SlidableAction(
+                                  onPressed: (_) async {
+                                    HapticFeedback.mediumImpact();
+                                    await _deleteWithUndo(item);
+                                  },
+                                  backgroundColor: const Color(0xFFEF4444),
+                                  foregroundColor: Colors.white,
+                                  icon: Icons.delete_outline,
+                                  label: 'Удалить',
+                                ),
+                              ],
+                            ),
+                            child: _Bubble(
+                              item: item,
+                              selected: _selectedIds.contains(item.id),
+                              selectionMode: _isSelecting,
+                              onTap: () {
+                                if (_isSelecting) {
+                                  _toggleSelected(item.id);
+                                } else if (item.isLink || item.hasMedia) {
+                                  _open(item);
+                                }
+                              },
+                              onLongPress: () {
+                                if (_isSelecting) {
+                                  _toggleSelected(item.id);
+                                } else {
+                                  _showItemMenu(item);
+                                }
+                              },
+                            ),
                           ),
                         ],
                       );
@@ -1457,7 +1541,7 @@ class _LinkPreview extends StatelessWidget {
   }
 }
 
-class _Composer extends StatelessWidget {
+class _Composer extends StatefulWidget {
   const _Composer({
     required this.controller,
     required this.focusNode,
@@ -1472,6 +1556,57 @@ class _Composer extends StatelessWidget {
   final VoidCallback onAttach;
 
   @override
+  State<_Composer> createState() => _ComposerState();
+}
+
+class _ComposerState extends State<_Composer> {
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _speechReady = false;
+  bool _listening = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initSpeech();
+  }
+
+  Future<void> _initSpeech() async {
+    try {
+      _speechReady = await _speech.initialize();
+      if (mounted) setState(() {});
+    } catch (_) {
+      _speechReady = false;
+    }
+  }
+
+  Future<void> _toggleListen() async {
+    if (!_speechReady) {
+      await _initSpeech();
+      if (!_speechReady) return;
+    }
+    if (_listening) {
+      await _speech.stop();
+      setState(() => _listening = false);
+      HapticFeedback.lightImpact();
+      return;
+    }
+    HapticFeedback.lightImpact();
+    setState(() => _listening = true);
+    await _speech.listen(
+      localeId: 'ru_RU',
+      onResult: (result) {
+        widget.controller.text = result.recognizedWords;
+        widget.controller.selection = TextSelection.collapsed(
+          offset: widget.controller.text.length,
+        );
+        if (result.finalResult) {
+          setState(() => _listening = false);
+        }
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return SafeArea(
@@ -1483,12 +1618,18 @@ class _Composer extends StatelessWidget {
             IconButton(
               tooltip: 'Прикрепить файл',
               icon: const Icon(Icons.attach_file),
-              onPressed: onAttach,
+              onPressed: widget.onAttach,
             ),
             IconButton(
               tooltip: 'Вставить из буфера',
               icon: const Icon(Icons.content_paste_outlined),
-              onPressed: onPaste,
+              onPressed: widget.onPaste,
+            ),
+            IconButton(
+              tooltip: _listening ? 'Остановить' : 'Голосовой ввод',
+              icon: Icon(_listening ? Icons.mic : Icons.mic_none),
+              color: _listening ? scheme.error : null,
+              onPressed: _toggleListen,
             ),
             Expanded(
               child: Container(
@@ -1497,8 +1638,8 @@ class _Composer extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: TextField(
-                  controller: controller,
-                  focusNode: focusNode,
+                  controller: widget.controller,
+                  focusNode: widget.focusNode,
                   textInputAction: TextInputAction.newline,
                   keyboardType: TextInputType.multiline,
                   minLines: 1,
@@ -1515,7 +1656,7 @@ class _Composer extends StatelessWidget {
             const SizedBox(width: 4),
             IconButton.filled(
               icon: const Icon(Icons.send_rounded),
-              onPressed: onSubmit,
+              onPressed: widget.onSubmit,
             ),
           ],
         ),

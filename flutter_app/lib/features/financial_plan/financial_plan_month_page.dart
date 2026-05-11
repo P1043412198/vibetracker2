@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -8,6 +10,7 @@ import '../../models/finance.dart';
 import '../../models/financial_plan_month.dart';
 import '../../state/providers.dart';
 import 'financial_plan_helpers.dart';
+import 'services/finplan_export.dart';
 import 'widgets/finplan_charts.dart';
 
 /// Detail page for a single [FinancialPlanMonth]. Shows the scenario picker,
@@ -55,10 +58,12 @@ class FinancialPlanMonthPage extends ConsumerWidget {
                 : () => context.push('/financial-plan/compare/${plan.id}'),
           ),
           PopupMenuButton<String>(
-            onSelected: (v) => _onAction(context, ref, plan, v),
+            onSelected: (v) => _onAction(
+                context, ref, plan, activeScenario, transactions, v),
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'rename', child: Text('Переименовать')),
               PopupMenuItem(value: 'change-month', child: Text('Сменить месяц')),
+              PopupMenuItem(value: 'export-pdf', child: Text('Экспорт в PDF')),
               PopupMenuItem(value: 'delete', child: Text('Удалить план')),
             ],
           ),
@@ -93,13 +98,11 @@ class FinancialPlanMonthPage extends ConsumerWidget {
               ),
             )
           else
-            for (final section in activeScenario.sections)
-              _SectionCard(
-                plan: plan,
-                scenario: activeScenario,
-                section: section,
-                transactions: transactions,
-              ),
+            _SectionsList(
+              plan: plan,
+              scenario: activeScenario,
+              transactions: transactions,
+            ),
           const SizedBox(height: 12),
           _AddSectionButton(
             onPressed: () => _addSection(context, ref, plan, activeScenario),
@@ -113,8 +116,18 @@ class FinancialPlanMonthPage extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     FinancialPlanMonth plan,
+    FinPlanScenario activeScenario,
+    List<Transaction> transactions,
     String action,
   ) async {
+    if (action == 'export-pdf') {
+      await exportMonthAsPdf(
+        plan: plan,
+        scenario: activeScenario,
+        transactions: transactions,
+      );
+      return;
+    }
     switch (action) {
       case 'rename':
         final controller = TextEditingController(text: plan.title);
@@ -895,88 +908,109 @@ class _ItemTile extends ConsumerWidget {
     final fact = factForItem(item, transactions, plan.monthKey);
     final fmt =
         NumberFormat.currency(locale: 'ru', symbol: '', decimalDigits: 0);
-    return InkWell(
-      onTap: () => _edit(context, ref),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-        child: Row(
-          children: [
-            if (item.day != null) ...[
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(8),
+    return Slidable(
+      key: ValueKey('item-${item.id}'),
+      groupTag: 'finplan-items-${section.id}',
+      endActionPane: ActionPane(
+        extentRatio: 0.5,
+        motion: const DrawerMotion(),
+        children: [
+          SlidableAction(
+            onPressed: (_) {
+              HapticFeedback.selectionClick();
+              _edit(context, ref);
+            },
+            backgroundColor: const Color(0xFF6366F1),
+            foregroundColor: Colors.white,
+            icon: Icons.edit_outlined,
+            label: 'Изменить',
+          ),
+          SlidableAction(
+            onPressed: (_) async {
+              HapticFeedback.mediumImpact();
+              final next =
+                  section.items.where((i) => i.id != item.id).toList();
+              await _replaceSection(
+                ref,
+                plan,
+                scenario,
+                section.copyWith(items: next),
+              );
+            },
+            backgroundColor: const Color(0xFFEF4444),
+            foregroundColor: Colors.white,
+            icon: Icons.delete_outline,
+            label: 'Удалить',
+          ),
+        ],
+      ),
+      child: InkWell(
+        onTap: () => _edit(context, ref),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          child: Row(
+            children: [
+              if (item.day != null) ...[
+                Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${item.day}',
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w700),
+                  ),
                 ),
-                child: Text(
-                  '${item.day}',
-                  style: const TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.w700),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.label,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (item.linkedCategory != null ||
+                        item.recurring ||
+                        (item.notes?.isNotEmpty ?? false)) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (item.linkedCategory != null)
+                            '#${item.linkedCategory}',
+                          if (item.recurring) 'каждый месяц',
+                          if (item.notes?.isNotEmpty ?? false) item.notes!,
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(width: 10),
-            ],
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    item.label,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    '${fmt.format(item.amount)} ${item.currency}',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  if (item.linkedCategory != null ||
-                      item.recurring ||
-                      (item.notes?.isNotEmpty ?? false)) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      [
-                        if (item.linkedCategory != null)
-                          '#${item.linkedCategory}',
-                        if (item.recurring) 'каждый месяц',
-                        if (item.notes?.isNotEmpty ?? false) item.notes!,
-                      ].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
+                  if (fact > 0)
+                    _FactBadge(value: fact, planned: item.amount.toDouble()),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${fmt.format(item.amount)} ${item.currency}',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                if (fact > 0)
-                  Text(
-                    'факт ${fmt.format(fact)}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-              ],
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20),
-              onPressed: () async {
-                final next = section.items
-                    .where((i) => i.id != item.id)
-                    .toList();
-                await _replaceSection(
-                  ref,
-                  plan,
-                  scenario,
-                  section.copyWith(items: next),
-                );
-              },
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1005,6 +1039,40 @@ class _ItemTile extends ConsumerWidget {
             : i)
         .toList();
     await _replaceSection(ref, plan, scenario, section.copyWith(items: next));
+  }
+}
+
+class _FactBadge extends StatelessWidget {
+  const _FactBadge({required this.value, required this.planned});
+  final double value;
+  final double planned;
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt =
+        NumberFormat.currency(locale: 'ru', symbol: '', decimalDigits: 0);
+    final ratio = planned == 0 ? 0.0 : (value / planned).clamp(0.0, 2.0);
+    final color = ratio > 1.0
+        ? const Color(0xFFEAB308)
+        : (ratio < 0.5
+            ? const Color(0xFF22C55E)
+            : Theme.of(context).colorScheme.primary);
+    return Container(
+      margin: const EdgeInsets.only(top: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'факт ${fmt.format(value)}',
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
   }
 }
 
@@ -1038,6 +1106,81 @@ Future<void> _replaceScenario(
           updatedAt: DateTime.now().toIso8601String(),
         ),
       );
+}
+
+/// Reorderable wrapper around the section cards. The list lives inside the
+/// outer page [ListView], so it disables its own scrolling and shrink-wraps.
+class _SectionsList extends ConsumerWidget {
+  const _SectionsList({
+    required this.plan,
+    required this.scenario,
+    required this.transactions,
+  });
+
+  final FinancialPlanMonth plan;
+  final FinPlanScenario scenario;
+  final List<Transaction> transactions;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ReorderableListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      buildDefaultDragHandles: false,
+      proxyDecorator: (child, _, animation) => Material(
+        color: Colors.transparent,
+        elevation: 8,
+        child: child,
+      ),
+      itemCount: scenario.sections.length,
+      onReorder: (oldIndex, newIndex) async {
+        HapticFeedback.mediumImpact();
+        if (newIndex > oldIndex) newIndex -= 1;
+        final next = [...scenario.sections];
+        final moved = next.removeAt(oldIndex);
+        next.insert(newIndex, moved);
+        await _replaceScenario(
+          ref,
+          plan,
+          scenario.copyWith(sections: next),
+        );
+      },
+      itemBuilder: (context, i) {
+        final section = scenario.sections[i];
+        return Padding(
+          key: ValueKey('section-${section.id}'),
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ReorderableDragStartListener(
+                index: i,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 12, 6, 12),
+                  child: Icon(
+                    Icons.drag_indicator,
+                    size: 22,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurfaceVariant
+                        .withValues(alpha: 0.6),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _SectionCard(
+                  plan: plan,
+                  scenario: scenario,
+                  section: section,
+                  transactions: transactions,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _SectionEditorResult {

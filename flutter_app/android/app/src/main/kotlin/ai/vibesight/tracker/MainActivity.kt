@@ -2,7 +2,7 @@ package ai.vibesight.tracker
 
 import android.content.Intent
 import android.net.Uri
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -30,7 +30,9 @@ import java.util.Locale
  * }
  * ```
  */
-class MainActivity : FlutterActivity() {
+// local_auth requires the host to extend FlutterFragmentActivity (not the
+// default FlutterActivity) so it can show its own BiometricPrompt fragment.
+class MainActivity : FlutterFragmentActivity() {
     private val channelName = "ai.vibesight.tracker/share"
     private var pendingShare: Map<String, Any?>? = null
     private var channel: MethodChannel? = null

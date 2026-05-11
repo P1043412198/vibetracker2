@@ -60,53 +60,92 @@ class SphereDetailsPage extends ConsumerWidget {
         .where((t) => t.sphereId == sphere.id)
         .toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(sphere.title),
-        actions: [
-          IconButton(
-            tooltip: sphere.isPinned == true ? 'Открепить' : 'Закрепить',
-            icon: Icon(sphere.isPinned == true
-                ? Icons.push_pin
-                : Icons.push_pin_outlined),
-            onPressed: () => ref.read(spheresProvider.notifier).update(
-                sphere.id,
-                (s) => s.copyWith(isPinned: !(s.isPinned ?? false))),
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () => _editMeta(context, ref, sphere),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () async {
-              await ref.read(spheresProvider.notifier).remove(sphere.id);
-              if (context.mounted) Navigator.of(context).pop();
-            },
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        children: [
-          _Header(sphere: sphere),
-          if (sphere.description != null && sphere.description!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(sphere.description!),
-                ),
-              ),
+    final notesCount = (sphere.notesList ?? const <SphereNote>[]).length;
+    final categoriesCount =
+        (sphere.categories ?? const <SphereCategory>[]).length;
+    final tasksCount = tasks.length;
+
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(sphere.title),
+          actions: [
+            IconButton(
+              tooltip: sphere.isPinned == true ? 'Открепить' : 'Закрепить',
+              icon: Icon(sphere.isPinned == true
+                  ? Icons.push_pin
+                  : Icons.push_pin_outlined),
+              onPressed: () => ref.read(spheresProvider.notifier).update(
+                  sphere.id,
+                  (s) => s.copyWith(isPinned: !(s.isPinned ?? false))),
             ),
-          const SizedBox(height: 16),
-          _CategoriesCard(sphere: sphere),
-          const SizedBox(height: 16),
-          _NotesCard(sphere: sphere),
-          const SizedBox(height: 16),
-          _LinkedTasksCard(sphere: sphere, tasks: tasks),
-        ],
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => _editMeta(context, ref, sphere),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () async {
+                await ref.read(spheresProvider.notifier).remove(sphere.id);
+                if (context.mounted) Navigator.of(context).pop();
+              },
+            ),
+          ],
+          bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [
+              const Tab(text: 'Обзор'),
+              Tab(text: 'Заметки · $notesCount'),
+              Tab(text: 'Категории · $categoriesCount'),
+              Tab(text: 'Задачи · $tasksCount'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            // Tab 1: overview — header + description
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [
+                _Header(sphere: sphere),
+                if (sphere.description != null &&
+                    sphere.description!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(sphere.description!),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                _SphereSummaryGrid(
+                  notes: notesCount,
+                  categories: categoriesCount,
+                  tasks: tasksCount,
+                ),
+              ],
+            ),
+            // Tab 2: notes
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [_NotesCard(sphere: sphere)],
+            ),
+            // Tab 3: categories
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [_CategoriesCard(sphere: sphere)],
+            ),
+            // Tab 4: tasks
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [_LinkedTasksCard(sphere: sphere, tasks: tasks)],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -929,4 +968,97 @@ class _LinkedTasksCard extends StatelessWidget {
         TaskPeriod.year => 'Год · ${t.date}',
         TaskPeriod.history => 'Архив · ${t.date}',
       };
+}
+
+/// Compact stat grid summarising how many entities are linked to the sphere.
+/// Renders on the Обзор tab to give a quick at-a-glance overview.
+class _SphereSummaryGrid extends StatelessWidget {
+  const _SphereSummaryGrid({
+    required this.notes,
+    required this.categories,
+    required this.tasks,
+  });
+  final int notes;
+  final int categories;
+  final int tasks;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryTile(
+            icon: Icons.note_alt_outlined,
+            label: 'Заметки',
+            value: notes,
+            color: const Color(0xFF6366F1),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryTile(
+            icon: Icons.folder_outlined,
+            label: 'Категории',
+            value: categories,
+            color: const Color(0xFFEC4899),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryTile(
+            icon: Icons.task_alt,
+            label: 'Задачи',
+            value: tasks,
+            color: const Color(0xFF22C55E),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryTile extends StatelessWidget {
+  const _SummaryTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+  final IconData icon;
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: color.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 6),
+            Text(
+              value.toString(),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

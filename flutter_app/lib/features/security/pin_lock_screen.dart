@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:local_auth/local_auth.dart';
 
 import '../../state/settings_state.dart';
 
@@ -16,6 +18,46 @@ class PinLockScreen extends ConsumerStatefulWidget {
 class _PinLockScreenState extends ConsumerState<PinLockScreen> {
   String _input = '';
   bool _error = false;
+  final _auth = LocalAuthentication();
+  bool _biometricAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAndPrompt();
+  }
+
+  Future<void> _checkBiometricAndPrompt() async {
+    try {
+      final supported = await _auth.isDeviceSupported();
+      final canCheck = await _auth.canCheckBiometrics;
+      if (!mounted) return;
+      setState(() => _biometricAvailable = supported && canCheck);
+      if (_biometricAvailable) {
+        await _authenticateBiometric();
+      }
+    } catch (_) {
+      // Plugin not available on this platform — silently fall back to PIN.
+    }
+  }
+
+  Future<void> _authenticateBiometric() async {
+    try {
+      final ok = await _auth.authenticate(
+        localizedReason: 'Разблокируйте Vibesight Tracker',
+        options: const AuthenticationOptions(
+          biometricOnly: false,
+          stickyAuth: true,
+        ),
+      );
+      if (ok && mounted) {
+        HapticFeedback.lightImpact();
+        ref.read(pinLockProvider.notifier).tryUnlockBiometric();
+      }
+    } catch (_) {
+      // Authentication cancelled / unavailable — stay on PIN screen.
+    }
+  }
 
   void _press(int digit) {
     if (_input.length >= 4) return;
@@ -104,7 +146,14 @@ class _PinLockScreenState extends ConsumerState<PinLockScreen> {
                       );
                     }),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
+                  if (_biometricAvailable)
+                    TextButton.icon(
+                      onPressed: _authenticateBiometric,
+                      icon: const Icon(Icons.fingerprint),
+                      label: const Text('Разблокировать отпечатком'),
+                    ),
+                  const SizedBox(height: 16),
                   GridView.count(
                     shrinkWrap: true,
                     crossAxisCount: 3,
