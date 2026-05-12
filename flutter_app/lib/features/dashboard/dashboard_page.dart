@@ -229,6 +229,11 @@ class DashboardPage extends ConsumerWidget {
         title: const Text('Главная'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () => context.go('/search'),
+            tooltip: 'Глобальный поиск',
+          ),
+          IconButton(
             icon: const Icon(Icons.tune),
             onPressed: () => context.go('/dashboard-settings'),
             tooltip: 'Настроить дашборд',

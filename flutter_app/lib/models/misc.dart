@@ -1032,3 +1032,83 @@ class BodyPhoto {
         note: json['note'] as String?,
       );
 }
+
+// ───────────────────────── Outdoor Run ─────────────────────────
+
+class RunSession {
+  RunSession({
+    required this.id,
+    required this.startedAt,
+    this.finishedAt,
+    this.distanceMeters = 0,
+    this.steps = 0,
+    this.caloriesBurned = 0,
+    this.durationSeconds = 0,
+    this.route = const [],
+    this.notes,
+  });
+
+  final String id;
+  final String startedAt;
+  final String? finishedAt;
+  final double distanceMeters;
+  final int steps;
+  final int caloriesBurned;
+  final int durationSeconds;
+  final List<List<double>> route; // [[lat, lng], ...]
+  final String? notes;
+
+  double get distanceKm => distanceMeters / 1000;
+  double get avgPaceMinPerKm =>
+      distanceKm > 0 ? (durationSeconds / 60) / distanceKm : 0;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'startedAt': startedAt,
+        if (finishedAt != null) 'finishedAt': finishedAt,
+        'distanceMeters': distanceMeters,
+        'steps': steps,
+        'caloriesBurned': caloriesBurned,
+        'durationSeconds': durationSeconds,
+        'route': route,
+        if (notes != null) 'notes': notes,
+      };
+
+  factory RunSession.fromJson(Map<String, dynamic> json) => RunSession(
+        id: json['id'] as String,
+        startedAt: (json['startedAt'] ?? '') as String,
+        finishedAt: json['finishedAt'] as String?,
+        distanceMeters: (json['distanceMeters'] as num?)?.toDouble() ?? 0,
+        steps: (json['steps'] as num?)?.toInt() ?? 0,
+        caloriesBurned: (json['caloriesBurned'] as num?)?.toInt() ?? 0,
+        durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 0,
+        route: (json['route'] as List?)
+                ?.map((e) =>
+                    (e as List).map((v) => (v as num).toDouble()).toList())
+                .toList() ??
+            const [],
+        notes: json['notes'] as String?,
+      );
+
+  RunSession copyWith({
+    String? finishedAt,
+    double? distanceMeters,
+    int? steps,
+    int? caloriesBurned,
+    int? durationSeconds,
+    List<List<double>>? route,
+    String? notes,
+  }) {
+    return RunSession(
+      id: id,
+      startedAt: startedAt,
+      finishedAt: finishedAt ?? this.finishedAt,
+      distanceMeters: distanceMeters ?? this.distanceMeters,
+      steps: steps ?? this.steps,
+      caloriesBurned: caloriesBurned ?? this.caloriesBurned,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+      route: route ?? this.route,
+      notes: notes ?? this.notes,
+    );
+  }
+}

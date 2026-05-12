@@ -1,5 +1,8 @@
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
+import 'ai_service.dart';
+import 'gemini_service.dart';
+
 /// Best-effort OCR-based parser for paper receipts.
 /// Pulls four signals from the recognized text:
 ///   - merchant: the first reasonably long non-numeric line
@@ -121,6 +124,52 @@ class ReceiptScanner {
         '${d.toString().padLeft(2, '0')}';
   }
 
+  /// OCR + Gemini: scan an image and let AI extract structured data.
+  /// Falls back to heuristic [scan] if the API key is missing.
+  Future<ReceiptScanResult> scanWithAi(String imagePath) async {
+    final key = AiService.apiKey;
+    final base = await scan(imagePath);
+
+    if (key == null || key.isEmpty) return base;
+
+    // Re-read OCR lines for the AI prompt.
+    final input = InputImage.fromFilePath(imagePath);
+    final recognized = await _recognizer.processImage(input);
+    final sb = StringBuffer();
+    for (final block in recognized.blocks) {
+      for (final line in block.lines) {
+        sb.writeln(line.text.trim());
+      }
+    }
+    final ocrText = sb.toString().trim();
+    if (ocrText.isEmpty) return base;
+
+    try {
+      final aiResult = await GeminiService.parseReceipt(ocrText);
+      if (aiResult == null) return base;
+
+      final aiItems = (aiResult['items'] as List?)
+              ?.whereType<Map>()
+              .map((m) => ReceiptLineItem(
+                    name: (m['name'] ?? '') as String,
+                    price: (m['price'] as num?) ?? 0,
+                    category: m['category'] as String?,
+                  ))
+              .toList() ??
+          [];
+
+      return ReceiptScanResult(
+        merchant: (aiResult['store'] as String?) ?? base.merchant,
+        dateIso: (aiResult['date'] as String?) ?? base.dateIso,
+        total: (aiResult['total'] as num?) ?? base.total,
+        items: aiItems.isNotEmpty ? aiItems : base.items,
+        suggestedCategory: aiResult['suggestedCategory'] as String?,
+      );
+    } catch (_) {
+      return base;
+    }
+  }
+
   Future<void> dispose() async {
     await _recognizer.close();
   }
@@ -132,18 +181,21 @@ class ReceiptScanResult {
     this.dateIso,
     this.total,
     this.items = const [],
+    this.suggestedCategory,
   });
 
   final String? merchant;
   final String? dateIso;
   final num? total;
   final List<ReceiptLineItem> items;
+  final String? suggestedCategory;
 
   bool get isEmpty => merchant == null && dateIso == null && total == null;
 }
 
 class ReceiptLineItem {
-  ReceiptLineItem({required this.name, required this.price});
+  ReceiptLineItem({required this.name, required this.price, this.category});
   final String name;
   final num price;
+  final String? category;
 }

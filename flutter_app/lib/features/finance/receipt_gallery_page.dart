@@ -29,7 +29,10 @@ class ReceiptGalleryPage extends ConsumerWidget {
     final sortedKeys = byMonth.keys.toList()..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Чеки')),
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text('Чеки'),
+      ),
       body: sortedKeys.isEmpty
           ? const _Empty()
           : ListView.builder(

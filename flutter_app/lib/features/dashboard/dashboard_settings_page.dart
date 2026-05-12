@@ -23,6 +23,7 @@ class DashboardSettingsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Настроить дашборд'),
         actions: [
           IconButton(

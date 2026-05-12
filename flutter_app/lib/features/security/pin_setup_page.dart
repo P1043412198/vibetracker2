@@ -71,6 +71,7 @@ class _PinSetupPageState extends ConsumerState<PinSetupPage> {
     final state = ref.watch(pinLockProvider);
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: Text(state.hasPin ? 'Сменить PIN-код' : 'Задать PIN-код'),
       ),
       body: SafeArea(

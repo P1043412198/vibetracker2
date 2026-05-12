@@ -12,6 +12,14 @@
     <!-- Phase 4.5: pose tracking + AI generator (online). -->
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Wave 1.12: biometric unlock (local_auth) + voice transcription
+         (speech_to_text). USE_BIOMETRIC is the modern permission;
+         USE_FINGERPRINT is the legacy one for older devices. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.BLUETOOTH"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
 

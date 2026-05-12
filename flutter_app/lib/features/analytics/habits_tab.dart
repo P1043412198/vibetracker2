@@ -529,21 +529,24 @@ class _Last30DaysCard extends StatelessWidget {
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 22,
-                        interval: 6,
+                        reservedSize: 28,
+                        interval: 1,
                         getTitlesWidget: (v, _) {
                           final i = v.toInt();
                           if (i < 0 || i > 29) {
                             return const SizedBox.shrink();
                           }
+                          if (i % 7 != 0 && i != 29) {
+                            return const SizedBox.shrink();
+                          }
                           final day = today
                               .subtract(Duration(days: 29 - i));
                           return Padding(
-                            padding: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.only(top: 6),
                             child: Text(
-                                DateFormat('dd.MM').format(day),
+                                DateFormat('d/MM').format(day),
                                 style:
-                                    const TextStyle(fontSize: 10)),
+                                    const TextStyle(fontSize: 8)),
                           );
                         },
                       ),

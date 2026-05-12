@@ -30,7 +30,10 @@ class GoalsPage extends ConsumerWidget {
       return a.createdAt.compareTo(b.createdAt) * -1;
     });
     return Scaffold(
-      appBar: AppBar(title: const Text('Цели')),
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text('Цели'),
+      ),
       body: goals.isEmpty
           ? const _Empty()
           : ListView.separated(

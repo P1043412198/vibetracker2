@@ -58,6 +58,7 @@ class _WorkoutHistoryPageState extends ConsumerState<WorkoutHistoryPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('История тренировок'),
         bottom: TabBar(
           controller: _controller,

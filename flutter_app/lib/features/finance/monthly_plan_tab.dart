@@ -122,6 +122,35 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     final fmt =
         NumberFormat.currency(locale: 'ru_RU', symbol: '', decimalDigits: 2);
 
+    // Live daily budget — driven by ACTUAL transactions so far + remaining
+    // fixed obligations, recomputed on every rebuild. This is what the user
+    // asked for: "if no spending today, recalc; if there are actual incomes
+    // or expenses, also update — show the real picture".
+    final today = DateTime.now();
+    final spentToday = (today.year == _month.year && today.month == _month.month)
+        ? spentOnDate(
+            day: today,
+            transactions: transactions,
+            accounts: accounts,
+            currency: planCurrency,
+            convert: convert,
+            excludedAccountIds: excluded,
+          )
+        : 0;
+    final live = computeLiveDailyBudget(
+      today: today,
+      month: _month,
+      actualIncome: facts.income,
+      carryIn: carryIn,
+      actualExpense: facts.expense,
+      spentToday: spentToday,
+      incomes: plan?.incomes ?? const <IncomeEntry>[],
+      scheduledExpenses:
+          plan?.scheduledExpenses ?? const <ScheduledExpense>[],
+      loansMonthlyPayments: loansMonthlyPayments,
+      daysLeftInclToday: daysLeft,
+    );
+
     final cashflow = plan == null
         ? null
         : buildCashflow(
@@ -239,6 +268,9 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
           fmt: fmt,
           rollover: plan?.rollover ?? false,
           freeFundsCarryover: plan?.freeFundsCarryover ?? false,
+          live: live,
+          isCurrentMonth:
+              today.year == _month.year && today.month == _month.month,
           onEditIncome: () => _editIncome(plan, monthKey),
           onToggleRollover: () => _toggleRollover(plan, monthKey),
           onToggleFreeFundsCarryover: () =>
@@ -1111,6 +1143,8 @@ class _PlanSummaryCard extends StatelessWidget {
     required this.fmt,
     required this.rollover,
     required this.freeFundsCarryover,
+    required this.live,
+    required this.isCurrentMonth,
     required this.onEditIncome,
     required this.onToggleRollover,
     required this.onToggleFreeFundsCarryover,
@@ -1132,6 +1166,8 @@ class _PlanSummaryCard extends StatelessWidget {
   final NumberFormat fmt;
   final bool rollover;
   final bool freeFundsCarryover;
+  final LiveDailyBudget live;
+  final bool isCurrentMonth;
   final VoidCallback onEditIncome;
   final VoidCallback onToggleRollover;
   final VoidCallback onToggleFreeFundsCarryover;
@@ -1220,6 +1256,15 @@ class _PlanSummaryCard extends StatelessWidget {
               label: 'В неделю',
               valueText: '${fmt.format(weeklyAllowance)} $currency',
             ),
+            if (isCurrentMonth) ...[
+              const SizedBox(height: 12),
+              _LiveDailyBudgetBlock(
+                live: live,
+                daysLeft: daysLeft,
+                currency: currency,
+                fmt: fmt,
+              ),
+            ],
             if (carryIn > 0) ...[
               const SizedBox(height: 4),
               _PlanRow(
@@ -1249,6 +1294,126 @@ class _PlanSummaryCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "Реально на сегодня" block.
+///
+/// Differs from the planned `dailyAllowance` row above it: this number is
+/// driven by **actual** transactions to date plus only the future obligations
+/// the user hasn't met yet. It recomputes on every rebuild — so leaving a day
+/// without spending raises the next day's allowance, and adding an unplanned
+/// expense lowers it immediately.
+class _LiveDailyBudgetBlock extends StatelessWidget {
+  const _LiveDailyBudgetBlock({
+    required this.live,
+    required this.daysLeft,
+    required this.currency,
+    required this.fmt,
+  });
+
+  final LiveDailyBudget live;
+  final int daysLeft;
+  final String currency;
+  final NumberFormat fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final todayOk = live.todayLeft >= 0;
+    final tileColor = scheme.primaryContainer.withValues(alpha: 0.55);
+    final todayColor = todayOk
+        ? const Color(0xFF22C55E)
+        : const Color(0xFFEF4444);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: tileColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.bolt, size: 18, color: scheme.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Реальный остаток на сегодня',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _PlanRow(
+            label: 'Сейчас на руках',
+            valueText: '${fmt.format(live.cashOnHand)} $currency',
+            valueColor: live.cashOnHand >= 0
+                ? null
+                : const Color(0xFFEF4444),
+          ),
+          const SizedBox(height: 4),
+          _PlanRow(
+            label: 'Можно потратить сегодня',
+            valueText: '${fmt.format(live.todayLeft)} $currency',
+            valueColor: todayColor,
+          ),
+          const SizedBox(height: 4),
+          _PlanRow(
+            label: 'Уже потрачено сегодня',
+            valueText: '${fmt.format(live.spentToday)} $currency',
+          ),
+          const SizedBox(height: 8),
+          if (live.nextIncomeDay != null) ...[
+            _PlanRow(
+              label:
+                  'До аванса (${live.daysUntilNextIncome} дн.)',
+              valueText:
+                  '${fmt.format(live.dailyUntilNextIncome)} $currency/день',
+              valueColor: scheme.primary,
+            ),
+            const SizedBox(height: 4),
+            _PlanRow(
+              label:
+                  'После аванса ${live.nextIncomeDay}-го (${live.daysAfterNextIncome} дн.)',
+              valueText:
+                  '${fmt.format(live.dailyAfterNextIncome)} $currency/день',
+            ),
+          ] else ...[
+            _PlanRow(
+              label: 'До конца месяца (${live.daysUntilNextIncome} дн.)',
+              valueText:
+                  '${fmt.format(live.dailyUntilNextIncome)} $currency/день',
+              valueColor: scheme.primary,
+            ),
+          ],
+          const SizedBox(height: 4),
+          _PlanRow(
+            label: 'Свободно до конца месяца',
+            valueText: '${fmt.format(live.remaining)} $currency',
+            valueColor: live.remaining > 0
+                ? const Color(0xFF22C55E)
+                : const Color(0xFFEF4444),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            live.nextIncomeDay != null
+                ? 'До аванса ${live.nextIncomeDay}-го (${fmt.format(live.nextIncomeAmount)} $currency) тратишь только то, что уже на руках. После аванса бюджет пересчитается.'
+                : (todayOk
+                    ? 'Если ничего не потратишь сегодня — бюджет на следующий день вырастет.'
+                    : 'Сегодня превышен дневной лимит — следующий день станет меньше.'),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+          ),
+        ],
       ),
     );
   }

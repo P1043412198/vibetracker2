@@ -637,4 +637,81 @@ void main() {
       expect(back.isSubscription, true);
     });
   });
+
+  group('computeLiveDailyBudget', () {
+    test(
+        'cash 0 + future income → dailyUntilNextIncome is 0 (does not advance future money to today)',
+        () {
+      final live = computeLiveDailyBudget(
+        today: DateTime(2025, 5, 1),
+        month: DateTime(2025, 5, 1),
+        actualIncome: 0,
+        carryIn: 0,
+        actualExpense: 0,
+        spentToday: 0,
+        incomes: [
+          IncomeEntry(id: 'i', name: 'Зарплата', amount: 2700, day: 15),
+        ],
+        scheduledExpenses: [
+          ScheduledExpense(id: 'r', name: 'Расход', amount: 1400, day: 20),
+        ],
+        loansMonthlyPayments: 0,
+        daysLeftInclToday: 31,
+      );
+      expect(live.cashOnHand, 0);
+      // 0 cash, 14 days until paycheck → 0/day, NOT 1300/31 ≈ 42.
+      expect(live.dailyUntilNextIncome, 0);
+      expect(live.daysUntilNextIncome, 14);
+      expect(live.nextIncomeDay, 15);
+      expect(live.nextIncomeAmount, 2700);
+      // After paycheck: 17 days (15..31), (2700 - 1400) / 17 ≈ 76.47.
+      expect(live.daysAfterNextIncome, 17);
+      expect((live.dailyAfterNextIncome - 1300 / 17).abs(), lessThan(0.01));
+      // Today's allowance also 0 — no money in pocket means no spending.
+      expect(live.todayLeft, 0);
+    });
+
+    test('cash on hand drives "until paycheck" segment', () {
+      final live = computeLiveDailyBudget(
+        today: DateTime(2025, 5, 1),
+        month: DateTime(2025, 5, 1),
+        actualIncome: 200,
+        carryIn: 0,
+        actualExpense: 0,
+        spentToday: 0,
+        incomes: [
+          IncomeEntry(id: 'i', name: 'Зарплата', amount: 2700, day: 15),
+        ],
+        scheduledExpenses: const [],
+        loansMonthlyPayments: 0,
+        daysLeftInclToday: 31,
+      );
+      expect(live.cashOnHand, 200);
+      // 200 / 14 ≈ 14.28
+      expect((live.dailyUntilNextIncome - 200 / 14).abs(), lessThan(0.01));
+    });
+
+    test('no future income → single segment to end of month', () {
+      final live = computeLiveDailyBudget(
+        today: DateTime(2025, 5, 25),
+        month: DateTime(2025, 5, 1),
+        actualIncome: 2000,
+        carryIn: 0,
+        actualExpense: 1500,
+        spentToday: 0,
+        incomes: [
+          IncomeEntry(id: 'i', name: 'Зарплата', amount: 2000, day: 15),
+        ],
+        scheduledExpenses: const [],
+        loansMonthlyPayments: 0,
+        daysLeftInclToday: 7,
+      );
+      expect(live.cashOnHand, 500);
+      expect(live.nextIncomeDay, null);
+      expect(live.daysUntilNextIncome, 7); // 25..31 inclusive
+      expect((live.dailyUntilNextIncome - 500 / 7).abs(), lessThan(0.01));
+      expect(live.dailyAfterNextIncome, 0);
+      expect(live.daysAfterNextIncome, 0);
+    });
+  });
 }

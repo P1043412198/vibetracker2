@@ -16,7 +16,10 @@ class SpheresPage extends ConsumerWidget {
     final spheres = [...ref.watch(spheresProvider)]
       ..sort((a, b) => (a.order ?? 0).compareTo(b.order ?? 0));
     return Scaffold(
-      appBar: AppBar(title: const Text('Сферы')),
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text('Сферы'),
+      ),
       body: spheres.isEmpty
           ? const _EmptyState()
           : ListView.separated(

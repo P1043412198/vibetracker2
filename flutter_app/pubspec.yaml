@@ -64,6 +64,28 @@ dependencies:
   file_picker: ^8.1.4
   share_plus: ^10.1.2
 
+  # Phase 14: visual wow — animations, skeletons, swipe actions, dynamic theme
+  flutter_animate: ^4.5.2
+  shimmer: ^3.0.0
+  flutter_slidable: ^3.1.2
+  dynamic_color: ^1.7.0
+
+  # Phase 14: PDF / CSV export of financial plan and transactions
+  pdf: ^3.11.1
+  printing: ^5.13.4
+  csv: ^6.0.0
+
+  # Phase 14: QR scanning of Belarusian fiscal receipts
+  mobile_scanner: ^5.2.3
+  qr_flutter: ^4.1.0
+
+  # Phase 14: biometric lock + voice notes
+  local_auth: ^2.3.0
+  speech_to_text: ^7.0.0
+
+  # Wave 2: AI ecosystem — markdown rendering for LLM responses
+  flutter_markdown: ^0.7.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

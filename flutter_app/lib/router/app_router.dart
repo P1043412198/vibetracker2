@@ -8,7 +8,11 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/dashboard/dashboard_settings_page.dart';
 import '../features/finance/finance_page.dart';
 import '../features/finance/loans_page.dart';
+import '../features/finance/qr_receipt_scanner_page.dart';
 import '../features/finance/receipt_gallery_page.dart';
+import '../features/financial_plan/financial_plan_compare_page.dart';
+import '../features/financial_plan/financial_plan_month_page.dart';
+import '../features/financial_plan/financial_plan_page.dart';
 import '../features/goals/goal_details_page.dart';
 import '../features/goals/goals_page.dart';
 import '../features/habits/habit_details_page.dart';
@@ -17,9 +21,11 @@ import '../features/inbox/inbox_page.dart';
 import '../features/household/household_notes_page.dart';
 import '../features/household/household_page.dart';
 import '../features/passwords/passwords_page.dart';
+import '../features/search/global_search_page.dart';
 import '../features/security/pin_setup_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/shopping_list/shopping_list_page.dart';
+import '../features/spheres/sphere_category_page.dart';
 import '../features/spheres/sphere_details_page.dart';
 import '../features/spheres/spheres_page.dart';
 import '../features/tasks/tasks_page.dart';
@@ -56,6 +62,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                 name: 'sphere-details',
                 builder: (context, state) =>
                     SphereDetailsPage(id: state.pathParameters['id'] ?? ''),
+                routes: [
+                  GoRoute(
+                    path: 'category/:categoryId',
+                    name: 'sphere-category',
+                    builder: (context, state) => SphereCategoryPage(
+                      sphereId: state.pathParameters['id'] ?? '',
+                      categoryId: state.pathParameters['categoryId'] ?? '',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -87,6 +103,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: InboxPage()),
           ),
           GoRoute(
+            path: '/search',
+            name: 'search',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: GlobalSearchPage()),
+          ),
+          GoRoute(
             path: '/finance',
             name: 'finance',
             pageBuilder: (_, __) =>
@@ -99,10 +121,37 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: ReceiptGalleryPage()),
           ),
           GoRoute(
+            path: '/qr-receipt',
+            name: 'qr-receipt',
+            builder: (_, __) => const QrReceiptScannerPage(),
+          ),
+          GoRoute(
             path: '/loans',
             name: 'loans',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: LoansPage()),
+          ),
+          GoRoute(
+            path: '/financial-plan',
+            name: 'financial-plan',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: FinancialPlanPage()),
+            routes: [
+              GoRoute(
+                path: 'month/:id',
+                name: 'financial-plan-month',
+                builder: (context, state) => FinancialPlanMonthPage(
+                  id: state.pathParameters['id'] ?? '',
+                ),
+              ),
+              GoRoute(
+                path: 'compare/:id',
+                name: 'financial-plan-compare',
+                builder: (context, state) => FinancialPlanComparePage(
+                  id: state.pathParameters['id'] ?? '',
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: '/workouts',

@@ -68,6 +68,7 @@ class _SleepPageState extends ConsumerState<SleepPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Сон и Восстановление'),
         actions: [
           IconButton(

@@ -57,6 +57,7 @@ class _HouseholdPageState extends ConsumerState<HouseholdPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Row(
           children: [
             Icon(Icons.home_outlined, size: 22),

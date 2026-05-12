@@ -60,6 +60,7 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Тренировки'),
         actions: [
           IconButton(
@@ -895,7 +896,7 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
                         );
                       }
                       return DropdownButtonFormField<String?>(
-                        initialValue: programId,
+                        value: programId,
                         isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Программа (папка)',

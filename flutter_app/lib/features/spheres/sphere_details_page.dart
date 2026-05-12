@@ -8,10 +8,14 @@ import 'package:uuid/uuid.dart';
 import '../../models/enums.dart';
 import '../../models/sphere.dart';
 import '../../models/task.dart';
+import '../../services/ai_service.dart';
+import '../../services/gemini_service.dart';
 import '../../services/photo_storage.dart';
 import '../../state/providers.dart';
+import '../../state/settings_state.dart';
+import '../../widgets/ai_response_sheet.dart';
 
-const _spherePalette = [
+const kSpherePalette = [
   Color(0xFF6D5CFF),
   Color(0xFFEC4899),
   Color(0xFFF59E0B),
@@ -22,7 +26,7 @@ const _spherePalette = [
   Color(0xFF8B5CF6),
 ];
 
-const _sphereIcons = [
+const kSphereIcons = [
   '✨',
   '💼',
   '🏠',
@@ -36,6 +40,9 @@ const _sphereIcons = [
   '🧠',
   '🎯',
 ];
+
+const _spherePalette = kSpherePalette;
+const _sphereIcons = kSphereIcons;
 
 class SphereDetailsPage extends ConsumerWidget {
   const SphereDetailsPage({super.key, required this.id});
@@ -60,51 +67,136 @@ class SphereDetailsPage extends ConsumerWidget {
         .where((t) => t.sphereId == sphere.id)
         .toList();
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(sphere.title),
-        actions: [
-          IconButton(
-            tooltip: sphere.isPinned == true ? 'Открепить' : 'Закрепить',
-            icon: Icon(sphere.isPinned == true
-                ? Icons.push_pin
-                : Icons.push_pin_outlined),
-            onPressed: () => ref.read(spheresProvider.notifier).update(
-                sphere.id,
-                (s) => s.copyWith(isPinned: !(s.isPinned ?? false))),
-          ),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () => _editMeta(context, ref, sphere),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () async {
-              await ref.read(spheresProvider.notifier).remove(sphere.id);
-              if (context.mounted) Navigator.of(context).pop();
-            },
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        children: [
-          _Header(sphere: sphere),
-          if (sphere.description != null && sphere.description!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(sphere.description!),
-                ),
-              ),
+    final notesCount = (sphere.notesList ?? const <SphereNote>[]).length;
+    final categoriesCount =
+        (sphere.categories ?? const <SphereCategory>[]).length;
+    final tasksCount = tasks.length;
+
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(sphere.title),
+          actions: [
+            IconButton(
+              tooltip: sphere.isPinned == true ? 'Открепить' : 'Закрепить',
+              icon: Icon(sphere.isPinned == true
+                  ? Icons.push_pin
+                  : Icons.push_pin_outlined),
+              onPressed: () => ref.read(spheresProvider.notifier).update(
+                  sphere.id,
+                  (s) => s.copyWith(isPinned: !(s.isPinned ?? false))),
             ),
-          const SizedBox(height: 16),
-          _NotesCard(sphere: sphere),
-          const SizedBox(height: 16),
-          _LinkedTasksCard(sphere: sphere, tasks: tasks),
-        ],
+            if (_isAiAvailable(ref))
+              IconButton(
+                tooltip: 'Сводка по сфере (AI)',
+                icon: Icon(Icons.auto_awesome,
+                    color: Theme.of(context).colorScheme.primary),
+                onPressed: () =>
+                    _showSphereSummary(context, sphere, tasks),
+              ),
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => _editMeta(context, ref, sphere),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () async {
+                await ref.read(spheresProvider.notifier).remove(sphere.id);
+                if (context.mounted) Navigator.of(context).pop();
+              },
+            ),
+          ],
+          bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [
+              const Tab(text: 'Обзор'),
+              Tab(text: 'Заметки · $notesCount'),
+              Tab(text: 'Категории · $categoriesCount'),
+              Tab(text: 'Задачи · $tasksCount'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            // Tab 1: overview — header + description
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [
+                _Header(sphere: sphere),
+                if (sphere.description != null &&
+                    sphere.description!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(sphere.description!),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                _SphereSummaryGrid(
+                  notes: notesCount,
+                  categories: categoriesCount,
+                  tasks: tasksCount,
+                ),
+              ],
+            ),
+            // Tab 2: notes
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [_NotesCard(sphere: sphere)],
+            ),
+            // Tab 3: categories
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [_CategoriesCard(sphere: sphere)],
+            ),
+            // Tab 4: tasks
+            ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+              children: [_LinkedTasksCard(sphere: sphere, tasks: tasks)],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isAiAvailable(WidgetRef ref) {
+    final key = AiService.apiKey;
+    return key != null && key.isNotEmpty && ref.read(aiEnabledProvider);
+  }
+
+  void _showSphereSummary(
+    BuildContext context,
+    Sphere sphere,
+    List<TaskItem> tasks,
+  ) {
+    final notes = sphere.notesList ?? const <SphereNote>[];
+    final completedTasks = tasks.where((t) => t.completed).length;
+    showAiResponseSheet(
+      context: context,
+      title: 'Сводка: ${sphere.title}',
+      icon: Icons.psychology,
+      future: GeminiService.summarizeSphere(
+        sphereTitle: sphere.title,
+        notesCount: notes.length,
+        tasksTotal: tasks.length,
+        tasksCompleted: completedTasks,
+        habitsCount: 0,
+        categoriesCount:
+            (sphere.categories ?? const <SphereCategory>[]).length,
+        recentNotes: notes
+            .take(5)
+            .map((n) => n.content)
+            .toList(),
+        recentTasks: tasks
+            .take(5)
+            .map((t) => t.title)
+            .toList(),
       ),
     );
   }
@@ -329,6 +421,297 @@ class _Header extends StatelessWidget {
   }
 }
 
+class _CategoriesCard extends ConsumerStatefulWidget {
+  const _CategoriesCard({required this.sphere});
+  final Sphere sphere;
+
+  @override
+  ConsumerState<_CategoriesCard> createState() => _CategoriesCardState();
+}
+
+class _CategoriesCardState extends ConsumerState<_CategoriesCard> {
+  @override
+  Widget build(BuildContext context) {
+    final cats = [...?widget.sphere.categories];
+    final notes = [...?widget.sphere.notesList];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Категории',
+                      style:
+                          Theme.of(context).textTheme.titleMedium),
+                ),
+                IconButton.filledTonal(
+                  tooltip: 'Добавить категорию',
+                  icon: const Icon(Icons.add),
+                  onPressed: () => _addOrEdit(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            if (cats.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                    'Каждая категория — это отдельный раздел со своей страницей и заметками (напр. «EN» / «BY» / «семья»).'),
+              )
+            else
+              Column(
+                children: [
+                  for (final c in cats)
+                    _CategoryListTile(
+                      sphereId: widget.sphere.id,
+                      category: c,
+                      notesCount:
+                          notes.where((n) => n.categoryId == c.id).length,
+                      onEdit: () => _addOrEdit(context, edit: c),
+                      onDelete: () => _delete(c),
+                    ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addOrEdit(BuildContext context, {SphereCategory? edit}) async {
+    final controller = TextEditingController(text: edit?.title ?? '');
+    String icon = edit?.icon ?? '';
+    final result = await showModalBottomSheet<SphereCategory?>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 8,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(edit == null ? 'Новая категория' : 'Изменить категорию',
+                      style: Theme.of(ctx).textTheme.titleLarge),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Название',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final ic in _sphereIcons)
+                        InkWell(
+                          onTap: () => setState(() {
+                            icon = icon == ic ? '' : ic;
+                          }),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: icon == ic
+                                  ? Theme.of(ctx)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.18)
+                                  : Theme.of(ctx)
+                                      .colorScheme
+                                      .surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child:
+                                Text(ic, style: const TextStyle(fontSize: 20)),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(
+                    onPressed: () {
+                      final t = controller.text.trim();
+                      if (t.isEmpty) return;
+                      final next = (edit ??
+                              SphereCategory(
+                                id: const Uuid().v4(),
+                                title: t,
+                                createdAt:
+                                    DateTime.now().toIso8601String(),
+                              ))
+                          .copyWith(
+                        title: t,
+                        icon: icon.isEmpty ? null : icon,
+                        clearIcon: icon.isEmpty,
+                      );
+                      Navigator.of(ctx).pop(next);
+                    },
+                    child: const Text('Сохранить'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (result == null) return;
+    final list = [...?widget.sphere.categories];
+    final idx = list.indexWhere((c) => c.id == result.id);
+    if (idx == -1) {
+      list.add(result);
+    } else {
+      list[idx] = result;
+    }
+    await ref.read(spheresProvider.notifier).update(
+          widget.sphere.id,
+          (s) => s.copyWith(categories: list),
+        );
+  }
+
+  Future<void> _delete(SphereCategory cat) async {
+    final list = [...?widget.sphere.categories]
+      ..removeWhere((c) => c.id == cat.id);
+    final notes = (widget.sphere.notesList ?? [])
+        .map((n) => n.categoryId == cat.id
+            ? n.copyWith(clearCategoryId: true)
+            : n)
+        .toList();
+    await ref.read(spheresProvider.notifier).update(
+          widget.sphere.id,
+          (s) => s.copyWith(categories: list, notesList: notes),
+        );
+  }
+}
+
+/// Row for a single category inside [_CategoriesCard]. Tap opens the full
+/// category page; the trailing icon button shows a tiny menu for editing or
+/// deleting (the old InputChip behaviour, kept for parity).
+class _CategoryListTile extends StatelessWidget {
+  const _CategoryListTile({
+    required this.sphereId,
+    required this.category,
+    required this.notesCount,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final String sphereId;
+  final SphereCategory category;
+  final int notesCount;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => context.pushNamed(
+            'sphere-category',
+            pathParameters: {
+              'id': sphereId,
+              'categoryId': category.id,
+            },
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    (category.icon == null || category.icon!.isEmpty)
+                        ? '📁'
+                        : category.icon!,
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        category.title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        '$notesCount заметок',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (v) {
+                    if (v == 'edit') onEdit();
+                    if (v == 'delete') onDelete();
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Изменить'),
+                        dense: true,
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Удалить'),
+                        dense: true,
+                      ),
+                    ),
+                  ],
+                ),
+                const Icon(Icons.chevron_right, size: 22),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NotesCard extends ConsumerStatefulWidget {
   const _NotesCard({required this.sphere});
   final Sphere sphere;
@@ -340,6 +723,8 @@ class _NotesCard extends ConsumerStatefulWidget {
 class _NotesCardState extends ConsumerState<_NotesCard> {
   final _newNote = TextEditingController();
   bool _asCheckbox = false;
+  String? _filterCategoryId;
+  String? _newNoteCategoryId;
 
   @override
   void dispose() {
@@ -349,7 +734,11 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
 
   @override
   Widget build(BuildContext context) {
-    final notes = [...?widget.sphere.notesList];
+    final cats = [...?widget.sphere.categories];
+    var notes = [...?widget.sphere.notesList];
+    if (_filterCategoryId != null) {
+      notes = notes.where((n) => n.categoryId == _filterCategoryId).toList();
+    }
     notes.sort((a, b) {
       final pa = a.isPinned == true ? 0 : 1;
       final pb = b.isPinned == true ? 0 : 1;
@@ -379,6 +768,33 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
                 ),
               ],
             ),
+            if (cats.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    ChoiceChip(
+                      selected: _filterCategoryId == null,
+                      label: const Text('Все'),
+                      onSelected: (_) =>
+                          setState(() => _filterCategoryId = null),
+                    ),
+                    for (final c in cats) ...[
+                      const SizedBox(width: 6),
+                      ChoiceChip(
+                        selected: _filterCategoryId == c.id,
+                        label: Text(
+                          c.icon == null ? c.title : '${c.icon} ${c.title}',
+                        ),
+                        onSelected: (_) =>
+                            setState(() => _filterCategoryId = c.id),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 4),
             Row(
               children: [
@@ -410,6 +826,40 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
                 ),
               ],
             ),
+            if (cats.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.folder_outlined, size: 16),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: DropdownButton<String?>(
+                      isExpanded: true,
+                      value: _newNoteCategoryId ?? _filterCategoryId,
+                      hint: const Text('Без категории'),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Без категории'),
+                        ),
+                        for (final c in cats)
+                          DropdownMenuItem<String?>(
+                            value: c.id,
+                            child: Text(
+                              c.icon == null
+                                  ? c.title
+                                  : '${c.icon} ${c.title}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => _newNoteCategoryId = v),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             if (notes.isEmpty)
               const Padding(
@@ -418,7 +868,7 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
                     'Тут будут идеи, фото и чек-листы по этой сфере жизни.'),
               )
             else
-              for (final note in notes) _NoteTile(sphere: widget.sphere, note: note),
+              for (final note in notes) SphereNoteTile(sphere: widget.sphere, note: note),
           ],
         ),
       ),
@@ -434,6 +884,7 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
       createdAt: DateTime.now().toIso8601String(),
       isCheckbox: _asCheckbox ? true : null,
       isChecked: _asCheckbox ? false : null,
+      categoryId: _newNoteCategoryId ?? _filterCategoryId,
     );
     final next = [...?widget.sphere.notesList, note];
     ref.read(spheresProvider.notifier).update(
@@ -455,6 +906,7 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
       content: '',
       createdAt: DateTime.now().toIso8601String(),
       photoUrl: path,
+      categoryId: _newNoteCategoryId ?? _filterCategoryId,
     );
     final next = [...?widget.sphere.notesList, note];
     await ref.read(spheresProvider.notifier).update(
@@ -464,8 +916,8 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
   }
 }
 
-class _NoteTile extends ConsumerWidget {
-  const _NoteTile({required this.sphere, required this.note});
+class SphereNoteTile extends ConsumerWidget {
+  const SphereNoteTile({super.key, required this.sphere, required this.note});
   final Sphere sphere;
   final SphereNote note;
 
@@ -672,4 +1124,97 @@ class _LinkedTasksCard extends StatelessWidget {
         TaskPeriod.year => 'Год · ${t.date}',
         TaskPeriod.history => 'Архив · ${t.date}',
       };
+}
+
+/// Compact stat grid summarising how many entities are linked to the sphere.
+/// Renders on the Обзор tab to give a quick at-a-glance overview.
+class _SphereSummaryGrid extends StatelessWidget {
+  const _SphereSummaryGrid({
+    required this.notes,
+    required this.categories,
+    required this.tasks,
+  });
+  final int notes;
+  final int categories;
+  final int tasks;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _SummaryTile(
+            icon: Icons.note_alt_outlined,
+            label: 'Заметки',
+            value: notes,
+            color: const Color(0xFF6366F1),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryTile(
+            icon: Icons.folder_outlined,
+            label: 'Категории',
+            value: categories,
+            color: const Color(0xFFEC4899),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _SummaryTile(
+            icon: Icons.task_alt,
+            label: 'Задачи',
+            value: tasks,
+            color: const Color(0xFF22C55E),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SummaryTile extends StatelessWidget {
+  const _SummaryTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+  final IconData icon;
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      color: color.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 6),
+            Text(
+              value.toString(),
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -20,7 +20,10 @@ class SettingsPage extends ConsumerWidget {
     final t = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(title: Text(t.navSettings)),
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: Text(t.navSettings),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
@@ -180,7 +183,13 @@ class SettingsPage extends ConsumerWidget {
               style: Theme.of(context).textTheme.labelLarge),
           const SizedBox(height: 8),
           Card(
-            child: _GeminiKeyTile(),
+            child: Column(
+              children: [
+                _AiEnabledTile(),
+                const Divider(height: 1),
+                _GeminiKeyTile(),
+              ],
+            ),
           ),
           const SizedBox(height: 24),
           Text(t.settingsData, style: Theme.of(context).textTheme.labelLarge),
@@ -350,6 +359,34 @@ class _LocaleOption {
   final String label;
 }
 
+class _AiEnabledTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(aiEnabledProvider);
+    final hasKey = (ref.watch(geminiKeyProvider) ?? '').isNotEmpty;
+    return SwitchListTile(
+      secondary: Icon(
+        Icons.auto_awesome,
+        color: enabled && hasKey
+            ? Theme.of(context).colorScheme.primary
+            : null,
+      ),
+      title: const Text('AI-функции'),
+      subtitle: Text(
+        hasKey
+            ? (enabled
+                ? 'Классификатор, финкоуч, парсер чеков, сводки'
+                : 'Выключены — AI не вызывается')
+            : 'Задай ключ Gemini ниже',
+      ),
+      value: enabled && hasKey,
+      onChanged: hasKey
+          ? (v) => ref.read(aiEnabledProvider.notifier).set(v)
+          : null,
+    );
+  }
+}
+
 class _GeminiKeyTile extends ConsumerStatefulWidget {
   @override
   ConsumerState<_GeminiKeyTile> createState() => _GeminiKeyTileState();
@@ -399,8 +436,9 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Используется AI-генератором тренировок. Ключ хранится локально, '
-            'на устройстве (Hive). Получить: aistudio.google.com/apikey',
+            'Используется для AI-функций: классификатор инбокса, финкоуч, парсер '
+            'чеков, сводки по сферам. Ключ хранится локально (Hive). '
+            'Получить: aistudio.google.com/apikey',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
@@ -451,7 +489,73 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          const _GeminiModelPicker(),
         ],
+      ),
+    );
+  }
+}
+
+/// Lets the user override the Gemini model used for all AI features.
+/// Defaults to [AiService.defaultModel] when nothing is selected. We expose
+/// this because Google retires individual versions (e.g. 1.5-flash-latest
+/// → HTTP 404 starting April 2025) and users want to switch without an app
+/// update.
+class _GeminiModelPicker extends StatefulWidget {
+  const _GeminiModelPicker();
+
+  @override
+  State<_GeminiModelPicker> createState() => _GeminiModelPickerState();
+}
+
+class _GeminiModelPickerState extends State<_GeminiModelPicker> {
+  static const _options = <String>[
+    'gemini-2.5-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-2.5-pro',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite',
+  ];
+
+  late String _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = AiService.currentModel;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = {..._options, _selected}.toList();
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'Модель Gemini',
+        border: OutlineInputBorder(),
+        helperText: 'По умолчанию gemini-2.5-flash. Старые версии вроде '
+            '1.5-flash-latest Google убрала.',
+        helperMaxLines: 3,
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: _selected,
+          items: [
+            for (final m in items)
+              DropdownMenuItem(value: m, child: Text(m)),
+          ],
+          onChanged: (v) async {
+            if (v == null) return;
+            final messenger = ScaffoldMessenger.of(context);
+            await AiService.setModel(v);
+            if (!mounted) return;
+            setState(() => _selected = v);
+            messenger.showSnackBar(
+              SnackBar(content: Text('Модель: $v')),
+            );
+          },
+        ),
       ),
     );
   }

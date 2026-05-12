@@ -49,6 +49,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage>
 
     return Scaffold(
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Row(
           children: [
             Icon(Icons.shopping_cart_outlined, size: 22),
