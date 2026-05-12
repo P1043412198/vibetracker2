@@ -140,10 +140,11 @@ class _MonthlyPlanTabState extends ConsumerState<MonthlyPlanTab> {
     final live = computeLiveDailyBudget(
       today: today,
       month: _month,
-      incomeRef: freeFunds.incomeRef,
+      actualIncome: facts.income,
       carryIn: carryIn,
       actualExpense: facts.expense,
       spentToday: spentToday,
+      incomes: plan?.incomes ?? const <IncomeEntry>[],
       scheduledExpenses:
           plan?.scheduledExpenses ?? const <ScheduledExpense>[],
       loansMonthlyPayments: loansMonthlyPayments,
@@ -1352,6 +1353,14 @@ class _LiveDailyBudgetBlock extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           _PlanRow(
+            label: 'Сейчас на руках',
+            valueText: '${fmt.format(live.cashOnHand)} $currency',
+            valueColor: live.cashOnHand >= 0
+                ? null
+                : const Color(0xFFEF4444),
+          ),
+          const SizedBox(height: 4),
+          _PlanRow(
             label: 'Можно потратить сегодня',
             valueText: '${fmt.format(live.todayLeft)} $currency',
             valueColor: todayColor,
@@ -1361,16 +1370,30 @@ class _LiveDailyBudgetBlock extends StatelessWidget {
             label: 'Уже потрачено сегодня',
             valueText: '${fmt.format(live.spentToday)} $currency',
           ),
-          const SizedBox(height: 4),
-          _PlanRow(
-            label: 'В день далее (осталось $daysLeft дн.)',
-            valueText: '${fmt.format(live.daily)} $currency',
-          ),
-          const SizedBox(height: 4),
-          _PlanRow(
-            label: 'В неделю',
-            valueText: '${fmt.format(live.weekly)} $currency',
-          ),
+          const SizedBox(height: 8),
+          if (live.nextIncomeDay != null) ...[
+            _PlanRow(
+              label:
+                  'До аванса (${live.daysUntilNextIncome} дн.)',
+              valueText:
+                  '${fmt.format(live.dailyUntilNextIncome)} $currency/день',
+              valueColor: scheme.primary,
+            ),
+            const SizedBox(height: 4),
+            _PlanRow(
+              label:
+                  'После аванса ${live.nextIncomeDay}-го (${live.daysAfterNextIncome} дн.)',
+              valueText:
+                  '${fmt.format(live.dailyAfterNextIncome)} $currency/день',
+            ),
+          ] else ...[
+            _PlanRow(
+              label: 'До конца месяца (${live.daysUntilNextIncome} дн.)',
+              valueText:
+                  '${fmt.format(live.dailyUntilNextIncome)} $currency/день',
+              valueColor: scheme.primary,
+            ),
+          ],
           const SizedBox(height: 4),
           _PlanRow(
             label: 'Свободно до конца месяца',
@@ -1381,9 +1404,11 @@ class _LiveDailyBudgetBlock extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            todayOk
-                ? 'Если ничего не потратишь сегодня — бюджет на следующий день вырастет.'
-                : 'Сегодня превышен дневной лимит — следующий день станет меньше.',
+            live.nextIncomeDay != null
+                ? 'До аванса ${live.nextIncomeDay}-го (${fmt.format(live.nextIncomeAmount)} $currency) тратишь только то, что уже на руках. После аванса бюджет пересчитается.'
+                : (todayOk
+                    ? 'Если ничего не потратишь сегодня — бюджет на следующий день вырастет.'
+                    : 'Сегодня превышен дневной лимит — следующий день станет меньше.'),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),

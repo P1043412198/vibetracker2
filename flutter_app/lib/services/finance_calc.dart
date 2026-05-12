@@ -250,12 +250,22 @@ num weeklyAllowance(num freeFunds, int daysLeft) {
 ///   hasn't met yet (future scheduled dated expenses and loan payments,
 ///   which usually only fire on a specific day).
 ///
-/// `incomeRef` is the same reference the rest of the screen uses
-/// (`max(plannedIncome, scheduledIncomeTotal)` or `actualIncome` when both
-/// are zero). `carryIn` is the optional leftover from the previous month.
-/// All numbers must already be in the plan currency.
+/// `actualIncome` is the income that has already landed (sum of
+/// income-typed transactions in the current month). `incomes` is the
+/// list of *planned* income events from `plan.incomes` — used to split
+/// the rest of the month into the "before the next paycheck" segment
+/// (до аванса) and the "after the paycheck" segment. `carryIn`
+/// is the optional leftover from the previous month. All numbers must
+/// already be in the plan currency.
 class LiveDailyBudget {
   LiveDailyBudget({
+    required this.cashOnHand,
+    required this.dailyUntilNextIncome,
+    required this.daysUntilNextIncome,
+    required this.nextIncomeDay,
+    required this.nextIncomeAmount,
+    required this.dailyAfterNextIncome,
+    required this.daysAfterNextIncome,
     required this.remaining,
     required this.daily,
     required this.weekly,
@@ -264,12 +274,45 @@ class LiveDailyBudget {
     required this.todayLeft,
   });
 
+  /// Money actually in pocket right now:
+  /// `actualIncome + carryIn - actualExpense`. May be negative if the user
+  /// already over-spent against their carry-over.
+  final num cashOnHand;
+
+  /// Per-day allowance until the next planned income event:
+  /// `max(0, cashOnHand - committedBeforeNextIncome) / daysUntilNextIncome`.
+  /// If there is no future income left in the month, this collapses to
+  /// the same value as the legacy [daily] (spread cash-on-hand across the
+  /// rest of the month).
+  final num dailyUntilNextIncome;
+
+  /// Inclusive day count for the first segment (today → nextIncomeDay-1
+  /// or today → last day of month when there is no future income).
+  final int daysUntilNextIncome;
+
+  /// Day-of-month of the next planned income event, or null when there
+  /// is none left in the month.
+  final int? nextIncomeDay;
+
+  /// Amount of that next income event, or 0 when there is none.
+  final num nextIncomeAmount;
+
+  /// Per-day allowance for the segment AFTER the next income event,
+  /// through the end of the month. 0 when there is no next income.
+  final num dailyAfterNextIncome;
+
+  /// Inclusive day count for the second segment (nextIncomeDay → last
+  /// day of month). 0 when there is no next income.
+  final int daysAfterNextIncome;
+
   /// Money still available to spend until the end of the month, after
   /// subtracting actual expenses to date and future fixed obligations.
+  /// Includes future income events.
   final num remaining;
 
-  /// `remaining / daysLeftInclToday` — what the user can spend per day,
-  /// recalculated every time a new transaction lands.
+  /// `remaining / daysLeftInclToday` — the "smoothed" daily allowance
+  /// across the rest of the month. Kept for backward compatibility with
+  /// callers that want a single number.
   final num daily;
 
   /// `daily * 7`.
@@ -278,8 +321,9 @@ class LiveDailyBudget {
   /// Sum of actual expenses with `date == today` in the plan currency.
   final num spentToday;
 
-  /// The target the user was supposed to spend today (= [daily] before
-  /// today's expenses are subtracted). Used to colour the "today" tile.
+  /// The target the user was supposed to spend today — the daily allowance
+  /// for the CURRENT segment computed before today's spending. Used to
+  /// colour the "today" tile.
   final num dailyTarget;
 
   /// How much of today's target is still unspent. Negative when the user
@@ -290,44 +334,108 @@ class LiveDailyBudget {
 LiveDailyBudget computeLiveDailyBudget({
   required DateTime today,
   required DateTime month,
-  required num incomeRef,
+  required num actualIncome,
   required num carryIn,
   required num actualExpense,
   required num spentToday,
+  required Iterable<IncomeEntry> incomes,
   required Iterable<ScheduledExpense> scheduledExpenses,
   required num loansMonthlyPayments,
   required int daysLeftInclToday,
 }) {
   final inSameMonth = today.year == month.year && today.month == month.month;
-  num futureCommitted = 0;
+  final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+  final todayDay = inSameMonth
+      ? today.day.clamp(1, daysInMonth)
+      : (today.isBefore(month) ? 1 : daysInMonth);
+
+  // Cash you have RIGHT NOW. This is what limits today's spending.
+  final cashOnHand = actualIncome + carryIn - actualExpense;
+
+  // Upcoming planned income events in this month, sorted by day.
+  final upcomingIncomes = inSameMonth
+      ? (incomes
+          .where((i) => i.day.clamp(1, daysInMonth) > todayDay)
+          .toList()
+        ..sort((a, b) => a.day.compareTo(b.day)))
+      : <IncomeEntry>[];
+
+  final IncomeEntry? nextIncome =
+      upcomingIncomes.isEmpty ? null : upcomingIncomes.first;
+  final int nextIncomeDay =
+      nextIncome?.day.clamp(1, daysInMonth) ?? (daysInMonth + 1);
+
+  // Segment 1: today → (nextIncomeDay - 1) or today → last day of month.
+  final int seg1End =
+      nextIncome != null ? (nextIncomeDay - 1) : daysInMonth;
+  final int seg1Days = (seg1End - todayDay + 1).clamp(0, daysInMonth).toInt();
+
+  num seg1Committed = 0;
   for (final e in scheduledExpenses) {
-    if (!inSameMonth) {
-      futureCommitted += e.amount;
-      continue;
-    }
-    if (e.day > today.day) futureCommitted += e.amount;
+    final eDay = e.day.clamp(1, daysInMonth);
+    if (eDay >= todayDay && eDay <= seg1End) seg1Committed += e.amount;
   }
-  // Loans are assumed to come due once a month — when we don't know the day,
-  // treat them as still upcoming until the last day of the month.
-  if (inSameMonth && today.day < DateTime(month.year, month.month + 1, 0).day) {
-    futureCommitted += loansMonthlyPayments;
-  } else if (!inSameMonth) {
-    futureCommitted += loansMonthlyPayments;
+  // Loan payments don't carry a known day; charge them in segment 1 only
+  // when there is no future income (otherwise they typically get paid
+  // from the paycheck — charge to segment 2).
+  if (nextIncome == null) {
+    seg1Committed += loansMonthlyPayments;
   }
 
-  final available = incomeRef + carryIn - actualExpense - futureCommitted;
-  final remaining = available > 0 ? available : 0;
+  // Segment 2: nextIncomeDay → last day of month.
+  final int seg2Start = nextIncomeDay;
+  final int seg2End = daysInMonth;
+  final int seg2Days = nextIncome != null ? (seg2End - seg2Start + 1) : 0;
+
+  num seg2Income = 0;
+  num seg2Committed = 0;
+  if (nextIncome != null) {
+    for (final i in upcomingIncomes) {
+      final iDay = i.day.clamp(1, daysInMonth);
+      if (iDay >= seg2Start && iDay <= seg2End) seg2Income += i.amount;
+    }
+    for (final e in scheduledExpenses) {
+      final eDay = e.day.clamp(1, daysInMonth);
+      if (eDay >= seg2Start && eDay <= seg2End) seg2Committed += e.amount;
+    }
+    seg2Committed += loansMonthlyPayments;
+  }
+
+  // Daily allowances. Segment 1 spends cash on hand; segment 2 spends
+  // whatever's left of seg1 plus the incoming paychecks minus commits.
+  final seg1FreePost = cashOnHand - seg1Committed;
+  final dailyUntilNextIncome = seg1Days > 0
+      ? (seg1FreePost > 0 ? seg1FreePost / seg1Days : 0)
+      : 0;
+  final seg1Leftover = seg1FreePost > 0 ? seg1FreePost : 0;
+  final seg2Pot = seg1Leftover + seg2Income - seg2Committed;
+  final dailyAfterNextIncome = seg2Days > 0
+      ? (seg2Pot > 0 ? seg2Pot / seg2Days : 0)
+      : 0;
+
+  // Smoothed view across the whole rest of the month (legacy `daily`).
+  final totalFree = cashOnHand + seg2Income - seg1Committed - seg2Committed;
+  final remaining = totalFree > 0 ? totalFree : 0;
   final daily =
       daysLeftInclToday > 0 ? remaining / daysLeftInclToday : remaining;
-  // The "target for today" is what daily would have been BEFORE we
-  // subtracted today's spending — we add `spentToday` back so the figure
-  // describes the original day-budget, then show how much of it is left.
-  final dailyTarget = daysLeftInclToday > 0
-      ? ((available + spentToday) > 0
-          ? (available + spentToday) / daysLeftInclToday
-          : 0)
+
+  // Today's target = segment 1 daily BEFORE today's spending. We add
+  // back today's expenses so the figure describes the day's original
+  // allowance, then show how much of it is left.
+  final cashOnHandStartOfToday = cashOnHand + spentToday;
+  final seg1FreeStartOfToday = cashOnHandStartOfToday - seg1Committed;
+  final dailyTarget = seg1Days > 0
+      ? (seg1FreeStartOfToday > 0 ? seg1FreeStartOfToday / seg1Days : 0)
       : 0;
+
   return LiveDailyBudget(
+    cashOnHand: cashOnHand,
+    dailyUntilNextIncome: dailyUntilNextIncome,
+    daysUntilNextIncome: seg1Days,
+    nextIncomeDay: nextIncome?.day,
+    nextIncomeAmount: nextIncome?.amount ?? 0,
+    dailyAfterNextIncome: dailyAfterNextIncome,
+    daysAfterNextIncome: seg2Days,
     remaining: remaining,
     daily: daily,
     weekly: daily * 7,
