@@ -10,7 +10,6 @@ import '../../models/misc.dart';
 import '../../services/ai_service.dart';
 import '../../state/providers.dart';
 import 'body_photos_tab.dart';
-import 'outdoor_run_page.dart';
 import 'workout_camera_page.dart';
 import 'workout_history_page.dart';
 
@@ -64,14 +63,6 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
         leading: const BackButton(),
         title: const Text('Тренировки'),
         actions: [
-          IconButton(
-            tooltip: 'Бег на улице',
-            icon: const Icon(Icons.directions_run),
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const OutdoorRunPage()));
-            },
-          ),
           IconButton(
             tooltip: 'История',
             icon: const Icon(Icons.history),

@@ -13,12 +13,6 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <!-- Outdoor running: GPS tracking + step counter -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"/>
-
     <!-- Wave 1.12: biometric unlock (local_auth) + voice transcription
          (speech_to_text). USE_BIOMETRIC is the modern permission;
          USE_FINGERPRINT is the legacy one for older devices. -->

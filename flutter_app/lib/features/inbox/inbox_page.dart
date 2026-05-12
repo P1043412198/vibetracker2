@@ -726,26 +726,50 @@ class _InboxPageState extends ConsumerState<InboxPage> {
 
   Future<void> _aiClassify(InboxItem item) async {
     if (item.content.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    bool spinnerShown = true;
+    void dismissSpinner() {
+      if (!spinnerShown) return;
+      spinnerShown = false;
+      if (rootNavigator.canPop()) rootNavigator.pop();
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
+
+    final Map<String, dynamic>? result;
     try {
-      final result = await GeminiService.classifyInbox(item.content);
+      result = await GeminiService.classifyInbox(item.content);
+    } on AiServiceException catch (e) {
+      dismissSpinner();
       if (!mounted) return;
-      Navigator.of(context).pop(); // dismiss spinner
-      if (result == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('AI не смог классифицировать')),
-        );
-        return;
-      }
-      final type = (result['type'] as String?) ?? 'note';
-      final title = (result['suggestedTitle'] as String?) ?? item.content;
-      final amount = result['suggestedAmount'];
-      final category = result['suggestedCategory'] as String?;
-      final confidence = result['confidence'];
+      messenger.showSnackBar(SnackBar(content: Text('AI ошибка: $e')));
+      return;
+    } catch (e) {
+      dismissSpinner();
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+      return;
+    }
+    dismissSpinner();
+    if (!mounted) return;
+    if (result == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('AI не смог классифицировать')),
+      );
+      return;
+    }
+    try {
+      final ai = result;
+      final type = (ai['type'] as String?) ?? 'note';
+      final title = (ai['suggestedTitle'] as String?) ?? item.content;
+      final amount = ai['suggestedAmount'];
+      final category = ai['suggestedCategory'] as String?;
+      final confidence = ai['confidence'];
 
       final confStr = confidence != null
           ? ' (${(confidence * 100).toStringAsFixed(0)}%)'
@@ -785,7 +809,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 20, vertical: 4),
                   child: Text(
-                    'Сумма: $amount ${result['suggestedCurrency'] ?? 'BYN'}',
+                    'Сумма: $amount ${ai['suggestedCurrency'] ?? 'BYN'}',
                     style: Theme.of(sheetCtx).textTheme.bodySmall,
                   ),
                 ),
@@ -841,24 +865,15 @@ class _InboxPageState extends ConsumerState<InboxPage> {
           await _promoteToHabit(item);
           break;
         case 'transaction':
-          await _aiCreateTransaction(item, result);
+          await _aiCreateTransaction(item, ai);
           break;
         case 'promote':
           await _promoteMany([item]);
           break;
       }
-    } on AiServiceException catch (e) {
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('AI ошибка: $e')),
-      );
     } catch (e) {
       if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ошибка: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text('Ошибка: $e')));
     }
   }
 

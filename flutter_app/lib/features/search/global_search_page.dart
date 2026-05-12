@@ -232,7 +232,7 @@ class _GlobalSearchPageState extends ConsumerState<GlobalSearchPage> {
               kind: 'Секция плана',
               icon: Icons.dashboard_outlined,
               color: const Color(0xFF6D5CFF),
-              route: '/financial-plan/${plan.id}',
+              route: '/financial-plan/month/${plan.id}',
             ));
           }
           for (final it in section.items) {
@@ -245,7 +245,7 @@ class _GlobalSearchPageState extends ConsumerState<GlobalSearchPage> {
                 kind: 'Статья плана',
                 icon: Icons.list_alt_outlined,
                 color: const Color(0xFF6D5CFF),
-                route: '/financial-plan/${plan.id}',
+                route: '/financial-plan/month/${plan.id}',
               ));
             }
           }
