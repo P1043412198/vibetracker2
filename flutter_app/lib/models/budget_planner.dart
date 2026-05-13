@@ -253,32 +253,97 @@ class ActualExpense {
       );
 }
 
-/// Top-level container persisted as a single JSON map.
+/// Monthly budget config — one per month, identified by [monthKey].
 class BudgetPlanConfig {
   BudgetPlanConfig({
+    required this.monthKey,
     required this.incomeSources,
     required this.plannedExpenses,
     required this.actualExpenses,
+    this.linkedAccountIds = const [],
   });
 
+  /// `YYYY-MM` key for this month's budget.
+  final String monthKey;
   final List<IncomeSource> incomeSources;
   final List<PlannedExpense> plannedExpenses;
   final List<ActualExpense> actualExpenses;
 
-  factory BudgetPlanConfig.empty() => BudgetPlanConfig(
-        incomeSources: [],
-        plannedExpenses: [],
-        actualExpenses: [],
-      );
+  /// Account IDs to track balance from (empty = all accounts).
+  final List<String> linkedAccountIds;
+
+  factory BudgetPlanConfig.empty({String? monthKey}) {
+    final now = DateTime.now();
+    return BudgetPlanConfig(
+      monthKey: monthKey ??
+          '${now.year}-${now.month.toString().padLeft(2, '0')}',
+      incomeSources: [],
+      plannedExpenses: [],
+      actualExpenses: [],
+    );
+  }
+
+  /// Create next month's config from this one (rollover).
+  BudgetPlanConfig rolloverToMonth(String newMonthKey) {
+    return BudgetPlanConfig(
+      monthKey: newMonthKey,
+      incomeSources: incomeSources
+          .map((s) => IncomeSource(
+                id: _uuid.v4(),
+                name: s.name,
+                type: s.type,
+                amount: s.amount,
+                currency: s.currency,
+                dayOfMonth: s.dayOfMonth,
+                adjustForHolidays: s.adjustForHolidays,
+                isActive: s.isActive,
+                createdAt: DateTime.now().toIso8601String(),
+              ))
+          .toList(),
+      plannedExpenses: plannedExpenses
+          .map((e) => PlannedExpense(
+                id: _uuid.v4(),
+                name: e.name,
+                amount: e.amount,
+                currency: e.currency,
+                dayFrom: e.dayFrom,
+                dayTo: e.dayTo,
+                category: e.category,
+                isActive: e.isActive,
+                createdAt: DateTime.now().toIso8601String(),
+              ))
+          .toList(),
+      actualExpenses: [],
+      linkedAccountIds: linkedAccountIds,
+    );
+  }
+
+  BudgetPlanConfig copyWith({
+    List<IncomeSource>? incomeSources,
+    List<PlannedExpense>? plannedExpenses,
+    List<ActualExpense>? actualExpenses,
+    List<String>? linkedAccountIds,
+  }) {
+    return BudgetPlanConfig(
+      monthKey: monthKey,
+      incomeSources: incomeSources ?? this.incomeSources,
+      plannedExpenses: plannedExpenses ?? this.plannedExpenses,
+      actualExpenses: actualExpenses ?? this.actualExpenses,
+      linkedAccountIds: linkedAccountIds ?? this.linkedAccountIds,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
+        'monthKey': monthKey,
         'incomeSources': incomeSources.map((e) => e.toJson()).toList(),
         'plannedExpenses': plannedExpenses.map((e) => e.toJson()).toList(),
         'actualExpenses': actualExpenses.map((e) => e.toJson()).toList(),
+        'linkedAccountIds': linkedAccountIds,
       };
 
   factory BudgetPlanConfig.fromJson(Map<String, dynamic> j) {
     return BudgetPlanConfig(
+      monthKey: (j['monthKey'] ?? '') as String,
       incomeSources: (j['incomeSources'] as List?)
               ?.whereType<Map>()
               .map((e) => IncomeSource.fromJson(
@@ -297,6 +362,69 @@ class BudgetPlanConfig {
                   e.map((k, v) => MapEntry(k.toString(), v))))
               .toList() ??
           [],
+      linkedAccountIds: (j['linkedAccountIds'] as List?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
+  }
+}
+
+/// Top-level store: all monthly budget configs.
+class BudgetPlanStore {
+  BudgetPlanStore({
+    required this.months,
+    required this.selectedMonthKey,
+  });
+
+  final List<BudgetPlanConfig> months;
+  final String selectedMonthKey;
+
+  BudgetPlanConfig get currentMonth {
+    return months.firstWhere(
+      (m) => m.monthKey == selectedMonthKey,
+      orElse: () => BudgetPlanConfig.empty(monthKey: selectedMonthKey),
+    );
+  }
+
+  factory BudgetPlanStore.empty() {
+    final now = DateTime.now();
+    final key = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    return BudgetPlanStore(months: [], selectedMonthKey: key);
+  }
+
+  Map<String, dynamic> toJson() => {
+        'months': months.map((m) => m.toJson()).toList(),
+        'selectedMonthKey': selectedMonthKey,
+      };
+
+  factory BudgetPlanStore.fromJson(Map<String, dynamic> j) {
+    final now = DateTime.now();
+    final defaultKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    return BudgetPlanStore(
+      months: (j['months'] as List?)
+              ?.whereType<Map>()
+              .map((e) => BudgetPlanConfig.fromJson(
+                  e.map((k, v) => MapEntry(k.toString(), v))))
+              .toList() ??
+          [],
+      selectedMonthKey:
+          (j['selectedMonthKey'] ?? defaultKey) as String,
+    );
+  }
+
+  /// Migrate from old single-config format.
+  factory BudgetPlanStore.migrateFromLegacy(Map<String, dynamic> j) {
+    final config = BudgetPlanConfig.fromJson(j);
+    final now = DateTime.now();
+    final key = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final migrated = BudgetPlanConfig(
+      monthKey: key,
+      incomeSources: config.incomeSources,
+      plannedExpenses: config.plannedExpenses,
+      actualExpenses: config.actualExpenses,
+    );
+    return BudgetPlanStore(months: [migrated], selectedMonthKey: key);
   }
 }

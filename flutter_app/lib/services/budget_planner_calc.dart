@@ -1,15 +1,12 @@
-/// Budget planner calculation service — port of `src/lib/finance/budgetPlanner.ts`.
-///
-/// Computes actual pay dates for salary/advance considering Belarus weekends
-/// and public holidays, and calculates daily/weekly allowances between pay cycles.
-
 import 'package:intl/intl.dart';
 
 import '../finance/by_holidays.dart';
 import '../models/budget_planner.dart';
+import '../models/enums.dart';
+import '../models/finance.dart';
+import 'finance_calc.dart';
 
 /// Returns the last working day on or before [dayOfMonth] in [year]/[month].
-/// Adjusts backward for weekends and Belarus holidays.
 DateTime adjustedPayDate(int year, int month, int dayOfMonth) {
   final daysInMonth = DateTime(year, month + 1, 0).day;
   final day = dayOfMonth.clamp(1, daysInMonth);
@@ -36,7 +33,7 @@ DateTime? getPayDate(IncomeSource source, int year, int month) {
   int targetDay;
   if (source.type == IncomeSourceType.advance &&
       (source.dayOfMonth == null || source.dayOfMonth! >= 28)) {
-    targetDay = DateTime(year, month + 1, 0).day; // last day of month
+    targetDay = DateTime(year, month + 1, 0).day;
   } else {
     targetDay = source.dayOfMonth ?? 15;
   }
@@ -82,6 +79,96 @@ class BudgetCycle {
   final int extraDays;
 }
 
+/// Aggregated facts for the dashboard from real transactions.
+class BudgetFacts {
+  BudgetFacts({
+    required this.accountBalance,
+    required this.monthIncome,
+    required this.monthExpense,
+    required this.expenseByCategory,
+    required this.dailySpending,
+    required this.incomeTransactions,
+    required this.expenseTransactions,
+  });
+
+  final double accountBalance;
+  final double monthIncome;
+  final double monthExpense;
+  final Map<String, double> expenseByCategory;
+
+  /// Daily spending amounts: day-of-month (1-based) → total spent.
+  final Map<int, double> dailySpending;
+  final List<Transaction> incomeTransactions;
+  final List<Transaction> expenseTransactions;
+}
+
+/// Compute real facts from transactions and accounts for a given month.
+BudgetFacts computeBudgetFacts({
+  required String monthKey,
+  required List<Transaction> transactions,
+  required List<Account> accounts,
+  required CurrencyConvert convert,
+  required String baseCurrency,
+  List<String> linkedAccountIds = const [],
+}) {
+  double balance = 0;
+  for (final a in accounts) {
+    if (linkedAccountIds.isNotEmpty && !linkedAccountIds.contains(a.id)) {
+      continue;
+    }
+    final b = accountBalance(
+      account: a,
+      transactions: transactions,
+      accounts: accounts,
+      convert: convert,
+    );
+    balance += convert(b, a.currency, baseCurrency).toDouble();
+  }
+
+  final monthTxs = transactions.where((t) => t.date.startsWith(monthKey));
+  double income = 0;
+  double expense = 0;
+  final byCategory = <String, double>{};
+  final dailySpend = <int, double>{};
+  final incomeTxs = <Transaction>[];
+  final expenseTxs = <Transaction>[];
+
+  for (final t in monthTxs) {
+    final amt = convert(t.amount, _txCurrency(t, accounts, baseCurrency),
+            baseCurrency)
+        .toDouble();
+    if (t.type == TransactionType.income) {
+      income += amt;
+      incomeTxs.add(t);
+    } else if (t.type == TransactionType.expense) {
+      expense += amt;
+      expenseTxs.add(t);
+      byCategory[t.category] = (byCategory[t.category] ?? 0) + amt;
+      final day = int.tryParse(t.date.substring(8, 10)) ?? 1;
+      dailySpend[day] = (dailySpend[day] ?? 0) + amt;
+    }
+  }
+
+  return BudgetFacts(
+    accountBalance: balance,
+    monthIncome: income,
+    monthExpense: expense,
+    expenseByCategory: byCategory,
+    dailySpending: dailySpend,
+    incomeTransactions: incomeTxs,
+    expenseTransactions: expenseTxs,
+  );
+}
+
+String _txCurrency(Transaction t, List<Account> accounts, String fallback) {
+  if (t.accountId == null) return fallback;
+  final acct = accounts.cast<Account?>().firstWhere(
+        (a) => a?.id == t.accountId,
+        orElse: () => null,
+      );
+  return acct?.currency ?? fallback;
+}
+
 int _diffDays(DateTime a, DateTime b) {
   final aDate = DateTime(a.year, a.month, a.day);
   final bDate = DateTime(b.year, b.month, b.day);
@@ -92,11 +179,15 @@ bool _isBefore(DateTime a, DateTime b) => _diffDays(a, b) > 0;
 bool _isBeforeOrSame(DateTime a, DateTime b) => _diffDays(a, b) >= 0;
 
 /// Calculate budget cycles based on income sources and expenses.
-/// Returns cycles: salary→advance, advance→salary, salary→salary.
+/// Now also considers real transactions for actual spending.
 List<BudgetCycle> computeBudgetCycles({
   required List<IncomeSource> incomeSources,
   required List<PlannedExpense> plannedExpenses,
   required List<ActualExpense> actualExpenses,
+  List<Transaction> transactions = const [],
+  List<Account> accounts = const [],
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
   DateTime? today,
 }) {
   final now = today ?? DateTime.now();
@@ -115,8 +206,10 @@ List<BudgetCycle> computeBudgetCycles({
 
   if (salarySource == null && advanceSource == null) return cycles;
 
-  final salaryDate = salarySource != null ? getPayDate(salarySource, year, month) : null;
-  final advanceDate = advanceSource != null ? getPayDate(advanceSource, year, month) : null;
+  final salaryDate =
+      salarySource != null ? getPayDate(salarySource, year, month) : null;
+  final advanceDate =
+      advanceSource != null ? getPayDate(advanceSource, year, month) : null;
 
   final nextMonth = month == 12 ? 1 : month + 1;
   final nextYear = month == 12 ? year + 1 : year;
@@ -151,7 +244,7 @@ List<BudgetCycle> computeBudgetCycles({
         .fold<double>(0, (sum, e) => e.paidAmount ?? e.amount);
   }
 
-  double actualSpentInRange(DateTime start, DateTime end) {
+  double manualActualInRange(DateTime start, DateTime end) {
     return actualExpenses
         .where((e) {
           final d = DateTime.tryParse(e.date);
@@ -161,15 +254,33 @@ List<BudgetCycle> computeBudgetCycles({
         .fold<double>(0, (sum, e) => sum + e.amount);
   }
 
-  BudgetCycle buildCycle(String label, DateTime startDate, DateTime endDate, double income) {
+  double realTransactionExpensesInRange(DateTime start, DateTime end) {
+    if (transactions.isEmpty || convert == null) return 0;
+    final fmt = DateFormat('yyyy-MM-dd');
+    final startStr = fmt.format(start);
+    final endStr = fmt.format(end);
+    return transactions
+        .where((t) =>
+            t.type == TransactionType.expense &&
+            t.date.compareTo(startStr) >= 0 &&
+            t.date.compareTo(endStr) <= 0)
+        .fold<double>(0, (sum, t) {
+      final cur = _txCurrency(t, accounts, baseCurrency);
+      return sum + convert(t.amount, cur, baseCurrency).toDouble();
+    });
+  }
+
+  BudgetCycle buildCycle(
+      String label, DateTime startDate, DateTime endDate, double income) {
     final totalDays = _diffDays(startDate, endDate);
     final daysFromToday = _isBefore(now, startDate)
         ? totalDays
         : (_diffDays(now, endDate)).clamp(1, totalDays);
     final expenses = expensesInRange(startDate, endDate);
     final paid = paidExpensesInRange(startDate, endDate);
-    final actual = actualSpentInRange(startDate, endDate);
-    final totalSpent = paid + actual;
+    final manual = manualActualInRange(startDate, endDate);
+    final realTx = realTransactionExpensesInRange(startDate, endDate);
+    final totalSpent = paid + manual + realTx;
     final remaining = income - expenses - totalSpent;
     final daily = daysFromToday > 0 ? remaining / daysFromToday : 0.0;
     final fullWeeks = daysFromToday ~/ 7;
@@ -194,7 +305,9 @@ List<BudgetCycle> computeBudgetCycles({
   }
 
   // Cycle 1: Salary → Advance
-  if (salaryDate != null && advanceDate != null && _isBefore(salaryDate, advanceDate)) {
+  if (salaryDate != null &&
+      advanceDate != null &&
+      _isBefore(salaryDate, advanceDate)) {
     cycles.add(buildCycle(
       'От зарплаты до аванса',
       salaryDate,
@@ -215,8 +328,9 @@ List<BudgetCycle> computeBudgetCycles({
 
   // Cycle 3: Salary → Next Salary (full cycle)
   if (salaryDate != null && nextSalaryDate != null) {
-    final totalIncome =
-        (salarySource?.amount ?? 0) + (advanceSource?.amount ?? 0) + additionalTotal;
+    final totalIncome = (salarySource?.amount ?? 0) +
+        (advanceSource?.amount ?? 0) +
+        additionalTotal;
     cycles.add(buildCycle(
       'От зарплаты до зарплаты',
       salaryDate,
