@@ -16,6 +16,7 @@ import { AccountsTab } from '../components/AccountsTab';
 import { SmartFinanceAlerts } from '../components/SmartFinanceAlerts';
 import { MonthlyBudgetPlanTab } from '../components/MonthlyBudgetPlanTab';
 import { BankCsvImportModal } from '../components/BankCsvImportModal';
+import { BudgetPlannerTab } from '../components/BudgetPlannerTab';
 // Heavy / rarely-used finance tabs are split out so the initial bundle stays small.
 const ProAnalyticsTab = lazy(() => import('../components/ProAnalyticsTab').then(m => ({ default: m.ProAnalyticsTab })));
 const VacationPlanner = lazy(() => import('../components/VacationPlanner').then(m => ({ default: m.VacationPlanner })));
@@ -51,7 +52,7 @@ export function Finance() {
     fetchRates,
     setBaseCurrency
   } = useStore();
-  const [activeTab, setActiveTab] = useState<'transactions' | 'accounts' | 'shopping' | 'analytics' | 'visuals' | 'pro-analytics' | 'loans' | 'ai' | 'plan' | 'control' | 'vacation' | 'savings' | 'debt-strategy' | 'budget-planning' | 'monthly-plan' | 'wealth' | 'subscriptions' | 'fire' | 'predictive'>('monthly-plan');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'accounts' | 'shopping' | 'analytics' | 'visuals' | 'pro-analytics' | 'loans' | 'ai' | 'plan' | 'control' | 'vacation' | 'savings' | 'debt-strategy' | 'budget-planning' | 'monthly-plan' | 'wealth' | 'subscriptions' | 'fire' | 'predictive' | 'budget-planner'>('budget-planner');
   const [aiPrompt, setAiPrompt] = useState<string | undefined>();
   const [showCurrencySettings, setShowCurrencySettings] = useState(false);
 
@@ -115,6 +116,7 @@ export function Finance() {
       { id: 'subscriptions', label: 'Подписки', icon: CreditCard, color: 'text-blue-400' },
     ],
     'Бюджет': [
+      { id: 'budget-planner', label: 'Планирование', icon: Banknote, color: 'text-emerald-600' },
       { id: 'monthly-plan', label: 'План месяца', icon: Target, color: 'text-emerald-500' },
       { id: 'budget-planning', label: 'Прогноз', icon: CalendarRange, color: 'text-emerald-400' },
       { id: 'predictive', label: 'ИИ Бюджет', icon: BrainCircuit, color: 'text-purple-500' },
@@ -288,6 +290,7 @@ export function Finance() {
         {activeTab === 'loans' && <LoansTab />}
         {activeTab === 'plan' && <FinancialPlanTab onSwitchToAI={switchToAI} />}
         {activeTab === 'control' && <BudgetControlTab />}
+        {activeTab === 'budget-planner' && <BudgetPlannerTab />}
         {activeTab === 'monthly-plan' && <MonthlyBudgetPlanTab />}
         {activeTab === 'analytics' && <FinanceAnalyticsTab />}
         {activeTab === 'visuals' && (

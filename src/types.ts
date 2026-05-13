@@ -457,6 +457,60 @@ export type GoalLog = {
   content: string;
 };
 
+// ── Budget Planner (План Доходов / Расходов / Факт) ──
+
+export type IncomeSourceType = 'salary' | 'advance' | 'additional';
+
+export type IncomeSource = {
+  id: string;
+  name: string;
+  type: IncomeSourceType;
+  amount: number;
+  currency?: Currency;
+  /** Day of month (1-31). For salary/advance, auto-adjusted for weekends/holidays. */
+  dayOfMonth?: number;
+  /** If true, adjust to last working day when date falls on weekend/holiday. */
+  adjustForHolidays?: boolean;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type PlannedExpense = {
+  id: string;
+  name: string;
+  amount: number;
+  currency?: Currency;
+  /** Start day of payment window (1-31). */
+  dayFrom: number;
+  /** End day of payment window (1-31). */
+  dayTo: number;
+  category?: string;
+  /** Whether this expense has been paid in the current cycle. */
+  isPaid: boolean;
+  /** Date when it was actually paid (ISO string). */
+  paidDate?: string;
+  /** Actual amount paid (may differ from planned). */
+  paidAmount?: number;
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type ActualExpense = {
+  id: string;
+  plannedExpenseId?: string;
+  name: string;
+  amount: number;
+  currency?: Currency;
+  date: string; // YYYY-MM-DD
+  category?: string;
+};
+
+export type BudgetPlanConfig = {
+  incomeSources: IncomeSource[];
+  plannedExpenses: PlannedExpense[];
+  actualExpenses: ActualExpense[];
+};
+
 export type AppState = {
   spheres: Sphere[];
   tasks: Task[];
@@ -490,4 +544,7 @@ export type AppState = {
   priceHistory?: ShoppingItemPrice[];
   dailyActivities?: DailyActivity[];
   hideHabitNames?: boolean;
+  incomeSources?: IncomeSource[];
+  plannedExpenses?: PlannedExpense[];
+  actualExpenses?: ActualExpense[];
 };

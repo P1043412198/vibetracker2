@@ -3,7 +3,7 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
 import { format, isSameMonth, parseISO } from 'date-fns';
-import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset } from '../types';
+import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset, IncomeSource, PlannedExpense, ActualExpense } from '../types';
 import { createMonthlyBudgetActions } from './slices/monthlyBudgetSlice';
 
 // Custom storage using IndexedDB to handle large data (like base64 images)
@@ -66,6 +66,11 @@ interface AppState {
   savingsGoals: SavingsGoal[];
   priceHistory: ShoppingItemPrice[];
   dailyActivities: DailyActivity[];
+
+  // Budget Planner
+  incomeSources: IncomeSource[];
+  plannedExpenses: PlannedExpense[];
+  actualExpenses: ActualExpense[];
   
   // Currency
   rates: Record<string, number>;
@@ -282,6 +287,19 @@ interface AppState {
   stopTimer: () => void;
   resetTimer: () => void;
 
+  // Budget Planner Actions
+  addIncomeSource: (source: Omit<IncomeSource, 'id' | 'createdAt'>) => void;
+  updateIncomeSource: (id: string, updates: Partial<IncomeSource>) => void;
+  deleteIncomeSource: (id: string) => void;
+  addPlannedExpense: (expense: Omit<PlannedExpense, 'id' | 'createdAt'>) => void;
+  updatePlannedExpense: (id: string, updates: Partial<PlannedExpense>) => void;
+  deletePlannedExpense: (id: string) => void;
+  markExpensePaid: (id: string, paidAmount?: number) => void;
+  markExpenseUnpaid: (id: string) => void;
+  addActualExpense: (expense: Omit<ActualExpense, 'id'>) => void;
+  deleteActualExpense: (id: string) => void;
+  resetMonthlyExpenseStatus: () => void;
+
   // Wealth Tree
   wealthTreeTarget: number | null;
   setWealthTreeTarget: (target: number | null) => void;
@@ -327,6 +345,9 @@ export const useStore = create<AppState>()(
       waterGoal: 2000,
       waterIncrement: 250,
       waterVisualization: 'glass',
+      incomeSources: [],
+      plannedExpenses: [],
+      actualExpenses: [],
       wealthTreeTarget: null,
       dashboardConfig: {
         widgetsOrder: ['smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 'spheres_hub', 'goals', 'tasks_habits', 'water', 'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'monthly_budget', 'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery', 'discipline_score', 'stoic_quote', 'shopping_list'],
@@ -1177,6 +1198,45 @@ export const useStore = create<AppState>()(
           timeLeft: state.pomodoro.totalTime,
           isRunning: false
         }
+      })),
+
+      // Budget Planner
+      addIncomeSource: (source) => set((state) => ({
+        incomeSources: [...(state.incomeSources || []), { ...source, id: uuidv4(), createdAt: new Date().toISOString() }]
+      })),
+      updateIncomeSource: (id, updates) => set((state) => ({
+        incomeSources: (state.incomeSources || []).map(s => s.id === id ? { ...s, ...updates } : s)
+      })),
+      deleteIncomeSource: (id) => set((state) => ({
+        incomeSources: (state.incomeSources || []).filter(s => s.id !== id)
+      })),
+      addPlannedExpense: (expense) => set((state) => ({
+        plannedExpenses: [...(state.plannedExpenses || []), { ...expense, id: uuidv4(), createdAt: new Date().toISOString() }]
+      })),
+      updatePlannedExpense: (id, updates) => set((state) => ({
+        plannedExpenses: (state.plannedExpenses || []).map(e => e.id === id ? { ...e, ...updates } : e)
+      })),
+      deletePlannedExpense: (id) => set((state) => ({
+        plannedExpenses: (state.plannedExpenses || []).filter(e => e.id !== id)
+      })),
+      markExpensePaid: (id, paidAmount) => set((state) => ({
+        plannedExpenses: (state.plannedExpenses || []).map(e =>
+          e.id === id ? { ...e, isPaid: true, paidDate: new Date().toISOString(), paidAmount: paidAmount ?? e.amount } : e
+        )
+      })),
+      markExpenseUnpaid: (id) => set((state) => ({
+        plannedExpenses: (state.plannedExpenses || []).map(e =>
+          e.id === id ? { ...e, isPaid: false, paidDate: undefined, paidAmount: undefined } : e
+        )
+      })),
+      addActualExpense: (expense) => set((state) => ({
+        actualExpenses: [...(state.actualExpenses || []), { ...expense, id: uuidv4() }]
+      })),
+      deleteActualExpense: (id) => set((state) => ({
+        actualExpenses: (state.actualExpenses || []).filter(e => e.id !== id)
+      })),
+      resetMonthlyExpenseStatus: () => set((state) => ({
+        plannedExpenses: (state.plannedExpenses || []).map(e => ({ ...e, isPaid: false, paidDate: undefined, paidAmount: undefined }))
       })),
 
       toggleHideHabitNames: () => set((state) => ({
