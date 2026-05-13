@@ -374,6 +374,8 @@ export type SleepLog = {
   hours: number;
   quality: 1 | 2 | 3 | 4 | 5; // 1-5 scale
   notes?: string;
+  bedtime?: string; // HH:mm
+  wakeTime?: string; // HH:mm
 };
 
 export type PomodoroSettings = {
