@@ -67,6 +67,7 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
       accounts: accounts,
       convert: convert,
       baseCurrency: baseCurrency,
+      accountBalance: facts.accountBalance,
     );
 
     return ListView(
@@ -2029,19 +2030,35 @@ class _CycleCard extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  _detailRow('Доход', _fmt.format(cycle.totalIncome),
-                      const Color(0xFF10B981)),
+                  if (cycle.useAccountBase)
+                    _detailRow('Баланс счёта',
+                        _fmt.format(cycle.accountBalance),
+                        const Color(0xFF6D5CFF)),
+                  if (cycle.useAccountBase && cycle.receivedIncome > 0)
+                    _detailRow(
+                        'Получено (в балансе)',
+                        _fmt.format(cycle.receivedIncome),
+                        const Color(0xFF22C55E)),
+                  if (cycle.useAccountBase && cycle.pendingIncome > 0)
+                    _detailRow(
+                        'Ожидаемый доход',
+                        '+ ${_fmt.format(cycle.pendingIncome)}',
+                        const Color(0xFF10B981)),
+                  if (!cycle.useAccountBase)
+                    _detailRow('Доход', _fmt.format(cycle.totalIncome),
+                        const Color(0xFF10B981)),
                   _detailRow(
-                      'Плановые расходы',
-                      _fmt.format(cycle.totalPlannedExpenses),
+                      'Неоплач. расходы',
+                      '- ${_fmt.format(cycle.totalPlannedExpenses)}',
                       const Color(0xFFF59E0B)),
-                  _detailRow('Потрачено', _fmt.format(cycle.actualSpent),
-                      const Color(0xFFEF4444)),
-                  _detailRow('Остаток', _fmt.format(cycle.remainingBudget),
-                      const Color(0xFF10B981)),
+                  const Divider(height: 8),
+                  _detailRow('Свободно', _fmt.format(cycle.remainingBudget),
+                      cycle.remainingBudget >= 0
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFEF4444)),
                   if (cycle.fullWeeks > 0)
                     _detailRow(
-                        'Недели',
+                        'Период',
                         '${cycle.fullWeeks} нед.${cycle.extraDays > 0 ? " + ${cycle.extraDays} дн." : ""}',
                         scheme.onSurfaceVariant),
                 ],

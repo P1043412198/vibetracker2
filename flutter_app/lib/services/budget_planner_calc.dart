@@ -61,6 +61,10 @@ class BudgetCycle {
     required this.weeklyBudget,
     required this.fullWeeks,
     required this.extraDays,
+    this.accountBalance = 0,
+    this.receivedIncome = 0,
+    this.pendingIncome = 0,
+    this.useAccountBase = false,
   });
 
   final String label;
@@ -77,6 +81,10 @@ class BudgetCycle {
   final double weeklyBudget;
   final int fullWeeks;
   final int extraDays;
+  final double accountBalance;
+  final double receivedIncome;
+  final double pendingIncome;
+  final bool useAccountBase;
 }
 
 /// Aggregated facts for the dashboard from real transactions.
@@ -176,10 +184,46 @@ int _diffDays(DateTime a, DateTime b) {
 }
 
 bool _isBefore(DateTime a, DateTime b) => _diffDays(a, b) > 0;
-bool _isBeforeOrSame(DateTime a, DateTime b) => _diffDays(a, b) >= 0;
 
-/// Calculate budget cycles based on income sources and expenses.
-/// Now also considers real transactions for actual spending.
+/// Check if a planned income source has a matching real income transaction.
+/// Matches by: amount within 20% tolerance, date within ±5 days of pay date.
+bool _isIncomeReceived({
+  required IncomeSource source,
+  required DateTime? payDate,
+  required List<Transaction> incomeTxs,
+  required List<Account> accounts,
+  required CurrencyConvert? convert,
+  required String baseCurrency,
+}) {
+  if (payDate == null || incomeTxs.isEmpty || convert == null) return false;
+
+  for (final t in incomeTxs) {
+    // Date within ±5 days
+    final txDate = DateTime.tryParse(t.date);
+    if (txDate == null) continue;
+    final diff = (txDate.difference(payDate).inDays).abs();
+    if (diff > 5) continue;
+
+    // Amount within 20% tolerance
+    final txAmt =
+        convert(t.amount, _txCurrency(t, accounts, baseCurrency), baseCurrency)
+            .toDouble();
+    final ratio = source.amount > 0 ? txAmt / source.amount : 0.0;
+    if (ratio >= 0.8 && ratio <= 1.2) return true;
+  }
+  return false;
+}
+
+/// Calculate budget cycles using real account balance as the base.
+///
+/// Logic:
+/// 1. Account balance = real money available now (includes leftover from
+///    previous months)
+/// 2. Check each planned income: if it already arrived as a real transaction,
+///    it is already inside the account balance — do NOT add again.
+///    If it hasn't arrived yet, add it as pending future income.
+/// 3. Subtract unpaid planned expenses.
+/// 4. Divide by remaining days = real daily/weekly budget.
 List<BudgetCycle> computeBudgetCycles({
   required List<IncomeSource> incomeSources,
   required List<PlannedExpense> plannedExpenses,
@@ -188,6 +232,7 @@ List<BudgetCycle> computeBudgetCycles({
   List<Account> accounts = const [],
   CurrencyConvert? convert,
   String baseCurrency = 'BYN',
+  double accountBalance = 0,
   DateTime? today,
 }) {
   final now = today ?? DateTime.now();
@@ -200,9 +245,10 @@ List<BudgetCycle> computeBudgetCycles({
       activeSources.where((s) => s.type == IncomeSourceType.salary).firstOrNull;
   final advanceSource =
       activeSources.where((s) => s.type == IncomeSourceType.advance).firstOrNull;
-  final additionalTotal = activeSources
-      .where((s) => s.type == IncomeSourceType.additional)
-      .fold<double>(0, (sum, s) => sum + s.amount);
+  final additionalSources =
+      activeSources.where((s) => s.type == IncomeSourceType.additional).toList();
+  final additionalTotal =
+      additionalSources.fold<double>(0, (sum, s) => sum + s.amount);
 
   if (salarySource == null && advanceSource == null) return cycles;
 
@@ -213,12 +259,41 @@ List<BudgetCycle> computeBudgetCycles({
 
   final nextMonth = month == 12 ? 1 : month + 1;
   final nextYear = month == 12 ? year + 1 : year;
-  final nextSalaryDate =
-      salarySource != null ? getPayDate(salarySource, nextYear, nextMonth) : null;
+  final nextSalaryDate = salarySource != null
+      ? getPayDate(salarySource, nextYear, nextMonth)
+      : null;
 
   final activeExpenses = plannedExpenses.where((e) => e.isActive).toList();
 
-  double expensesInRange(DateTime start, DateTime end) {
+  // Gather real income transactions this month for matching
+  final monthKey = '$year-${month.toString().padLeft(2, '0')}';
+  final realIncomeTxs = transactions
+      .where(
+          (t) => t.type == TransactionType.income && t.date.startsWith(monthKey))
+      .toList();
+
+  // Determine which planned income sources have already been received
+  final salaryReceived = salarySource != null &&
+      _isIncomeReceived(
+        source: salarySource,
+        payDate: salaryDate,
+        incomeTxs: realIncomeTxs,
+        accounts: accounts,
+        convert: convert,
+        baseCurrency: baseCurrency,
+      );
+  final advanceReceived = advanceSource != null &&
+      _isIncomeReceived(
+        source: advanceSource,
+        payDate: advanceDate,
+        incomeTxs: realIncomeTxs,
+        accounts: accounts,
+        convert: convert,
+        baseCurrency: baseCurrency,
+      );
+
+  // Helper: unpaid planned expenses in date range
+  double unpaidExpensesInRange(DateTime start, DateTime end) {
     return activeExpenses
         .where((e) {
           if (e.isPaid) return false;
@@ -233,55 +308,43 @@ List<BudgetCycle> computeBudgetCycles({
         .fold<double>(0, (sum, e) => sum + e.amount);
   }
 
-  double paidExpensesInRange(DateTime start, DateTime end) {
+  // Paid expenses total (already spent — reflected in account balance)
+  double paidExpensesTotal() {
     return activeExpenses
-        .where((e) => e.isPaid && e.paidDate != null)
-        .where((e) {
-          final d = DateTime.tryParse(e.paidDate!);
-          if (d == null) return false;
-          return _isBeforeOrSame(start, d) && _isBeforeOrSame(d, end);
-        })
+        .where((e) => e.isPaid)
         .fold<double>(0, (sum, e) => e.paidAmount ?? e.amount);
   }
 
-  double manualActualInRange(DateTime start, DateTime end) {
-    return actualExpenses
-        .where((e) {
-          final d = DateTime.tryParse(e.date);
-          if (d == null) return false;
-          return _isBeforeOrSame(start, d) && _isBeforeOrSame(d, end);
-        })
-        .fold<double>(0, (sum, e) => sum + e.amount);
+  // Manual actual expenses total
+  double manualActualTotal() {
+    return actualExpenses.fold<double>(0, (sum, e) => sum + e.amount);
   }
 
-  double realTransactionExpensesInRange(DateTime start, DateTime end) {
-    if (transactions.isEmpty || convert == null) return 0;
-    final fmt = DateFormat('yyyy-MM-dd');
-    final startStr = fmt.format(start);
-    final endStr = fmt.format(end);
-    return transactions
-        .where((t) =>
-            t.type == TransactionType.expense &&
-            t.date.compareTo(startStr) >= 0 &&
-            t.date.compareTo(endStr) <= 0)
-        .fold<double>(0, (sum, t) {
-      final cur = _txCurrency(t, accounts, baseCurrency);
-      return sum + convert(t.amount, cur, baseCurrency).toDouble();
-    });
-  }
-
+  /// Build a cycle using account balance as the real base.
+  ///
+  /// remaining = accountBalance
+  ///           + pendingIncome (planned income not yet received)
+  ///           - unpaidPlannedExpenses
+  /// dailyBudget = remaining / daysLeft
   BudgetCycle buildCycle(
-      String label, DateTime startDate, DateTime endDate, double income) {
+    String label,
+    DateTime startDate,
+    DateTime endDate, {
+    required double plannedIncome,
+    required double pendingIncome,
+    required double receivedIncome,
+  }) {
     final totalDays = _diffDays(startDate, endDate);
     final daysFromToday = _isBefore(now, startDate)
         ? totalDays
         : (_diffDays(now, endDate)).clamp(1, totalDays);
-    final expenses = expensesInRange(startDate, endDate);
-    final paid = paidExpensesInRange(startDate, endDate);
-    final manual = manualActualInRange(startDate, endDate);
-    final realTx = realTransactionExpensesInRange(startDate, endDate);
-    final totalSpent = paid + manual + realTx;
-    final remaining = income - expenses - totalSpent;
+    final unpaidExpenses = unpaidExpensesInRange(startDate, endDate);
+    final totalActualSpent = paidExpensesTotal() + manualActualTotal();
+
+    // Real remaining money:
+    // Account balance already has: leftover + received income - actual spent
+    // We add only pending (future) income and subtract only unpaid expenses
+    final remaining = accountBalance + pendingIncome - unpaidExpenses;
     final daily = daysFromToday > 0 ? remaining / daysFromToday : 0.0;
     final fullWeeks = daysFromToday ~/ 7;
     final extraDays = daysFromToday % 7;
@@ -292,50 +355,88 @@ List<BudgetCycle> computeBudgetCycles({
       endDate: endDate,
       totalDays: totalDays,
       daysLeft: daysFromToday,
-      totalIncome: income,
-      totalPlannedExpenses: expenses,
-      remainingAfterExpenses: income - expenses,
-      actualSpent: totalSpent,
+      totalIncome: plannedIncome,
+      totalPlannedExpenses: unpaidExpenses,
+      remainingAfterExpenses: accountBalance + pendingIncome,
+      actualSpent: totalActualSpent,
       remainingBudget: remaining,
       dailyBudget: daily > 0 ? daily : 0,
       weeklyBudget: daily > 0 ? daily * 7 : 0,
       fullWeeks: fullWeeks,
       extraDays: extraDays,
+      accountBalance: accountBalance,
+      receivedIncome: receivedIncome,
+      pendingIncome: pendingIncome,
+      useAccountBase: true,
     );
   }
 
-  // Cycle 1: Salary → Advance
+  // ── Cycle 1: Salary → Advance ──
   if (salaryDate != null &&
       advanceDate != null &&
       _isBefore(salaryDate, advanceDate)) {
+    // In this cycle, salary should be the income.
+    // If salary already received → it's in the account balance.
+    // Advance is NOT in this cycle yet.
+    final salaryAmt = salarySource!.amount;
+    final pending = salaryReceived ? 0.0 : salaryAmt;
+    final received = salaryReceived ? salaryAmt : 0.0;
     cycles.add(buildCycle(
       'От зарплаты до аванса',
       salaryDate,
       advanceDate,
-      salarySource!.amount,
+      plannedIncome: salaryAmt,
+      pendingIncome: pending,
+      receivedIncome: received,
     ));
   }
 
-  // Cycle 2: Advance → Next Salary
+  // ── Cycle 2: Advance → Next Salary ──
   if (advanceDate != null && nextSalaryDate != null) {
+    final advanceAmt = advanceSource!.amount;
+    final pending = advanceReceived ? 0.0 : advanceAmt;
+    final received = advanceReceived ? advanceAmt : 0.0;
     cycles.add(buildCycle(
       'От аванса до зарплаты',
       advanceDate,
       nextSalaryDate,
-      advanceSource!.amount,
+      plannedIncome: advanceAmt,
+      pendingIncome: pending,
+      receivedIncome: received,
     ));
   }
 
-  // Cycle 3: Salary → Next Salary (full cycle)
+  // ── Cycle 3: Salary → Next Salary (full cycle) ──
   if (salaryDate != null && nextSalaryDate != null) {
-    final totalIncome = (salarySource?.amount ?? 0) +
+    final totalPlanned = (salarySource?.amount ?? 0) +
         (advanceSource?.amount ?? 0) +
         additionalTotal;
+    double pending = 0;
+    double received = 0;
+    if (salarySource != null) {
+      if (salaryReceived) {
+        received += salarySource.amount;
+      } else {
+        pending += salarySource.amount;
+      }
+    }
+    if (advanceSource != null) {
+      if (advanceReceived) {
+        received += advanceSource.amount;
+      } else {
+        pending += advanceSource.amount;
+      }
+    }
+    // Additional income: assume not yet received (conservative)
+    pending += additionalTotal;
+
     cycles.add(buildCycle(
       'От зарплаты до зарплаты',
       salaryDate,
       nextSalaryDate,
-      totalIncome,
+      plannedIncome: totalPlanned,
+      pendingIncome: pending,
+      receivedIncome: received,
     ));
   }
 
