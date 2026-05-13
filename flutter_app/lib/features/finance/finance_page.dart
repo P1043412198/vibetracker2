@@ -9,6 +9,7 @@ import '../../state/providers.dart';
 import '../../state/settings_state.dart';
 import '../financial_plan/services/finplan_export.dart';
 import 'accounts_tab.dart';
+import 'budget_planner_tab.dart';
 import 'charts_tab.dart';
 import 'monthly_plan_tab.dart';
 import 'transactions_tab.dart';
@@ -29,12 +30,12 @@ class FinancePage extends ConsumerStatefulWidget {
 class _FinancePageState extends ConsumerState<FinancePage>
     with SingleTickerProviderStateMixin {
   late final TabController _controller;
-  static const _tabs = ['Транзакции', 'Счета', 'План', 'Графики'];
+  static const _tabs = ['Транзакции', 'Счета', 'План', 'Бюджет', 'Графики'];
 
   @override
   void initState() {
     super.initState();
-    _controller = TabController(length: _tabs.length, vsync: this);
+    _controller = TabController(length: _tabs.length, vsync: this, initialIndex: 3);
   }
 
   @override
@@ -136,6 +137,7 @@ class _FinancePageState extends ConsumerState<FinancePage>
                 TransactionsTab(),
                 AccountsTab(),
                 MonthlyPlanTab(),
+                BudgetPlannerTab(),
                 ChartsTab(),
               ],
             ),
