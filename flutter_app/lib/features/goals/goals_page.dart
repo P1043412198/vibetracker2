@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
 import '../../models/goal.dart';
+import '../../services/goal_progress.dart';
 import '../../state/providers.dart';
 
 /// Counterpart of `src/pages/Goals.tsx`. Renders the goals list with
@@ -189,28 +190,7 @@ class _GoalCard extends ConsumerWidget {
     }
   }
 
-  /// Compute a 0..1 progress value following the same precedence as the
-  /// React app: book (readPages/totalPages) → numeric (currentValue/targetValue)
-  /// → manual (`progress`) → steps (% completed).
-  double _progress() {
-    if (goal.type == GoalType.book &&
-        (goal.totalPages ?? 0) > 0) {
-      return ((goal.readPages ?? 0) / (goal.totalPages!)).clamp(0.0, 1.0);
-    }
-    if ((goal.targetValue ?? 0) > 0) {
-      return ((goal.currentValue ?? 0) / (goal.targetValue!))
-          .toDouble()
-          .clamp(0.0, 1.0);
-    }
-    if (goal.progress != null) {
-      return (goal.progress! / 100).clamp(0.0, 1.0);
-    }
-    if (goal.steps.isNotEmpty) {
-      final done = goal.steps.where((s) => s.completed).length;
-      return done / goal.steps.length;
-    }
-    return 0.0;
-  }
+  double _progress() => computeGoalProgress(goal);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -383,24 +363,7 @@ class _GoalsStatsHeader extends StatelessWidget {
   const _GoalsStatsHeader({required this.goals});
   final List<Goal> goals;
 
-  double _progressOf(Goal g) {
-    if (g.progress != null) return (g.progress! / 100).clamp(0.0, 1.0).toDouble();
-    if ((g.targetValue ?? 0) > 0) {
-      final v = (g.currentValue ?? 0) / g.targetValue!;
-      return v.clamp(0.0, 1.0).toDouble();
-    }
-    if ((g.totalPages ?? 0) > 0) {
-      final v = (g.readPages ?? 0) / g.totalPages!;
-      return v.clamp(0.0, 1.0).toDouble();
-    }
-    if (g.steps.isNotEmpty) {
-      final done = g.steps
-          .where((s) => s.status == GoalStepStatus.done)
-          .length;
-      return (done / g.steps.length).clamp(0.0, 1.0).toDouble();
-    }
-    return 0.0;
-  }
+  double _progressOf(Goal g) => computeGoalProgress(g);
 
   @override
   Widget build(BuildContext context) {
