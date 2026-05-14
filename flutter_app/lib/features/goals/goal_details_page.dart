@@ -1131,7 +1131,7 @@ class _MilestonesCardState extends ConsumerState<_MilestonesCard> {
       id: const Uuid().v4(),
       title: text,
     );
-    final next = [...(widget.goal.milestones ?? []), milestone];
+    final next = <Milestone>[...(widget.goal.milestones ?? <Milestone>[]), milestone];
     ref.read(goalsProvider.notifier).update(
           widget.goal.id,
           (g) => g.copyWith(milestones: next),
