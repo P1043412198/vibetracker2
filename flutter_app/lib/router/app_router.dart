@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../features/analytics/analytics_page.dart';
 import '../features/challenges/challenge_details_page.dart';
 import '../features/challenges/challenges_page.dart';
+import '../features/chat/claude_chat_page.dart';
 import '../features/dashboard/dashboard_page.dart';
 import '../features/dashboard/dashboard_settings_page.dart';
 import '../features/finance/finance_page.dart';
@@ -254,6 +255,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'tools',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: ToolsPage()),
+          ),
+          GoRoute(
+            path: '/chat',
+            name: 'chat',
+            pageBuilder: (_, __) =>
+                const NoTransitionPage(child: ClaudeChatPage()),
           ),
           GoRoute(
             path: '/settings',

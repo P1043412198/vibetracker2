@@ -2310,3 +2310,109 @@ Widget _emptyCard(BuildContext context,
 /// import this module via `dashboard_widgets_v2.dart`).
 // ignore: unused_element
 void _wow_unused_imports_anchor(BudgetCycle a, IncomeSource b, PlannedExpense c) {}
+
+/// Compact dashboard widget that links to the Claude chat. We don't load
+/// conversation history here — just a one-tap shortcut with a few preset
+/// prompts to make the entrypoint discoverable.
+class ClaudeChatLauncherWidget extends StatelessWidget {
+  const ClaudeChatLauncherWidget({super.key});
+
+  static const _quickPrompts = <_QuickPrompt>[
+    _QuickPrompt('План тренировок', 'Составь план тренировок на неделю.'),
+    _QuickPrompt('Бюджет', 'Помоги сократить расходы на 10%.'),
+    _QuickPrompt('Привычки', 'Подбери 3 новые полезные привычки.'),
+    _QuickPrompt('Задачи',
+        'Помоги разложить большую цель на задачи по SMART.'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.go('/chat'),
+        child: Ink(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [
+                scheme.tertiaryContainer,
+                scheme.primaryContainer,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.auto_awesome,
+                        size: 20, color: scheme.onPrimary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Claude чат',
+                            style: TextStyle(
+                                color: scheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16)),
+                        Text('Личный коуч по финансам, спорту и привычкам',
+                            style: TextStyle(
+                                color: scheme.onPrimaryContainer
+                                    .withValues(alpha: 0.85),
+                                fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios,
+                      size: 14, color: scheme.onPrimaryContainer),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final p in _quickPrompts)
+                    InputChip(
+                      label: Text(p.label),
+                      onPressed: () => context.go('/chat'),
+                      backgroundColor: scheme.surface.withValues(alpha: 0.55),
+                      side: BorderSide(
+                          color: scheme.outline.withValues(alpha: 0.2)),
+                      labelStyle: TextStyle(
+                          color: scheme.onSurface, fontSize: 12),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickPrompt {
+  const _QuickPrompt(this.label, this.prompt);
+  final String label;
+  // The full prompt is intentionally unused for now — the launcher is a
+  // shortcut into chat. Kept for a future "prefill" wiring.
+  // ignore: unused_element
+  final String prompt;
+}

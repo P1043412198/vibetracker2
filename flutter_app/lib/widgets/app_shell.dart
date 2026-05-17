@@ -23,6 +23,7 @@ class AppShell extends StatelessWidget {
   ];
 
   static const _moreItems = <_MoreItem>[
+    _MoreItem('/chat', 'Claude чат', Icons.auto_awesome_outlined),
     _MoreItem('/inbox', 'Инбокс', Icons.inbox_outlined),
     _MoreItem('/pomodoro', 'Pomodoro', Icons.timer_outlined),
     _MoreItem('/water', 'Водный баланс', Icons.water_drop_outlined),

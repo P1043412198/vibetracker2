@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../l10n/app_localizations.dart';
 import '../../services/ai_service.dart';
 import '../../services/backup_service.dart';
+import '../../services/claude_service.dart';
 import '../../services/storage.dart';
 import '../../state/settings_state.dart';
 
@@ -190,6 +191,10 @@ class SettingsPage extends ConsumerWidget {
                 _GeminiKeyTile(),
               ],
             ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: _ClaudeKeyTile(),
           ),
           const SizedBox(height: 24),
           Text(t.settingsData, style: Theme.of(context).textTheme.labelLarge),
@@ -551,6 +556,218 @@ class _GeminiModelPickerState extends State<_GeminiModelPicker> {
             await AiService.setModel(v);
             if (!mounted) return;
             setState(() => _selected = v);
+            messenger.showSnackBar(
+              SnackBar(content: Text('Модель: $v')),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ClaudeKeyTile extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_ClaudeKeyTile> createState() => _ClaudeKeyTileState();
+}
+
+class _ClaudeKeyTileState extends ConsumerState<_ClaudeKeyTile> {
+  late final TextEditingController _ctrl;
+  late final TextEditingController _systemCtrl;
+  bool _obscure = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: ClaudeService.apiKey ?? '');
+    _systemCtrl = TextEditingController(text: ClaudeService.systemPrompt);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _systemCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stored = ref.watch(claudeKeyProvider);
+    final hasKey = stored != null && stored.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.auto_awesome_outlined,
+                  color: hasKey
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outline),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  hasKey
+                      ? 'Ключ Claude сохранён'
+                      : 'Ключ Anthropic Claude не задан',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: hasKey
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                label: const Text('Открыть чат'),
+                onPressed: hasKey ? () => context.go('/chat') : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Используется чатом с Claude. Ключ хранится локально (Hive) и '
+            'отправляется напрямую на api.anthropic.com. '
+            'Получить: console.anthropic.com → Settings → API Keys.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _ctrl,
+            obscureText: _obscure,
+            decoration: InputDecoration(
+              labelText: 'CLAUDE_API_KEY',
+              hintText: 'sk-ant-…',
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                icon: Icon(_obscure
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined),
+                onPressed: () => setState(() => _obscure = !_obscure),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.save_outlined),
+                  onPressed: () async {
+                    await ref
+                        .read(claudeKeyProvider.notifier)
+                        .save(_ctrl.text);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Ключ сохранён')),
+                    );
+                  },
+                  label: const Text('Сохранить'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.outlined(
+                icon: const Icon(Icons.delete_outline),
+                onPressed: hasKey
+                    ? () async {
+                        _ctrl.clear();
+                        await ref
+                            .read(claudeKeyProvider.notifier)
+                            .save(null);
+                      }
+                    : null,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const _ClaudeModelPicker(),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _systemCtrl,
+            minLines: 2,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              labelText: 'System prompt',
+              helperText: 'Тон ответов Claude. Можно оставить по умолчанию.',
+              helperMaxLines: 2,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Сбросить prompt'),
+                  onPressed: () async {
+                    await ClaudeService.setSystemPrompt(null);
+                    if (!mounted) return;
+                    setState(() {
+                      _systemCtrl.text = ClaudeService.systemPrompt;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  icon: const Icon(Icons.check),
+                  label: const Text('Сохранить prompt'),
+                  onPressed: () async {
+                    await ClaudeService.setSystemPrompt(_systemCtrl.text);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('System prompt обновлён')),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClaudeModelPicker extends ConsumerStatefulWidget {
+  const _ClaudeModelPicker();
+
+  @override
+  ConsumerState<_ClaudeModelPicker> createState() =>
+      _ClaudeModelPickerState();
+}
+
+class _ClaudeModelPickerState extends ConsumerState<_ClaudeModelPicker> {
+  @override
+  Widget build(BuildContext context) {
+    final current = ref.watch(claudeModelProvider);
+    final items = {...ClaudeService.availableModels, current}.toList();
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'Модель Claude',
+        border: OutlineInputBorder(),
+        helperText:
+            'По умолчанию claude-3-5-sonnet-latest. Anthropic иногда меняет '
+            'имена моделей — обнови если ловишь 404.',
+        helperMaxLines: 3,
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: current,
+          items: [
+            for (final m in items)
+              DropdownMenuItem(value: m, child: Text(m)),
+          ],
+          onChanged: (v) async {
+            if (v == null) return;
+            final messenger = ScaffoldMessenger.of(context);
+            await ref.read(claudeModelProvider.notifier).save(v);
+            if (!mounted) return;
             messenger.showSnackBar(
               SnackBar(content: Text('Модель: $v')),
             );

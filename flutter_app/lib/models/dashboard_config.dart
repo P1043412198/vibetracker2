@@ -188,6 +188,13 @@ const List<DashboardWidgetMeta> kDashboardWidgets = [
     icon: 'show_chart',
     route: null,
   ),
+  DashboardWidgetMeta(
+    id: 'claude_chat',
+    title: 'Claude чат',
+    subtitle: 'Личный AI-коуч (свой API ключ)',
+    icon: 'auto_awesome',
+    route: '/chat',
+  ),
 ];
 
 class DashboardConfig {

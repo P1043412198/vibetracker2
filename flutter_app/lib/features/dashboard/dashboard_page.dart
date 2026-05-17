@@ -217,6 +217,8 @@ class DashboardPage extends ConsumerWidget {
           return const HabitsYearHeatmapWidget();
         case 'progress_dashboard':
           return const ProgressDashboardWidget();
+        case 'claude_chat':
+          return const ClaudeChatLauncherWidget();
       }
       return null;
     }
