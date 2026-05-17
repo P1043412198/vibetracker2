@@ -684,6 +684,8 @@ class _ClaudeKeyTileState extends ConsumerState<_ClaudeKeyTile> {
           const SizedBox(height: 12),
           const _ClaudeModelPicker(),
           const SizedBox(height: 12),
+          _ClaudeBaseUrlField(),
+          const SizedBox(height: 12),
           TextField(
             controller: _systemCtrl,
             minLines: 2,
@@ -729,6 +731,95 @@ class _ClaudeKeyTileState extends ConsumerState<_ClaudeKeyTile> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ClaudeBaseUrlField extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_ClaudeBaseUrlField> createState() =>
+      _ClaudeBaseUrlFieldState();
+}
+
+class _ClaudeBaseUrlFieldState extends ConsumerState<_ClaudeBaseUrlField> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final stored = ClaudeService.baseUrl;
+    // Hide the default value so the field reads "empty = default", which
+    // matches user expectations and avoids a wall of placeholder text.
+    _ctrl = TextEditingController(
+        text: stored == ClaudeService.defaultBaseUrl ? '' : stored);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final current = ref.watch(claudeBaseUrlProvider);
+    final isDefault = current == ClaudeService.defaultBaseUrl;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _ctrl,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          decoration: InputDecoration(
+            labelText: 'Base URL (proxy)',
+            hintText: ClaudeService.defaultBaseUrl,
+            helperText: isDefault
+                ? 'По умолчанию запросы идут на api.anthropic.com. '
+                    'Если ловишь HTTP 403 — пропиши сюда свой прокси '
+                    '(Cloudflare Worker / nginx) — он будет проксировать на '
+                    'api.anthropic.com.'
+                : 'Сейчас запросы идут через ваш прокси.',
+            helperMaxLines: 4,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.tonalIcon(
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Сохранить URL'),
+                onPressed: () async {
+                  await ref
+                      .read(claudeBaseUrlProvider.notifier)
+                      .save(_ctrl.text);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            'Base URL: ${ClaudeService.resolvedEndpoint}')),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.outlined(
+              icon: const Icon(Icons.restart_alt),
+              tooltip: 'Сбросить на api.anthropic.com',
+              onPressed: !isDefault
+                  ? () async {
+                      _ctrl.clear();
+                      await ref
+                          .read(claudeBaseUrlProvider.notifier)
+                          .save(null);
+                    }
+                  : null,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

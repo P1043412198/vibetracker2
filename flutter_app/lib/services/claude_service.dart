@@ -7,33 +7,40 @@ import 'storage.dart';
 
 /// Anthropic Claude chat service.
 ///
-/// Talks directly to the Anthropic Messages API
-/// (https://api.anthropic.com/v1/messages). The user supplies their own API
-/// key via Settings — it is stored locally in Hive under `claudeApiKey`. The
-/// active model is stored under `claudeModel` and defaults to
-/// [defaultModel].
+/// Talks to the Anthropic Messages API. By default the request goes directly
+/// to `https://api.anthropic.com/v1/messages`, but the user can override the
+/// endpoint in Settings — useful when Anthropic blocks the user's region
+/// (returns HTTP 403 "Request not allowed", e.g. Belarus, Russia) and they
+/// route through a self-hosted Cloudflare Worker / nginx proxy.
 ///
-/// We never proxy through any backend — the request goes directly to
-/// `api.anthropic.com` from the device.
+/// All credentials (API key, model, system prompt, custom base URL) are
+/// stored locally in Hive. Nothing is sent through a Cognition/Devin backend.
 class ClaudeService {
   ClaudeService._();
 
   static const _defaultModel = 'claude-3-5-sonnet-latest';
-  static const _endpoint = 'https://api.anthropic.com/v1/messages';
+  static const _defaultBaseUrl = 'https://api.anthropic.com/v1/messages';
   static const _apiVersion = '2023-06-01';
 
+  /// Path appended to a bare host when the user pastes only the origin of
+  /// their proxy (e.g. `https://anth-proxy.workers.dev`).
+  static const _endpointSuffix = '/v1/messages';
+
   static const _availableModels = <String>[
+    'claude-opus-4-7',
+    'claude-haiku-4-5',
+    'claude-opus-4-1',
+    'claude-sonnet-4-5',
+    'claude-sonnet-4-0',
     'claude-3-5-sonnet-latest',
     'claude-3-5-haiku-latest',
     'claude-3-opus-latest',
-    'claude-sonnet-4-5',
-    'claude-sonnet-4-0',
-    'claude-opus-4-1',
-    'claude-haiku-4-5',
   ];
 
   static String get defaultModel => _defaultModel;
-  static List<String> get availableModels => List.unmodifiable(_availableModels);
+  static String get defaultBaseUrl => _defaultBaseUrl;
+  static List<String> get availableModels =>
+      List.unmodifiable(_availableModels);
 
   static String get currentModel {
     final raw = AppStorage.readString('claudeModel');
@@ -62,6 +69,44 @@ class ClaudeService {
     } else {
       await AppStorage.writeString('claudeApiKey', trimmed);
     }
+  }
+
+  /// Base URL the chat hits. Default is `https://api.anthropic.com/v1/messages`;
+  /// users in regions Anthropic refuses (HTTP 403) can paste their own
+  /// proxy origin here.
+  static String get baseUrl {
+    final raw = AppStorage.readString('claudeBaseUrl');
+    if (raw == null || raw.trim().isEmpty) return _defaultBaseUrl;
+    return raw.trim();
+  }
+
+  static Future<void> setBaseUrl(String? url) async {
+    final trimmed = url?.trim() ?? '';
+    if (trimmed.isEmpty || trimmed == _defaultBaseUrl) {
+      await AppStorage.remove('claudeBaseUrl');
+    } else {
+      await AppStorage.writeString('claudeBaseUrl', trimmed);
+    }
+  }
+
+  /// Normalise [baseUrl] into a real URI: prepend `https://` if missing,
+  /// append `/v1/messages` if the path is empty.
+  static Uri get resolvedEndpoint {
+    var raw = baseUrl;
+    if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
+      raw = 'https://$raw';
+    }
+    Uri uri;
+    try {
+      uri = Uri.parse(raw);
+    } catch (_) {
+      return Uri.parse(_defaultBaseUrl);
+    }
+    final path = uri.path;
+    if (path.isEmpty || path == '/') {
+      uri = uri.replace(path: _endpointSuffix);
+    }
+    return uri;
   }
 
   static String get systemPrompt {
@@ -108,15 +153,17 @@ class ClaudeService {
       'messages': messages,
     });
 
+    final endpoint = resolvedEndpoint;
     http.Response resp;
     try {
       resp = await http.post(
-        Uri.parse(_endpoint),
+        endpoint,
         headers: {
           'x-api-key': key,
           'anthropic-version': _apiVersion,
           'content-type': 'application/json',
-          // Required when calling directly from a browser/web build.
+          // Required when calling api.anthropic.com directly from a browser
+          // build (Flutter web). Harmless on native Android/iOS.
           'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: body,
@@ -126,8 +173,7 @@ class ClaudeService {
     }
 
     if (resp.statusCode != 200) {
-      throw ClaudeServiceException(
-          'HTTP ${resp.statusCode}: ${_truncate(resp.body, 240)}');
+      throw ClaudeServiceException(_humanizeError(resp, endpoint));
     }
 
     final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -147,6 +193,46 @@ class ClaudeService {
       throw const ClaudeServiceException('Пустой текст в ответе Claude.');
     }
     return text;
+  }
+
+  /// Translate HTTP errors into something a user can act on. We special-case
+  /// the most common failures so the message in the chat bubble is helpful
+  /// instead of just `HTTP 403: …raw json…`.
+  static String _humanizeError(http.Response resp, Uri endpoint) {
+    final body = _truncate(resp.body, 280);
+    final hitDefault = endpoint.host == 'api.anthropic.com';
+
+    String? hint;
+    if (resp.statusCode == 403) {
+      hint = hitDefault
+          ? 'HTTP 403 — Anthropic заблокировал запрос. Чаще всего это значит:\n'
+              '• ваш регион не обслуживается Anthropic (например, Беларусь/РФ);\n'
+              '• ключ выдан в воркспейсе без прав на этот endpoint.\n\n'
+              'Решение: в Настройках → Claude → Base URL вставьте свой прокси '
+              '(Cloudflare Worker / nginx reverse-proxy на api.anthropic.com) — '
+              'тогда запросы пойдут через него.'
+          : 'HTTP 403 от вашего прокси ($endpoint). Проверьте, что прокси '
+              'проксирует POST /v1/messages на api.anthropic.com и пробрасывает '
+              'заголовок x-api-key.';
+    } else if (resp.statusCode == 401) {
+      hint = 'HTTP 401 — ключ не принят. Проверьте, что в Настройках сохранён '
+          'актуальный sk-ant-… ключ из console.anthropic.com.';
+    } else if (resp.statusCode == 404) {
+      hint = hitDefault
+          ? 'HTTP 404 — endpoint не найден. Возможно, имя модели устарело — выберите другую в пикере.'
+          : 'HTTP 404 — endpoint не найден. Проверьте Base URL прокси: ожидается путь /v1/messages.';
+    } else if (resp.statusCode == 429) {
+      hint = 'HTTP 429 — Anthropic ограничил частоту. Подождите несколько '
+          'секунд и попробуйте ещё раз.';
+    } else if (resp.statusCode >= 500) {
+      hint = 'HTTP ${resp.statusCode} — на стороне сервера Anthropic ошибка. '
+          'Повторите запрос позже.';
+    }
+
+    if (hint != null) {
+      return '$hint\n\n[raw] $body';
+    }
+    return 'HTTP ${resp.statusCode}: $body';
   }
 
   static String _truncate(String s, int max) =>
@@ -189,4 +275,18 @@ class ClaudeModelController extends StateNotifier<String> {
 final claudeModelProvider =
     StateNotifierProvider<ClaudeModelController, String>((ref) {
   return ClaudeModelController();
+});
+
+class ClaudeBaseUrlController extends StateNotifier<String> {
+  ClaudeBaseUrlController() : super(ClaudeService.baseUrl);
+
+  Future<void> save(String? url) async {
+    await ClaudeService.setBaseUrl(url);
+    state = ClaudeService.baseUrl;
+  }
+}
+
+final claudeBaseUrlProvider =
+    StateNotifierProvider<ClaudeBaseUrlController, String>((ref) {
+  return ClaudeBaseUrlController();
 });
