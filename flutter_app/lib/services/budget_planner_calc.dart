@@ -214,6 +214,53 @@ bool _isIncomeReceived({
   return false;
 }
 
+/// Synthesise a virtual [PlannedExpense] for each active loan so the budget
+/// cycle calculator treats loan monthly payments as part of the expense plan.
+///
+/// The user explicitly asked for a **unified ecosystem**: loans, goals, habits
+/// and budget all read from the same source of truth. So if you owe a credit
+/// 250 BYN/month, it must show up in the budget plan automatically — without
+/// the user re-typing it as a planned expense. Anchoring on [Loan.paymentDay]
+/// (fallback to the 5th of the month) keeps the math compatible with the
+/// `unpaidExpensesInRange` helper that filters by `dayFrom`.
+List<PlannedExpense> loansAsPlannedExpenses({
+  required List<Loan> loans,
+  required CurrencyConvert? convert,
+  required String baseCurrency,
+  required String monthKey,
+  required List<LoanPayment> loanPayments,
+}) {
+  if (loans.isEmpty) return const <PlannedExpense>[];
+  final result = <PlannedExpense>[];
+  for (final loan in loans) {
+    if (loan.balance <= 0) continue;
+    if (loan.monthlyPayment <= 0) continue;
+    final amount = convert != null
+        ? convert(loan.monthlyPayment, loan.currency, baseCurrency).toDouble()
+        : loan.monthlyPayment.toDouble();
+    final day = (loan.paymentDay ?? 5).clamp(1, 31);
+    // Has this loan been paid for the active month? Match by month prefix.
+    final paid = loanPayments.any(
+      (p) => p.loanId == loan.id && p.date.startsWith(monthKey),
+    );
+    result.add(PlannedExpense(
+      id: 'loan:${loan.id}',
+      name: 'Кредит: ${loan.title}',
+      amount: amount,
+      currency: baseCurrency,
+      dayFrom: day,
+      dayTo: day,
+      category: 'Кредиты',
+      isPaid: paid,
+      paidDate: paid ? loanPayments.firstWhere((p) => p.loanId == loan.id && p.date.startsWith(monthKey)).date : null,
+      paidAmount: paid ? amount : null,
+      isActive: true,
+      createdAt: loan.startDate,
+    ));
+  }
+  return result;
+}
+
 /// Calculate budget cycles using real account balance as the base.
 ///
 /// Logic:
@@ -222,7 +269,7 @@ bool _isIncomeReceived({
 /// 2. Check each planned income: if it already arrived as a real transaction,
 ///    it is already inside the account balance — do NOT add again.
 ///    If it hasn't arrived yet, add it as pending future income.
-/// 3. Subtract unpaid planned expenses.
+/// 3. Subtract unpaid planned expenses (including loans → see [loans] param).
 /// 4. Divide by remaining days = real daily/weekly budget.
 List<BudgetCycle> computeBudgetCycles({
   required List<IncomeSource> incomeSources,
@@ -230,6 +277,8 @@ List<BudgetCycle> computeBudgetCycles({
   required List<ActualExpense> actualExpenses,
   List<Transaction> transactions = const [],
   List<Account> accounts = const [],
+  List<Loan> loans = const [],
+  List<LoanPayment> loanPayments = const [],
   CurrencyConvert? convert,
   String baseCurrency = 'BYN',
   double accountBalance = 0,
@@ -263,10 +312,23 @@ List<BudgetCycle> computeBudgetCycles({
       ? getPayDate(salarySource, nextYear, nextMonth)
       : null;
 
-  final activeExpenses = plannedExpenses.where((e) => e.isActive).toList();
+  final monthKey = '$year-${month.toString().padLeft(2, '0')}';
+
+  // Unified ecosystem: append virtual planned expenses derived from active
+  // loans so the daily/weekly budget already accounts for credit payments.
+  final loanExpenses = loansAsPlannedExpenses(
+    loans: loans,
+    convert: convert,
+    baseCurrency: baseCurrency,
+    monthKey: monthKey,
+    loanPayments: loanPayments,
+  );
+  final activeExpenses = [
+    ...plannedExpenses.where((e) => e.isActive),
+    ...loanExpenses,
+  ];
 
   // Gather real income transactions this month for matching
-  final monthKey = '$year-${month.toString().padLeft(2, '0')}';
   final realIncomeTxs = transactions
       .where(
           (t) => t.type == TransactionType.income && t.date.startsWith(monthKey))

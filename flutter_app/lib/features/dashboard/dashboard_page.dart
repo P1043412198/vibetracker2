@@ -207,6 +207,16 @@ class DashboardPage extends ConsumerWidget {
           return const LoansOverviewWidget();
         case 'challenges_overview':
           return const ChallengesOverviewWidget();
+        case 'rolling_daily_budget':
+          return const RollingDailyBudgetWidget();
+        case 'finance_hero':
+          return const FinanceHeroWidget();
+        case 'goals_roadmap':
+          return const GoalsRoadmapWidget();
+        case 'habits_year_heatmap':
+          return const HabitsYearHeatmapWidget();
+        case 'progress_dashboard':
+          return const ProgressDashboardWidget();
       }
       return null;
     }

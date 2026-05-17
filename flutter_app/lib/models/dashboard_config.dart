@@ -152,6 +152,42 @@ const List<DashboardWidgetMeta> kDashboardWidgets = [
     icon: 'emoji_events',
     route: '/challenges',
   ),
+  // Phase 16: WOW dashboard — animated heroes, rolling budgets, year heatmap.
+  DashboardWidgetMeta(
+    id: 'rolling_daily_budget',
+    title: 'Бюджет на сегодня',
+    subtitle: 'Вчера/сегодня — катится сам',
+    icon: 'refresh',
+    route: '/finance',
+  ),
+  DashboardWidgetMeta(
+    id: 'finance_hero',
+    title: 'Финансовая магия',
+    subtitle: 'Анимированное кольцо бюджета',
+    icon: 'auto_awesome',
+    route: '/finance',
+  ),
+  DashboardWidgetMeta(
+    id: 'goals_roadmap',
+    title: 'Дорожная карта целей',
+    subtitle: 'Все цели на одном таймлайне',
+    icon: 'timeline',
+    route: '/goals',
+  ),
+  DashboardWidgetMeta(
+    id: 'habits_year_heatmap',
+    title: 'Карта года',
+    subtitle: 'Привычки 52 × 7',
+    icon: 'grid_view',
+    route: '/habits',
+  ),
+  DashboardWidgetMeta(
+    id: 'progress_dashboard',
+    title: 'Прогресс-дашборд',
+    subtitle: 'Кольца целей + стрики',
+    icon: 'show_chart',
+    route: null,
+  ),
 ];
 
 class DashboardConfig {

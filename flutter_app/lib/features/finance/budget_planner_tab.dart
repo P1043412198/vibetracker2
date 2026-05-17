@@ -44,6 +44,8 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
     final config = store.currentMonth;
     final transactions = ref.watch(transactionsProvider);
     final accounts = ref.watch(accountsProvider);
+    final loans = ref.watch(loansProvider);
+    final loanPayments = ref.watch(loanPaymentsProvider);
     final baseCurrency = ref.watch(defaultCurrencyProvider);
     final rates = ref.watch(currencyRatesProvider);
 
@@ -59,12 +61,24 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
       linkedAccountIds: config.linkedAccountIds,
     );
 
+    // Loans synthesised as planned expenses so the budget plan reflects them
+    // automatically (unified ecosystem — see budget_planner_calc.dart).
+    final loanExpenses = loansAsPlannedExpenses(
+      loans: loans,
+      convert: convert,
+      baseCurrency: baseCurrency,
+      monthKey: store.selectedMonthKey,
+      loanPayments: loanPayments,
+    );
+
     final cycles = computeBudgetCycles(
       incomeSources: config.incomeSources,
       plannedExpenses: config.plannedExpenses,
       actualExpenses: config.actualExpenses,
       transactions: transactions,
       accounts: accounts,
+      loans: loans,
+      loanPayments: loanPayments,
       convert: convert,
       baseCurrency: baseCurrency,
       accountBalance: facts.accountBalance,
@@ -94,6 +108,7 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
             cycles: cycles,
             accounts: accounts,
             baseCurrency: baseCurrency,
+            loanExpenses: loanExpenses,
           ),
         if (_section == _Section.income)
           _IncomeSection(config: config, facts: facts),
@@ -260,6 +275,7 @@ class _DashboardSection extends StatelessWidget {
     required this.cycles,
     required this.accounts,
     required this.baseCurrency,
+    required this.loanExpenses,
   });
 
   final BudgetPlanConfig config;
@@ -267,6 +283,7 @@ class _DashboardSection extends StatelessWidget {
   final List<BudgetCycle> cycles;
   final List<Account> accounts;
   final String baseCurrency;
+  final List<PlannedExpense> loanExpenses;
 
   @override
   Widget build(BuildContext context) {
@@ -274,12 +291,20 @@ class _DashboardSection extends StatelessWidget {
     final totalPlannedIncome = config.incomeSources
         .where((s) => s.isActive)
         .fold<double>(0, (s, e) => s + e.amount);
-    final totalPlannedExpense = config.plannedExpenses
+    final manualPlannedExpense = config.plannedExpenses
         .where((e) => e.isActive)
         .fold<double>(0, (s, e) => s + e.amount);
+    final loanPlannedExpense =
+        loanExpenses.fold<double>(0, (s, e) => s + e.amount);
+    final totalPlannedExpense = manualPlannedExpense + loanPlannedExpense;
+    // Combined list so the planned-expenses panel reflects loans too.
+    final combinedExpenses = [
+      ...config.plannedExpenses,
+      ...loanExpenses,
+    ];
     final paidCount =
-        config.plannedExpenses.where((e) => e.isPaid).length;
-    final totalCount = config.plannedExpenses.length;
+        combinedExpenses.where((e) => e.isPaid).length;
+    final totalCount = combinedExpenses.length;
     final manualActual =
         config.actualExpenses.fold<double>(0, (s, e) => s + e.amount);
     final allActualExpense = facts.monthExpense + manualActual;
@@ -420,7 +445,7 @@ class _DashboardSection extends StatelessWidget {
         ],
 
         // ── Planned expenses progress ──
-        if (config.plannedExpenses.isNotEmpty) ...[
+        if (combinedExpenses.isNotEmpty) ...[
           Row(
             children: [
               const Text('Плановые расходы',
@@ -444,8 +469,36 @@ class _DashboardSection extends StatelessWidget {
               ),
             ],
           ),
+          if (loanExpenses.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [
+                  const Color(0xFF6D5CFF).withAlpha(30),
+                  const Color(0xFFF59E0B).withAlpha(30),
+                ]),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.account_balance,
+                      size: 16, color: Color(0xFF6D5CFF)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Кредиты в плане: ${loanExpenses.length} × → ${_fmt.format(loanPlannedExpense)} $baseCurrency',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
-          _ExpenseProgressBars(expenses: config.plannedExpenses),
+          _ExpenseProgressBars(expenses: combinedExpenses),
           const SizedBox(height: 16),
         ],
 
