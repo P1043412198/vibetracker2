@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -46,7 +47,7 @@ class _QrReceiptScannerPageState extends ConsumerState<QrReceiptScannerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: const Text('Скан QR чека'),
         actions: [
           IconButton(

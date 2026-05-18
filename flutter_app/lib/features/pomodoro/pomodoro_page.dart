@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -88,7 +89,7 @@ class _PomodoroPageState extends ConsumerState<PomodoroPage> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: const Text('Pomodoro'),
         actions: [
           IconButton(

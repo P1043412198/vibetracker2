@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -60,7 +61,7 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: const Text('Тренировки'),
         actions: [
           IconButton(

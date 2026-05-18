@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
@@ -28,7 +29,7 @@ class LoansPage extends ConsumerWidget {
         loans.fold<num>(0, (a, l) => a + (l.balance > 0 ? l.balance : 0));
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: const Text('Кредиты'),
         actions: [
           IconButton(

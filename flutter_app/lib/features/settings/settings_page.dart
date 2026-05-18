@@ -1,9 +1,9 @@
+import '../../widgets/app_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../../services/ai_service.dart';
 import '../../services/backup_service.dart';
 import '../../services/claude_service.dart';
 import '../../services/storage.dart';
@@ -22,7 +22,7 @@ class SettingsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: Text(t.navSettings),
       ),
       body: ListView(
@@ -187,14 +187,18 @@ class SettingsPage extends ConsumerWidget {
             child: Column(
               children: [
                 _AiEnabledTile(),
-                const Divider(height: 1),
-                _GeminiKeyTile(),
               ],
             ),
           ),
           const SizedBox(height: 16),
+          const _ClaudeDataAccessBanner(),
+          const SizedBox(height: 8),
           Card(
             child: _ClaudeKeyTile(),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: _ClaudeToolsToggleTile(),
           ),
           const SizedBox(height: 24),
           Text(t.settingsData, style: Theme.of(context).textTheme.labelLarge),
@@ -368,7 +372,7 @@ class _AiEnabledTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final enabled = ref.watch(aiEnabledProvider);
-    final hasKey = (ref.watch(geminiKeyProvider) ?? '').isNotEmpty;
+    final hasKey = (ref.watch(claudeKeyProvider) ?? '').isNotEmpty;
     return SwitchListTile(
       secondary: Icon(
         Icons.auto_awesome,
@@ -380,9 +384,9 @@ class _AiEnabledTile extends ConsumerWidget {
       subtitle: Text(
         hasKey
             ? (enabled
-                ? 'Классификатор, финкоуч, парсер чеков, сводки'
+                ? 'Классификатор инбокса, финкоуч, парсер чеков, сводки'
                 : 'Выключены — AI не вызывается')
-            : 'Задай ключ Gemini ниже',
+            : 'Задай ключ Claude ниже',
       ),
       value: enabled && hasKey,
       onChanged: hasKey
@@ -392,176 +396,94 @@ class _AiEnabledTile extends ConsumerWidget {
   }
 }
 
-class _GeminiKeyTile extends ConsumerStatefulWidget {
-  @override
-  ConsumerState<_GeminiKeyTile> createState() => _GeminiKeyTileState();
-}
-
-class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
-  late final TextEditingController _ctrl;
-  bool _obscure = true;
+/// Warning banner shown in Settings so the user understands that enabling
+/// Claude tools gives the assistant full read/write access to all of their
+/// app data. Visible right above the Claude key tile.
+class _ClaudeDataAccessBanner extends ConsumerWidget {
+  const _ClaudeDataAccessBanner();
 
   @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: AiService.apiKey ?? '');
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final stored = ref.watch(geminiKeyProvider);
-    final hasKey = stored != null && stored.isNotEmpty;
-    return Padding(
-      padding: const EdgeInsets.all(16),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final toolsOn = ref.watch(claudeToolsEnabledProvider);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: toolsOn
+            ? scheme.tertiaryContainer
+            : scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome_outlined),
+              Icon(
+                toolsOn
+                    ? Icons.shield_outlined
+                    : Icons.lock_outline,
+                size: 18,
+                color: toolsOn
+                    ? scheme.onTertiaryContainer
+                    : scheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  hasKey ? 'Ключ сохранён' : 'Ключ Gemini API не задан',
+                  toolsOn
+                      ? 'Claude управляет приложением'
+                      : 'Claude отвечает только текстом',
                   style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: hasKey
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.outline,
+                    fontWeight: FontWeight.w800,
+                    color: toolsOn
+                        ? scheme.onTertiaryContainer
+                        : scheme.onSurfaceVariant,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
-            'Используется для AI-функций: классификатор инбокса, финкоуч, парсер '
-            'чеков, сводки по сферам. Ключ хранится локально (Hive). '
-            'Получить: aistudio.google.com/apikey',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _ctrl,
-            obscureText: _obscure,
-            decoration: InputDecoration(
-              labelText: 'GEMINI_API_KEY',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: Icon(_obscure
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined),
-                onPressed: () => setState(() => _obscure = !_obscure),
-              ),
+            toolsOn
+                ? 'У Claude есть полный доступ к чтению и записи всех твоих '
+                    'данных: задачи, привычки, финансы (включая транзакции '
+                    'и кредиты), цели, тренировки, сон, вода, сферы и '
+                    'заметки. Он может создавать, изменять и удалять записи '
+                    'из чата. Отключить можно тумблером ниже.'
+                : 'Tool-use выключен — Claude видит только то, что ты пишешь '
+                    'в чате, и НЕ имеет доступа к локальным данным.',
+            style: TextStyle(
+              fontSize: 12,
+              color: toolsOn
+                  ? scheme.onTertiaryContainer.withValues(alpha: 0.92)
+                  : scheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.save_outlined),
-                  onPressed: () async {
-                    await ref
-                        .read(geminiKeyProvider.notifier)
-                        .save(_ctrl.text);
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Ключ сохранён')),
-                    );
-                  },
-                  label: const Text('Сохранить'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.outlined(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: hasKey
-                    ? () async {
-                        _ctrl.clear();
-                        await ref
-                            .read(geminiKeyProvider.notifier)
-                            .save(null);
-                      }
-                    : null,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          const _GeminiModelPicker(),
         ],
       ),
     );
   }
 }
 
-/// Lets the user override the Gemini model used for all AI features.
-/// Defaults to [AiService.defaultModel] when nothing is selected. We expose
-/// this because Google retires individual versions (e.g. 1.5-flash-latest
-/// → HTTP 404 starting April 2025) and users want to switch without an app
-/// update.
-class _GeminiModelPicker extends StatefulWidget {
-  const _GeminiModelPicker();
-
+/// Toggle that turns the entire tool-use system on/off. When off the chat
+/// behaves like a plain LLM conversation (no CRUD against local data).
+class _ClaudeToolsToggleTile extends ConsumerWidget {
   @override
-  State<_GeminiModelPicker> createState() => _GeminiModelPickerState();
-}
-
-class _GeminiModelPickerState extends State<_GeminiModelPicker> {
-  static const _options = <String>[
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-pro',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-  ];
-
-  late String _selected;
-
-  @override
-  void initState() {
-    super.initState();
-    _selected = AiService.currentModel;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final items = {..._options, _selected}.toList();
-    return InputDecorator(
-      decoration: const InputDecoration(
-        labelText: 'Модель Gemini',
-        border: OutlineInputBorder(),
-        helperText: 'По умолчанию gemini-2.5-flash. Старые версии вроде '
-            '1.5-flash-latest Google убрала.',
-        helperMaxLines: 3,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(claudeToolsEnabledProvider);
+    return SwitchListTile(
+      secondary: const Icon(Icons.bolt_outlined),
+      title: const Text('Разрешить Claude управлять приложением'),
+      subtitle: const Text(
+        'Tool-use: задачи, привычки, финансы, цели, тренировки, сон, вода, '
+        'сферы и заметки. По умолчанию включено.',
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          value: _selected,
-          items: [
-            for (final m in items)
-              DropdownMenuItem(value: m, child: Text(m)),
-          ],
-          onChanged: (v) async {
-            if (v == null) return;
-            final messenger = ScaffoldMessenger.of(context);
-            await AiService.setModel(v);
-            if (!mounted) return;
-            setState(() => _selected = v);
-            messenger.showSnackBar(
-              SnackBar(content: Text('Модель: $v')),
-            );
-          },
-        ),
-      ),
+      value: enabled,
+      onChanged: (v) =>
+          ref.read(claudeToolsEnabledProvider.notifier).set(v),
     );
   }
 }

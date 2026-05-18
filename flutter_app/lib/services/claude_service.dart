@@ -131,13 +131,19 @@ class ClaudeService {
       'Никогда не выдумывай данные пользователя.';
 
   /// Send a chat completion request. [messages] is the conversation history
-  /// in Anthropic format (`role: 'user' | 'assistant'`, `content: string`).
-  /// Returns the assistant's reply text.
-  static Future<String> chat({
-    required List<Map<String, String>> messages,
+  /// in Anthropic format. Each message has `role: 'user' | 'assistant'` and
+  /// `content` which can be either a plain `String` or a `List<Map>` of
+  /// content blocks (text / tool_use / tool_result).
+  ///
+  /// Returns the structured response: list of content blocks (text +
+  /// tool_use) and `stop_reason`. Caller is responsible for executing
+  /// `tool_use` blocks and feeding `tool_result` back.
+  static Future<ClaudeResponse> chatRaw({
+    required List<Map<String, dynamic>> messages,
     String? system,
-    int maxTokens = 1024,
+    int maxTokens = 4096,
     double temperature = 0.7,
+    List<Map<String, dynamic>>? tools,
   }) async {
     final key = apiKey;
     if (key == null) {
@@ -145,13 +151,16 @@ class ClaudeService {
           'CLAUDE_API_KEY не задан. Откройте Настройки и вставьте ключ.');
     }
 
-    final body = jsonEncode({
+    final payload = <String, dynamic>{
       'model': currentModel,
       'max_tokens': maxTokens,
       'temperature': temperature,
       'system': system ?? systemPrompt,
       'messages': messages,
-    });
+    };
+    if (tools != null && tools.isNotEmpty) {
+      payload['tools'] = tools;
+    }
 
     final endpoint = resolvedEndpoint;
     http.Response resp;
@@ -166,7 +175,7 @@ class ClaudeService {
           // build (Flutter web). Harmless on native Android/iOS.
           'anthropic-dangerous-direct-browser-access': 'true',
         },
-        body: body,
+        body: jsonEncode(payload),
       );
     } catch (e) {
       throw ClaudeServiceException('Сеть недоступна: $e');
@@ -176,19 +185,46 @@ class ClaudeService {
       throw ClaudeServiceException(_humanizeError(resp, endpoint));
     }
 
-    final data = jsonDecode(resp.body) as Map<String, dynamic>;
+    final data = jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
     final content = (data['content'] as List?) ?? const [];
-    if (content.isEmpty) {
-      throw const ClaudeServiceException('Пустой ответ от Claude.');
-    }
-    final parts = <String>[];
+    final blocks = <ClaudeContentBlock>[];
     for (final part in content) {
-      if (part is Map && part['type'] == 'text') {
-        final text = part['text'];
-        if (text is String) parts.add(text);
+      if (part is! Map) continue;
+      final m = part.cast<String, dynamic>();
+      final type = m['type'] as String?;
+      if (type == 'text') {
+        blocks.add(ClaudeTextBlock(text: (m['text'] as String?) ?? ''));
+      } else if (type == 'tool_use') {
+        blocks.add(ClaudeToolUseBlock(
+          id: m['id'] as String? ?? '',
+          name: m['name'] as String? ?? '',
+          input: (m['input'] as Map?)?.cast<String, dynamic>() ?? const {},
+        ));
       }
     }
-    final text = parts.join('').trim();
+    return ClaudeResponse(
+      content: blocks,
+      stopReason: data['stop_reason'] as String?,
+      raw: data,
+    );
+  }
+
+  /// Backwards-compatible text-only chat. Used by [ClaudeChatController] when
+  /// the user disables tools, and by [AiService] for legacy callers (the old
+  /// Gemini methods that didn't need tool-use).
+  static Future<String> chat({
+    required List<Map<String, dynamic>> messages,
+    String? system,
+    int maxTokens = 4096,
+    double temperature = 0.7,
+  }) async {
+    final resp = await chatRaw(
+      messages: messages,
+      system: system,
+      maxTokens: maxTokens,
+      temperature: temperature,
+    );
+    final text = resp.text.trim();
     if (text.isEmpty) {
       throw const ClaudeServiceException('Пустой текст в ответе Claude.');
     }
@@ -245,6 +281,60 @@ class ClaudeServiceException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// Structured response from the Anthropic Messages API.
+class ClaudeResponse {
+  ClaudeResponse({
+    required this.content,
+    required this.stopReason,
+    required this.raw,
+  });
+
+  final List<ClaudeContentBlock> content;
+  final String? stopReason;
+  final Map<String, dynamic> raw;
+
+  /// Concatenation of all `text` blocks in [content] (useful for the
+  /// `chat()` shim and for showing assistant prose alongside tool calls).
+  String get text {
+    final buf = StringBuffer();
+    for (final b in content) {
+      if (b is ClaudeTextBlock) buf.write(b.text);
+    }
+    return buf.toString();
+  }
+
+  List<ClaudeToolUseBlock> get toolUses =>
+      content.whereType<ClaudeToolUseBlock>().toList(growable: false);
+
+  bool get hasToolUse => toolUses.isNotEmpty;
+}
+
+abstract class ClaudeContentBlock {
+  const ClaudeContentBlock();
+  Map<String, dynamic> toJson();
+}
+
+class ClaudeTextBlock extends ClaudeContentBlock {
+  const ClaudeTextBlock({required this.text});
+  final String text;
+  @override
+  Map<String, dynamic> toJson() => {'type': 'text', 'text': text};
+}
+
+class ClaudeToolUseBlock extends ClaudeContentBlock {
+  const ClaudeToolUseBlock({
+    required this.id,
+    required this.name,
+    required this.input,
+  });
+  final String id;
+  final String name;
+  final Map<String, dynamic> input;
+  @override
+  Map<String, dynamic> toJson() =>
+      {'type': 'tool_use', 'id': id, 'name': name, 'input': input};
 }
 
 /// Reactive notifier so Settings UI can observe key/model presence and the

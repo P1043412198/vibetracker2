@@ -142,7 +142,9 @@ class _ClaudeChatPageState extends ConsumerState<ClaudeChatPage> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Модель: $model',
+                    chat.busy && chat.busyStatus != null
+                        ? '$model — ${chat.busyStatus}'
+                        : 'Модель: $model',
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         fontSize: 11, color: scheme.onSurfaceVariant),
@@ -394,45 +396,57 @@ class _ChatBubble extends StatelessWidget {
     try {
       ts = DateTime.parse(message.createdAt);
     } catch (_) {}
+    final hasText = message.content.isNotEmpty;
     return Align(
       alignment: align,
       child: ConstrainedBox(
         constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.82),
+            maxWidth: MediaQuery.of(context).size.width * 0.86),
         child: Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Column(
             crossAxisAlignment:
                 isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
-              GestureDetector(
-                onLongPress: () async {
-                  await Clipboard.setData(
-                      ClipboardData(text: message.content));
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Сообщение скопировано')),
-                    );
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: bubbleColor,
-                    borderRadius: radius,
-                  ),
-                  child: SelectableText(
-                    message.content,
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 14,
-                      height: 1.35,
+              if (hasText)
+                GestureDetector(
+                  onLongPress: () async {
+                    await Clipboard.setData(
+                        ClipboardData(text: message.content));
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Сообщение скопировано')),
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: radius,
+                    ),
+                    child: SelectableText(
+                      message.content,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 14,
+                        height: 1.35,
+                      ),
                     ),
                   ),
                 ),
-              ),
+              if (message.hasToolCalls)
+                Padding(
+                  padding: EdgeInsets.only(top: hasText ? 6 : 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final t in message.toolCalls) _ToolCallChip(call: t),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 2),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -444,6 +458,113 @@ class _ChatBubble extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ToolCallChip extends StatefulWidget {
+  const _ToolCallChip({required this.call});
+  final ChatToolCall call;
+
+  @override
+  State<_ToolCallChip> createState() => _ToolCallChipState();
+}
+
+class _ToolCallChipState extends State<_ToolCallChip> {
+  bool _expanded = false;
+
+  String _resultPreview(String raw) {
+    if (raw.isEmpty) return '—';
+    if (raw.length <= 64) return raw;
+    return '${raw.substring(0, 64)}…';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final c = widget.call;
+    final accent = c.isError ? scheme.error : scheme.primary;
+    final icon = c.isError ? Icons.error_outline : Icons.bolt_outlined;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Material(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, size: 14, color: accent),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        c.name,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: accent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _resultPreview(c.result),
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      _expanded ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+                if (_expanded) ...[
+                  const SizedBox(height: 6),
+                  _kv(context, 'args', c.input.toString()),
+                  const SizedBox(height: 4),
+                  _kv(context, 'result', c.result),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _kv(BuildContext context, String key, String value) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: RichText(
+        text: TextSpan(
+          style: TextStyle(
+              fontSize: 11,
+              fontFamily: 'monospace',
+              color: scheme.onSurface),
+          children: [
+            TextSpan(
+              text: '$key: ',
+              style: TextStyle(
+                  color: scheme.primary, fontWeight: FontWeight.w700),
+            ),
+            TextSpan(text: value),
+          ],
         ),
       ),
     );

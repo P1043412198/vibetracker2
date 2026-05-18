@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -1104,7 +1105,7 @@ class _InboxPageState extends ConsumerState<InboxPage> {
               ],
             )
           : AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: Text(_showSearch ? '' : 'Сохранёнки'),
         actions: [
           IconButton(

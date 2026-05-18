@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,7 +72,7 @@ class _PinSetupPageState extends ConsumerState<PinSetupPage> {
     final state = ref.watch(pinLockProvider);
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: Text(state.hasPin ? 'Сменить PIN-код' : 'Задать PIN-код'),
       ),
       body: SafeArea(

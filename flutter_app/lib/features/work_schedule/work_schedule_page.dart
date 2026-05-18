@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -104,7 +105,7 @@ class _WorkSchedulePageState extends ConsumerState<WorkSchedulePage> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: const Row(
           children: [
             Icon(Icons.calendar_today, size: 22),

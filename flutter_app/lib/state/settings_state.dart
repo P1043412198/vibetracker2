@@ -197,6 +197,28 @@ final aiEnabledProvider =
   return AiEnabledController();
 });
 
+/// Whether Claude can execute tools (write to user data: add/delete tasks,
+/// transactions, habits, etc.). Default: enabled — the user explicitly
+/// asked for full CRUD access via the chat.
+class ClaudeToolsEnabledController extends StateNotifier<bool> {
+  ClaudeToolsEnabledController() : super(true) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) state = stored == 'true';
+  }
+
+  static const _key = 'claudeToolsEnabled';
+
+  Future<void> set(bool enabled) async {
+    state = enabled;
+    await AppStorage.writeString(_key, enabled.toString());
+  }
+}
+
+final claudeToolsEnabledProvider =
+    StateNotifierProvider<ClaudeToolsEnabledController, bool>((ref) {
+  return ClaudeToolsEnabledController();
+});
+
 /// PIN-code lock. Stores a 4-digit code in plaintext (low-security: this is a
 /// privacy gate against casual snooping, not a cryptographic vault).
 class PinLockController extends StateNotifier<PinLockState> {

@@ -94,6 +94,11 @@ class SphereNote {
     this.comments,
     this.isPinned,
     this.categoryId,
+    this.links,
+    this.photoUrls,
+    this.videoUrls,
+    this.audioUrls,
+    this.documentPaths,
   });
 
   final String id;
@@ -110,6 +115,22 @@ class SphereNote {
   /// the note is grouped under that category in the UI.
   final String? categoryId;
 
+  /// Arbitrary web links attached to the note (full URLs).
+  final List<String>? links;
+
+  /// Local/cloud photo paths. Legacy single [photoUrl] is merged at read
+  /// time — new photos go into this list.
+  final List<String>? photoUrls;
+
+  /// Video file paths / URLs (local or remote).
+  final List<String>? videoUrls;
+
+  /// Audio recording / voice note paths.
+  final List<String>? audioUrls;
+
+  /// Paths to attached documents (PDF, DOCX, etc.).
+  final List<String>? documentPaths;
+
   SphereNote copyWith({
     String? content,
     String? youtubeUrl,
@@ -120,6 +141,11 @@ class SphereNote {
     bool? isPinned,
     String? categoryId,
     bool clearCategoryId = false,
+    List<String>? links,
+    List<String>? photoUrls,
+    List<String>? videoUrls,
+    List<String>? audioUrls,
+    List<String>? documentPaths,
   }) {
     return SphereNote(
       id: id,
@@ -133,6 +159,11 @@ class SphereNote {
       isPinned: isPinned ?? this.isPinned,
       categoryId:
           clearCategoryId ? null : (categoryId ?? this.categoryId),
+      links: links ?? this.links,
+      photoUrls: photoUrls ?? this.photoUrls,
+      videoUrls: videoUrls ?? this.videoUrls,
+      audioUrls: audioUrls ?? this.audioUrls,
+      documentPaths: documentPaths ?? this.documentPaths,
     );
   }
 
@@ -148,6 +179,15 @@ class SphereNote {
           'comments': comments!.map((e) => e.toJson()).toList(),
         if (isPinned != null) 'isPinned': isPinned,
         if (categoryId != null) 'categoryId': categoryId,
+        if (links != null && links!.isNotEmpty) 'links': links,
+        if (photoUrls != null && photoUrls!.isNotEmpty)
+          'photoUrls': photoUrls,
+        if (videoUrls != null && videoUrls!.isNotEmpty)
+          'videoUrls': videoUrls,
+        if (audioUrls != null && audioUrls!.isNotEmpty)
+          'audioUrls': audioUrls,
+        if (documentPaths != null && documentPaths!.isNotEmpty)
+          'documentPaths': documentPaths,
       };
 
   factory SphereNote.fromJson(Map<String, dynamic> json) => SphereNote(
@@ -165,6 +205,11 @@ class SphereNote {
             .toList(),
         isPinned: json['isPinned'] as bool?,
         categoryId: json['categoryId'] as String?,
+        links: (json['links'] as List?)?.cast<String>(),
+        photoUrls: (json['photoUrls'] as List?)?.cast<String>(),
+        videoUrls: (json['videoUrls'] as List?)?.cast<String>(),
+        audioUrls: (json['audioUrls'] as List?)?.cast<String>(),
+        documentPaths: (json['documentPaths'] as List?)?.cast<String>(),
       );
 }
 
