@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android Auto Backup rules (for Android 11 and below).
+  We back up:
+    - Hive boxes (sharedpref + database/files variants)
+    - SharedPreferences
+    - User-generated media in app's documents directory
+  We exclude:
+    - Generated caches (Flutter, Glide, Coil, etc.)
+    - File picker / image picker temp directories
+-->
+<full-backup-content>
+    <!-- Hive stores everything as files; default location is files/. -->
+    <include domain="file" path="."/>
+    <include domain="sharedpref" path="."/>
+    <include domain="database" path="."/>
+</full-backup-content>
