@@ -31,6 +31,43 @@ class GoalStep {
       );
 }
 
+class Milestone {
+  Milestone({
+    required this.id,
+    required this.title,
+    this.date,
+    this.completed = false,
+  });
+
+  final String id;
+  final String title;
+  final String? date;
+  final bool completed;
+
+  Milestone copyWith({String? title, String? date, bool? completed, bool clearDate = false}) {
+    return Milestone(
+      id: id,
+      title: title ?? this.title,
+      date: clearDate ? null : (date ?? this.date),
+      completed: completed ?? this.completed,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        if (date != null) 'date': date,
+        'completed': completed,
+      };
+
+  factory Milestone.fromJson(Map<String, dynamic> json) => Milestone(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        date: json['date'] as String?,
+        completed: (json['completed'] ?? false) as bool,
+      );
+}
+
 class GoalProgressEntry {
   GoalProgressEntry({
     required this.id,
@@ -82,6 +119,7 @@ class Goal {
     this.showOnDashboard,
     this.isPinned,
     this.photoPaths,
+    this.milestones,
   });
 
   final String id;
@@ -109,6 +147,9 @@ class Goal {
   /// in JSON. Null = no photos.
   final List<String>? photoPaths;
 
+  /// Milestones — intermediate checkpoints with optional dates.
+  final List<Milestone>? milestones;
+
   Goal copyWith({
     String? title,
     String? description,
@@ -128,6 +169,7 @@ class Goal {
     bool? showOnDashboard,
     bool? isPinned,
     List<String>? photoPaths,
+    List<Milestone>? milestones,
     bool clearDescription = false,
     bool clearDeadline = false,
     bool clearProgress = false,
@@ -154,6 +196,7 @@ class Goal {
       showOnDashboard: showOnDashboard ?? this.showOnDashboard,
       isPinned: isPinned ?? this.isPinned,
       photoPaths: photoPaths ?? this.photoPaths,
+      milestones: milestones ?? this.milestones,
     );
   }
 
@@ -180,6 +223,8 @@ class Goal {
         if (showOnDashboard != null) 'showOnDashboard': showOnDashboard,
         if (isPinned != null) 'isPinned': isPinned,
         if (photoPaths != null) 'photoPaths': photoPaths,
+        if (milestones != null)
+          'milestones': milestones!.map((e) => e.toJson()).toList(),
       };
 
   factory Goal.fromJson(Map<String, dynamic> json) => Goal(
@@ -214,6 +259,11 @@ class Goal {
         isPinned: json['isPinned'] as bool?,
         photoPaths: (json['photoPaths'] as List?)
             ?.whereType<String>()
+            .toList(),
+        milestones: (json['milestones'] as List?)
+            ?.whereType<Map>()
+            .map((e) => Milestone.fromJson(
+                e.map((k, v) => MapEntry(k.toString(), v))))
             .toList(),
       );
 }

@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,7 +18,7 @@ class SpheresPage extends ConsumerWidget {
       ..sort((a, b) => (a.order ?? 0).compareTo(b.order ?? 0));
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: const Text('Сферы'),
       ),
       body: spheres.isEmpty

@@ -18,6 +18,7 @@ import { WorkSchedule } from './pages/WorkSchedule';
 import { ShoppingList } from './pages/ShoppingList';
 import { ShareTarget } from './pages/ShareTarget';
 import { Tools } from './pages/Tools';
+import { Sleep } from './pages/Sleep';
 import { PinLockScreen } from './components/PinLockScreen';
 
 export default function App() {
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="analytics" element={<Analytics />} />
           <Route path="shopping-list" element={<ShoppingList />} />
           <Route path="passwords" element={<Passwords />} />
+          <Route path="sleep" element={<Sleep />} />
           <Route path="tools" element={<Tools />} />
           <Route path="settings" element={<Settings />} />
           <Route path="share-target" element={<ShareTarget />} />

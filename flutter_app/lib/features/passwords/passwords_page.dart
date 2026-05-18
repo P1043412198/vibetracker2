@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/misc.dart';
 import '../../state/providers.dart';
+import '../../widgets/app_back_button.dart';
 import '../../utils/totp.dart';
 import '../../utils/password_generator.dart';
 
@@ -86,7 +87,7 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage> {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => setState(() => _openedCategory = null),
               )
-            : const BackButton(),
+            : const AppBackButton(),
         title: Row(
           children: [
             const Icon(Icons.shield_outlined, size: 22),

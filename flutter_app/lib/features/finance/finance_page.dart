@@ -9,8 +9,8 @@ import '../../state/providers.dart';
 import '../../state/settings_state.dart';
 import '../financial_plan/services/finplan_export.dart';
 import 'accounts_tab.dart';
+import 'budget_planner_tab.dart';
 import 'charts_tab.dart';
-import 'monthly_plan_tab.dart';
 import 'transactions_tab.dart';
 
 /// Tabbed finance page — port of `src/pages/Finance.tsx` (2700+ lines).
@@ -29,12 +29,12 @@ class FinancePage extends ConsumerStatefulWidget {
 class _FinancePageState extends ConsumerState<FinancePage>
     with SingleTickerProviderStateMixin {
   late final TabController _controller;
-  static const _tabs = ['Транзакции', 'Счета', 'План', 'Графики'];
+  static const _tabs = ['Бюджет', 'Транзакции', 'Счета', 'Аналитика'];
 
   @override
   void initState() {
     super.initState();
-    _controller = TabController(length: _tabs.length, vsync: this);
+    _controller = TabController(length: _tabs.length, vsync: this, initialIndex: 0);
   }
 
   @override
@@ -133,9 +133,9 @@ class _FinancePageState extends ConsumerState<FinancePage>
             child: TabBarView(
               controller: _controller,
               children: const [
+                BudgetPlannerTab(),
                 TransactionsTab(),
                 AccountsTab(),
-                MonthlyPlanTab(),
                 ChartsTab(),
               ],
             ),

@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -30,7 +31,7 @@ class ReceiptGalleryPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: const Text('Чеки'),
       ),
       body: sortedKeys.isEmpty

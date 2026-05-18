@@ -825,12 +825,35 @@ class _TasksStatsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final total = tasks.length;
     final done = tasks.where((t) => t.completed).length;
+    final pending = total - done;
     final percent = total == 0 ? 0 : (done * 100 / total).round();
     final byPriority = <TaskPriority, int>{};
     for (final t in tasks) {
       if (t.priority == null) continue;
       byPriority[t.priority!] = (byPriority[t.priority!] ?? 0) + 1;
     }
+
+    // Eisenhower 2x2: count each task in one of four quadrants.
+    final eisenhower = <TaskPriority, int>{
+      TaskPriority.urgent_important: 0,
+      TaskPriority.important: 0,
+      TaskPriority.urgent: 0,
+      TaskPriority.later: 0,
+    };
+    for (final t in tasks) {
+      final p = t.priority;
+      if (p != null) eisenhower[p] = (eisenhower[p] ?? 0) + 1;
+    }
+    // Subtask aggregate progress (everything that's not done).
+    var subDone = 0;
+    var subTotal = 0;
+    for (final t in tasks) {
+      final s = t.subtasks;
+      if (s == null) continue;
+      subTotal += s.length;
+      subDone += s.where((x) => x.completed).length;
+    }
+
     final scheme = Theme.of(context).colorScheme;
     return Card(
       child: Padding(
@@ -849,7 +872,51 @@ class _TasksStatsCard extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w600)),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            // Hero row: animated donut on the left, big percentage on the
+            // right with a stack of mini stats (done / pending / subtasks).
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 110,
+                  height: 110,
+                  child: _TaskDonut(
+                    done: done,
+                    pending: pending,
+                    percent: percent,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _StatRow(
+                        color: const Color(0xFF22C55E),
+                        label: 'Выполнено',
+                        value: '$done',
+                      ),
+                      const SizedBox(height: 6),
+                      _StatRow(
+                        color: scheme.outlineVariant,
+                        label: 'Осталось',
+                        value: '$pending',
+                      ),
+                      if (subTotal > 0) ...[
+                        const SizedBox(height: 6),
+                        _StatRow(
+                          color: const Color(0xFF8B5CF6),
+                          label: 'Подзадачи',
+                          value: '$subDone / $subTotal',
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
@@ -863,6 +930,9 @@ class _TasksStatsCard extends StatelessWidget {
             Text('$percent% выполнено',
                 style: Theme.of(context).textTheme.bodySmall),
             if (byPriority.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              // Eisenhower 2x2 matrix infographic.
+              _EisenhowerMatrix(counts: eisenhower),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 6,
@@ -1163,6 +1233,233 @@ class _StreakBadge extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Animated donut chart used inside [_TasksStatsCard]. The arc sweeps from
+/// 0 → percent over 900 ms whenever the underlying values change, and the
+/// center number ticks up in lockstep.
+class _TaskDonut extends StatelessWidget {
+  const _TaskDonut({
+    required this.done,
+    required this.pending,
+    required this.percent,
+  });
+
+  final int done;
+  final int pending;
+  final int percent;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final target = (done + pending) == 0 ? 0.0 : done / (done + pending);
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: target),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) {
+        return CustomPaint(
+          painter: _DonutPainter(
+            progress: value,
+            track: scheme.surfaceContainerHighest,
+            color: const Color(0xFF22C55E),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${(value * 100).round()}%',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                Text(
+                  'выполнено',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DonutPainter extends CustomPainter {
+  _DonutPainter({
+    required this.progress,
+    required this.track,
+    required this.color,
+  });
+
+  final double progress;
+  final Color track;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = 12.0;
+    final rect = Rect.fromCircle(
+      center: size.center(Offset.zero),
+      radius: size.shortestSide / 2 - stroke / 2,
+    );
+    final trackPaint = Paint()
+      ..color = track
+      ..strokeWidth = stroke
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(rect, 0, 2 * math.pi, false, trackPaint);
+    final arcPaint = Paint()
+      ..color = color
+      ..strokeWidth = stroke
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      rect,
+      -math.pi / 2,
+      progress.clamp(0.0, 1.0) * 2 * math.pi,
+      false,
+      arcPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _DonutPainter old) =>
+      old.progress != progress || old.color != color || old.track != track;
+}
+
+/// Tiny labelled row used in the stats card next to the donut.
+class _StatRow extends StatelessWidget {
+  const _StatRow({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
+
+  final Color color;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Eisenhower 2×2 infographic. Each quadrant shows the count of tasks
+/// matching the priority assigned to that cell, plus a coloured corner
+/// stripe for quick visual scanning.
+class _EisenhowerMatrix extends StatelessWidget {
+  const _EisenhowerMatrix({required this.counts});
+
+  final Map<TaskPriority, int> counts;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget cell(TaskPriority p, String title) {
+      final c = counts[p] ?? 0;
+      final color = _priorityColor(p);
+      return Expanded(
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.10),
+            border: Border.all(color: color.withValues(alpha: 0.45)),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '$c',
+                style: TextStyle(
+                  fontSize: 22,
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Матрица приоритетов',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+        const SizedBox(height: 4),
+        IntrinsicHeight(
+          child: Row(
+            children: [
+              cell(TaskPriority.urgent_important, 'Срочно + важно'),
+              cell(TaskPriority.important, 'Важно'),
+            ],
+          ),
+        ),
+        IntrinsicHeight(
+          child: Row(
+            children: [
+              cell(TaskPriority.urgent, 'Срочно'),
+              cell(TaskPriority.later, 'Потом'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
 import '../../models/goal.dart';
+import '../../services/goal_progress.dart';
 import '../../services/photo_storage.dart';
 import '../../state/providers.dart';
 
@@ -62,11 +63,19 @@ class GoalDetailsPage extends ConsumerWidget {
         children: [
           _HeaderCard(goal: goal),
           const SizedBox(height: 16),
+          _AutoProgressCard(goal: goal),
+          const SizedBox(height: 16),
+          if (goal.deadline != null)
+            _TimelineCard(goal: goal),
+          if (goal.deadline != null)
+            const SizedBox(height: 16),
           _StatusCard(goal: goal),
           const SizedBox(height: 16),
           _ProgressCard(goal: goal),
           const SizedBox(height: 16),
           _StepsCard(goal: goal),
+          const SizedBox(height: 16),
+          _MilestonesCard(goal: goal),
           const SizedBox(height: 16),
           _PhotosCard(goal: goal),
         ],
@@ -638,6 +647,533 @@ class _StepsCardState extends ConsumerState<_StepsCard> {
     ref.read(goalsProvider.notifier).update(
           widget.goal.id,
           (g) => g.copyWith(steps: steps),
+        );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auto-calculated progress card — shows unified % from all sources.
+// ---------------------------------------------------------------------------
+class _AutoProgressCard extends StatelessWidget {
+  const _AutoProgressCard({required this.goal});
+  final Goal goal;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final progress = computeGoalProgress(goal);
+    final pct = (progress * 100).round();
+    final label = progressLabel(goal);
+
+    final stepsTotal = goal.steps.length;
+    final stepsDone = goal.steps.where((s) => s.completed).length;
+    final milesTotal = goal.milestones?.length ?? 0;
+    final milesDone =
+        goal.milestones?.where((m) => m.completed).length ?? 0;
+
+    Color barColor;
+    if (pct >= 100) {
+      barColor = const Color(0xFF22C55E);
+    } else if (pct >= 50) {
+      barColor = const Color(0xFF3B82F6);
+    } else {
+      barColor = const Color(0xFFF59E0B);
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.speed_outlined, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text('Общий прогресс',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                Text('$pct%',
+                    style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: barColor)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 12,
+                backgroundColor: scheme.surfaceContainerHighest,
+                valueColor: AlwaysStoppedAnimation(barColor),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                if (label.isNotEmpty)
+                  _ProgressChip(
+                      icon: Icons.trending_up, label: label, color: barColor),
+                if (stepsTotal > 0)
+                  _ProgressChip(
+                    icon: Icons.checklist,
+                    label: '$stepsDone / $stepsTotal шагов',
+                    color: const Color(0xFF6D5CFF),
+                  ),
+                if (milesTotal > 0)
+                  _ProgressChip(
+                    icon: Icons.flag_outlined,
+                    label: '$milesDone / $milesTotal вех',
+                    color: const Color(0xFFEC4899),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressChip extends StatelessWidget {
+  const _ProgressChip(
+      {required this.icon, required this.label, required this.color});
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Timeline / Gantt card — visual bar from createdAt to deadline.
+// ---------------------------------------------------------------------------
+class _TimelineCard extends StatelessWidget {
+  const _TimelineCard({required this.goal});
+  final Goal goal;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final fmt = DateFormat('d MMM', 'ru');
+    final start = DateTime.tryParse(goal.createdAt) ?? DateTime.now();
+    final end = DateTime.tryParse(goal.deadline ?? '') ?? DateTime.now();
+    final now = DateTime.now();
+    final totalDays = end.difference(start).inDays.abs();
+    final elapsedDays = now.difference(start).inDays;
+    final remainingDays = end.difference(now).inDays;
+    final timeProgress =
+        totalDays == 0 ? 1.0 : (elapsedDays / totalDays).clamp(0.0, 1.0);
+    final goalProgress = computeGoalProgress(goal);
+
+    final isOverdue = now.isAfter(end) && goalProgress < 1.0;
+    final isAhead = goalProgress > timeProgress;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.timeline_outlined, color: scheme.primary),
+                const SizedBox(width: 8),
+                Text('Таймлайн',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                if (isOverdue)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444).withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text('Просрочено',
+                        style: TextStyle(
+                            color: Color(0xFFEF4444),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700)),
+                  )
+                else if (isAhead)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF22C55E).withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text('Опережаете',
+                        style: TextStyle(
+                            color: Color(0xFF22C55E),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700)),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Dates row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Старт',
+                        style: Theme.of(context).textTheme.labelSmall),
+                    Text(fmt.format(start),
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+                Column(
+                  children: [
+                    Text(remainingDays > 0
+                        ? 'Осталось $remainingDays дн.'
+                        : remainingDays == 0
+                            ? 'Сегодня дедлайн'
+                            : 'Просрочено ${-remainingDays} дн.'),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Дедлайн',
+                        style: Theme.of(context).textTheme.labelSmall),
+                    Text(fmt.format(end),
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Gantt bars
+            _GanttBar(
+              label: 'Время',
+              progress: timeProgress,
+              color: scheme.outline,
+            ),
+            const SizedBox(height: 6),
+            _GanttBar(
+              label: 'Прогресс',
+              progress: goalProgress,
+              color: goalProgress >= 1.0
+                  ? const Color(0xFF22C55E)
+                  : const Color(0xFF6D5CFF),
+            ),
+            const SizedBox(height: 12),
+            // Milestones on timeline
+            if ((goal.milestones ?? []).isNotEmpty) ...[
+              SizedBox(
+                height: 36,
+                child: LayoutBuilder(
+                  builder: (ctx, constraints) {
+                    final w = constraints.maxWidth;
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Base line
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: 12,
+                          child: Container(
+                            height: 2,
+                            color: scheme.outlineVariant,
+                          ),
+                        ),
+                        for (final m in goal.milestones!)
+                          if (m.date != null)
+                            _buildMilestoneMarker(
+                                ctx, m, start, end, w, scheme),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMilestoneMarker(BuildContext context, Milestone m,
+      DateTime start, DateTime end, double width, ColorScheme scheme) {
+    final mDate = DateTime.tryParse(m.date!) ?? start;
+    final totalDays = end.difference(start).inDays;
+    final pos =
+        totalDays == 0 ? 0.5 : (mDate.difference(start).inDays / totalDays).clamp(0.0, 1.0);
+    final left = pos * (width - 16);
+    return Positioned(
+      left: left,
+      top: 0,
+      child: Tooltip(
+        message: '${m.title} — ${DateFormat('d MMM', 'ru').format(mDate)}',
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              m.completed ? Icons.flag : Icons.flag_outlined,
+              size: 16,
+              color: m.completed
+                  ? const Color(0xFF22C55E)
+                  : const Color(0xFFEF4444),
+            ),
+            Container(
+              width: 2,
+              height: 10,
+              color: m.completed
+                  ? const Color(0xFF22C55E)
+                  : scheme.outlineVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GanttBar extends StatelessWidget {
+  const _GanttBar(
+      {required this.label, required this.progress, required this.color});
+  final String label;
+  final double progress;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        SizedBox(
+          width: 68,
+          child: Text(label,
+              style:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progress.clamp(0.0, 1.0),
+              minHeight: 10,
+              backgroundColor: scheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation(color),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text('${(progress * 100).round()}%',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Milestones card — CRUD for intermediate checkpoints.
+// ---------------------------------------------------------------------------
+class _MilestonesCard extends ConsumerStatefulWidget {
+  const _MilestonesCard({required this.goal});
+  final Goal goal;
+
+  @override
+  ConsumerState<_MilestonesCard> createState() => _MilestonesCardState();
+}
+
+class _MilestonesCardState extends ConsumerState<_MilestonesCard> {
+  final _titleCtl = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleCtl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final goal = widget.goal;
+    final milestones = goal.milestones ?? const <Milestone>[];
+    final donePct = milestones.isEmpty
+        ? 0
+        : (milestones.where((m) => m.completed).length * 100 / milestones.length)
+            .round();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text('Вехи',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                if (milestones.isNotEmpty)
+                  Text(
+                    '${milestones.where((m) => m.completed).length} / ${milestones.length}  ($donePct%)',
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (milestones.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                    'Добавь промежуточные контрольные точки — они помогут отслеживать путь к цели.'),
+              ),
+            for (var i = 0; i < milestones.length; i++)
+              _milestoneTile(context, i, milestones[i]),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _titleCtl,
+                    decoration: const InputDecoration(
+                      labelText: 'Новая веха',
+                      isDense: true,
+                    ),
+                    onSubmitted: (_) => _add(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filledTonal(
+                  icon: const Icon(Icons.add),
+                  onPressed: _add,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _milestoneTile(BuildContext context, int index, Milestone m) {
+    final fmt = DateFormat('d MMM y', 'ru');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Checkbox(
+            value: m.completed,
+            onChanged: (v) => _toggle(index, v ?? false),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  m.title,
+                  style: TextStyle(
+                    decoration:
+                        m.completed ? TextDecoration.lineThrough : null,
+                    color: m.completed
+                        ? Theme.of(context).disabledColor
+                        : null,
+                  ),
+                ),
+                if (m.date != null)
+                  Text(
+                    fmt.format(DateTime.parse(m.date!)),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.calendar_today_outlined, size: 18),
+            tooltip: 'Установить дату',
+            onPressed: () => _pickDate(context, index, m),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: () => _delete(index),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _add() {
+    final text = _titleCtl.text.trim();
+    if (text.isEmpty) return;
+    final milestone = Milestone(
+      id: const Uuid().v4(),
+      title: text,
+    );
+    final next = <Milestone>[...(widget.goal.milestones ?? <Milestone>[]), milestone];
+    ref.read(goalsProvider.notifier).update(
+          widget.goal.id,
+          (g) => g.copyWith(milestones: next),
+        );
+    _titleCtl.clear();
+  }
+
+  void _toggle(int index, bool completed) {
+    final milestones = [...(widget.goal.milestones ?? <Milestone>[])];
+    milestones[index] = milestones[index].copyWith(completed: completed);
+    ref.read(goalsProvider.notifier).update(
+          widget.goal.id,
+          (g) => g.copyWith(milestones: milestones),
+        );
+  }
+
+  void _delete(int index) {
+    final milestones = [...(widget.goal.milestones ?? <Milestone>[])]
+      ..removeAt(index);
+    ref.read(goalsProvider.notifier).update(
+          widget.goal.id,
+          (g) => g.copyWith(milestones: milestones.isEmpty ? null : milestones),
+        );
+  }
+
+  Future<void> _pickDate(
+      BuildContext context, int index, Milestone m) async {
+    final current =
+        m.date != null ? DateTime.tryParse(m.date!) : DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: current ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+    );
+    if (picked == null) return;
+    final milestones = [...(widget.goal.milestones ?? <Milestone>[])];
+    milestones[index] =
+        milestones[index].copyWith(date: picked.toIso8601String());
+    ref.read(goalsProvider.notifier).update(
+          widget.goal.id,
+          (g) => g.copyWith(milestones: milestones),
         );
   }
 }

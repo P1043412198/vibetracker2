@@ -30,8 +30,48 @@ class HabitsPage extends ConsumerWidget {
       }
     }
 
+    Future<num?> promptValue(
+        BuildContext ctx, Habit h, num? current) async {
+      final ctl = TextEditingController(
+          text: current != null ? current.toString() : '');
+      final unit = h.unit ?? '';
+      return showDialog<num?>(
+        context: ctx,
+        builder: (dlg) => AlertDialog(
+          title: Text(h.title),
+          content: TextField(
+            controller: ctl,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: 'Сколько сегодня${unit.isNotEmpty ? ' ($unit)' : ''}?',
+              hintText: '${h.targetValue}',
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(dlg, null),
+                child: const Text('Отмена')),
+            FilledButton(
+                onPressed: () {
+                  final v = num.tryParse(ctl.text.trim());
+                  Navigator.pop(dlg, v);
+                },
+                child: const Text('Сохранить')),
+          ],
+        ),
+      );
+    }
+
     Future<void> markStatus(Habit h, HabitLogStatus status) async {
       final existing = logFor(h.id);
+      num? value = existing?.value;
+      if (status == HabitLogStatus.done &&
+          h.targetValue != null &&
+          (h.targetValue ?? 0) > 0) {
+        value = await promptValue(context, h, existing?.value);
+        if (value == null) return;
+      }
       final controller = ref.read(habitLogsProvider.notifier);
       final entry = HabitLog(
         id: existing?.id ?? const Uuid().v4(),
@@ -40,7 +80,7 @@ class HabitsPage extends ConsumerWidget {
         status: status,
         notes: existing?.notes ?? '',
         feelings: existing?.feelings ?? '',
-        value: existing?.value,
+        value: value,
       );
       await controller.upsert(entry);
     }
@@ -113,6 +153,7 @@ class HabitsPage extends ConsumerWidget {
                   habit: h,
                   todaysStatus: log?.status,
                   todaysNote: log?.notes ?? '',
+                  todaysValue: log?.value,
                   streak: stats.current,
                   best: stats.best,
                   onMark: (s) => markStatus(h, s),
@@ -134,7 +175,10 @@ class HabitsPage extends ConsumerWidget {
   Future<void> _addHabit(BuildContext context, WidgetRef ref) async {
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
+    final targetController = TextEditingController();
+    final unitController = TextEditingController();
     var type = HabitTypeKind.good;
+    var isMeasurable = false;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -149,70 +193,117 @@ class HabitsPage extends ConsumerWidget {
                 top: 8,
                 bottom: MediaQuery.of(innerContext).viewInsets.bottom + 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('Новая привычка',
-                      style:
-                          Theme.of(innerContext).textTheme.titleLarge),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: titleController,
-                    autofocus: true,
-                    decoration:
-                        const InputDecoration(labelText: 'Название'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: descriptionController,
-                    minLines: 1,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      labelText: 'Заметка / описание (необязательно)',
-                      hintText: 'Зачем эта привычка, как её отмечать…',
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Новая привычка',
+                        style:
+                            Theme.of(innerContext).textTheme.titleLarge),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: titleController,
+                      autofocus: true,
+                      decoration:
+                          const InputDecoration(labelText: 'Название'),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  SegmentedButton<HabitTypeKind>(
-                    segments: const [
-                      ButtonSegment(
-                        value: HabitTypeKind.good,
-                        icon: Icon(Icons.thumb_up_outlined),
-                        label: Text('Полезная'),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      minLines: 1,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Заметка / описание (необязательно)',
+                        hintText: 'Зачем эта привычка, как её отмечать…',
                       ),
-                      ButtonSegment(
-                        value: HabitTypeKind.bad,
-                        icon: Icon(Icons.thumb_down_outlined),
-                        label: Text('Вредная'),
+                    ),
+                    const SizedBox(height: 16),
+                    SegmentedButton<HabitTypeKind>(
+                      segments: const [
+                        ButtonSegment(
+                          value: HabitTypeKind.good,
+                          icon: Icon(Icons.thumb_up_outlined),
+                          label: Text('Полезная'),
+                        ),
+                        ButtonSegment(
+                          value: HabitTypeKind.bad,
+                          icon: Icon(Icons.thumb_down_outlined),
+                          label: Text('Вредная'),
+                        ),
+                      ],
+                      selected: {type},
+                      onSelectionChanged: (s) =>
+                          setState(() => type = s.first),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Измеримая привычка'),
+                      subtitle: const Text(
+                          'Напр. "выпить 2 л воды", "пробежать 5 км"'),
+                      value: isMeasurable,
+                      onChanged: (v) =>
+                          setState(() => isMeasurable = v),
+                    ),
+                    if (isMeasurable) ...[                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: targetController,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'Цель',
+                                hintText: '2',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: unitController,
+                              decoration: const InputDecoration(
+                                labelText: 'Единица',
+                                hintText: 'л, км, мин, стр...',
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                    selected: {type},
-                    onSelectionChanged: (s) =>
-                        setState(() => type = s.first),
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton(
-                    onPressed: () async {
-                      final title = titleController.text.trim();
-                      if (title.isEmpty) return;
-                      final desc = descriptionController.text.trim();
-                      await ref.read(habitsProvider.notifier).add(
-                            Habit(
-                              id: const Uuid().v4(),
-                              title: title,
-                              type: type,
-                              description: desc.isEmpty ? null : desc,
-                              createdAt: DateTime.now().toIso8601String(),
-                            ),
-                          );
-                      if (innerContext.mounted) {
-                        Navigator.of(innerContext).pop();
-                      }
-                    },
-                    child: const Text('Создать'),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () async {
+                        final title = titleController.text.trim();
+                        if (title.isEmpty) return;
+                        final desc = descriptionController.text.trim();
+                        final target =
+                            num.tryParse(targetController.text.trim());
+                        final unit = unitController.text.trim();
+                        await ref.read(habitsProvider.notifier).add(
+                              Habit(
+                                id: const Uuid().v4(),
+                                title: title,
+                                type: type,
+                                description: desc.isEmpty ? null : desc,
+                                targetValue:
+                                    isMeasurable ? target : null,
+                                unit: isMeasurable && unit.isNotEmpty
+                                    ? unit
+                                    : null,
+                                createdAt:
+                                    DateTime.now().toIso8601String(),
+                              ),
+                            );
+                        if (innerContext.mounted) {
+                          Navigator.of(innerContext).pop();
+                        }
+                      },
+                      child: const Text('Создать'),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -227,6 +318,7 @@ class _HabitCard extends StatelessWidget {
     required this.habit,
     required this.todaysStatus,
     required this.todaysNote,
+    this.todaysValue,
     required this.streak,
     required this.best,
     required this.onMark,
@@ -238,6 +330,7 @@ class _HabitCard extends StatelessWidget {
   final Habit habit;
   final HabitLogStatus? todaysStatus;
   final String todaysNote;
+  final num? todaysValue;
   final int streak;
   final int best;
   final ValueChanged<HabitLogStatus> onMark;
@@ -388,6 +481,14 @@ class _HabitCard extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+              ],
+              // Measurable progress bar
+              if (habit.targetValue != null && (habit.targetValue ?? 0) > 0) ...[                const SizedBox(height: 10),
+                _MeasurableBar(
+                  value: todaysValue?.toDouble() ?? 0,
+                  target: habit.targetValue!.toDouble(),
+                  unit: habit.unit ?? '',
                 ),
               ],
               const SizedBox(height: 12),
@@ -580,6 +681,58 @@ class _HMetric extends StatelessWidget {
         Text(value,
             style:
                 const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+      ],
+    );
+  }
+}
+
+class _MeasurableBar extends StatelessWidget {
+  const _MeasurableBar(
+      {required this.value, required this.target, required this.unit});
+  final double value;
+  final double target;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final pct = target == 0 ? 0.0 : (value / target).clamp(0.0, 1.0);
+    final pctInt = (pct * 100).round();
+    final done = pct >= 1.0;
+    final barColor =
+        done ? const Color(0xFF22C55E) : const Color(0xFF6D5CFF);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.track_changes, size: 14, color: barColor),
+            const SizedBox(width: 4),
+            Text(
+              '${value % 1 == 0 ? value.toInt() : value.toStringAsFixed(1)} / '
+              '${target % 1 == 0 ? target.toInt() : target.toStringAsFixed(1)}'
+              '${unit.isNotEmpty ? ' $unit' : ''}',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: barColor),
+            ),
+            const Spacer(),
+            Text('$pctInt%',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: barColor)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: pct,
+            minHeight: 8,
+            backgroundColor: scheme.surfaceContainerHighest,
+            valueColor: AlwaysStoppedAnimation(barColor),
+          ),
+        ),
       ],
     );
   }

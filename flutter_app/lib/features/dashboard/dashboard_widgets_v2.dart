@@ -6,11 +6,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/budget_planner.dart';
 import '../../models/enums.dart';
 import '../../models/finance.dart';
 import '../../models/goal.dart';
+import '../../models/habit.dart';
 import '../../models/misc.dart';
+import '../../services/budget_planner_calc.dart';
 import '../../services/finance_calc.dart';
+import '../../state/budget_planner_state.dart';
 import '../../state/currency_state.dart';
 import '../../state/providers.dart';
 import '../../state/settings_state.dart';
@@ -1078,4 +1082,1337 @@ _ChallengeQuickStats _quickStats(
   }
   return _ChallengeQuickStats(
       dayIndex: dayIndex, done: done, failed: failed, streak: streak);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Phase 16 — WOW dashboard: rolling daily budget, animated hero, all-goals
+// roadmap, yearly habits heatmap, progress dashboard.
+//
+// These widgets share a few small helpers (palette, gradient cards, animated
+// ring painter). Each is fully self-contained — they don't replace existing
+// widgets, they complement them.
+// ════════════════════════════════════════════════════════════════════════════
+
+const _wowGradientA = LinearGradient(
+  colors: [Color(0xFF6D5CFF), Color(0xFF3B82F6), Color(0xFF06B6D4)],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
+// ignore: unused_element
+const _wowGradientB = LinearGradient(
+  colors: [Color(0xFF22C55E), Color(0xFF10B981)],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
+// ignore: unused_element
+const _wowGradientC = LinearGradient(
+  colors: [Color(0xFFF59E0B), Color(0xFFEF4444)],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
+
+final _wowFmt = NumberFormat('#,##0.00', 'ru_RU');
+final _wowFmtShort = NumberFormat.compact(locale: 'ru_RU');
+
+String _iso(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+// ───────────────────────────────────────────────────────────────────────────
+// 1. Rolling Daily Budget widget
+//
+// Shows yesterday vs today: how much you spent, how much you saved, and how
+// much is available right now. The current cycle's `dailyBudget` already
+// recalculates daily from real cash on hand, so simply pinning yesterday's
+// expense totals against that target gives the user the rolling view they
+// asked for: "if I didn't spend yesterday, today I have more".
+// ───────────────────────────────────────────────────────────────────────────
+
+class RollingDailyBudgetWidget extends ConsumerWidget {
+  const RollingDailyBudgetWidget({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final store = ref.watch(budgetPlannerProvider);
+    final config = store.currentMonth;
+    final txs = ref.watch(transactionsProvider);
+    final accounts = ref.watch(accountsProvider);
+    final loans = ref.watch(loansProvider);
+    final loanPayments = ref.watch(loanPaymentsProvider);
+    final baseCurrency = ref.watch(defaultCurrencyProvider);
+    final rates = ref.watch(currencyRatesProvider);
+
+    num convert(num amount, String from, String to) =>
+        convertCurrency(amount: amount, from: from, to: to, rates: rates);
+
+    final facts = computeBudgetFacts(
+      monthKey: store.selectedMonthKey,
+      transactions: txs,
+      accounts: accounts,
+      convert: convert,
+      baseCurrency: baseCurrency,
+      linkedAccountIds: config.linkedAccountIds,
+    );
+
+    final cycles = computeBudgetCycles(
+      incomeSources: config.incomeSources,
+      plannedExpenses: config.plannedExpenses,
+      actualExpenses: config.actualExpenses,
+      transactions: txs,
+      accounts: accounts,
+      loans: loans,
+      loanPayments: loanPayments,
+      convert: convert,
+      baseCurrency: baseCurrency,
+      accountBalance: facts.accountBalance,
+    );
+
+    if (cycles.isEmpty) {
+      return _emptyCard(context,
+          icon: Icons.account_balance_wallet_outlined,
+          title: 'Ежедневный бюджет',
+          subtitle: 'Настройте источник дохода в Планировщике бюджета');
+    }
+
+    final cycle = cycles.first;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    num spentOn(DateTime d) {
+      final iso = _iso(d);
+      var sum = 0.0;
+      for (final t in txs) {
+        if (t.type != TransactionType.expense) continue;
+        if (!t.date.startsWith(iso)) continue;
+        sum += convert(t.amount, accounts
+                    .firstWhere((a) => a.id == t.accountId,
+                        orElse: () => Account(
+                            id: '',
+                            name: '',
+                            type: AccountType.card,
+                            currency: baseCurrency,
+                            initialBalance: 0,
+                            color: '#000',
+                            createdAt: ''))
+                    .currency, baseCurrency)
+            .toDouble();
+      }
+      return sum;
+    }
+
+    final spentYesterday = spentOn(yesterday).toDouble();
+    final spentToday = spentOn(today).toDouble();
+    final targetDaily = cycle.dailyBudget.toDouble();
+    final savedYesterday = (targetDaily - spentYesterday);
+    final todayAvailable =
+        (targetDaily + (savedYesterday > 0 ? savedYesterday : 0) - spentToday)
+            .clamp(-1e9, 1e9)
+            .toDouble();
+    final progressToday = targetDaily > 0
+        ? (spentToday / (targetDaily + (savedYesterday > 0 ? savedYesterday : 0)))
+            .clamp(0.0, 1.0)
+        : 0.0;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(gradient: _wowGradientA),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.refresh_rounded,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 6),
+                  const Text('Бюджет на сегодня',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(40),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      DateFormat('d MMM', 'ru_RU').format(today),
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  _AnimatedRing(
+                    progress: progressToday,
+                    color: progressToday > 0.85
+                        ? const Color(0xFFFCA5A5)
+                        : Colors.white,
+                    trackColor: Colors.white.withAlpha(50),
+                    size: 92,
+                    strokeWidth: 8,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_wowFmtShort.format(todayAvailable),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800)),
+                        const Text('сегодня',
+                            style: TextStyle(
+                                color: Colors.white70, fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _kv('Норма / день',
+                            '${_wowFmt.format(targetDaily)} $baseCurrency'),
+                        const SizedBox(height: 6),
+                        _kv('Вчера потратил',
+                            '${_wowFmt.format(spentYesterday)} $baseCurrency'),
+                        const SizedBox(height: 6),
+                        _kv(
+                          savedYesterday >= 0
+                              ? 'Сэкономил вчера'
+                              : 'Перерасход вчера',
+                          '${savedYesterday >= 0 ? '+' : ''}${_wowFmt.format(savedYesterday)} $baseCurrency',
+                          highlight: savedYesterday >= 0
+                              ? const Color(0xFFA7F3D0)
+                              : const Color(0xFFFCA5A5),
+                        ),
+                        const SizedBox(height: 6),
+                        _kv('Сегодня потратил',
+                            '${_wowFmt.format(spentToday)} $baseCurrency'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: progressToday,
+                  minHeight: 8,
+                  backgroundColor: Colors.white.withAlpha(40),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    progressToday > 0.85
+                        ? const Color(0xFFFCA5A5)
+                        : Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                savedYesterday > 0
+                    ? 'Не потратили вчера → +${_wowFmt.format(savedYesterday)} в копилку сегодня'
+                    : (savedYesterday < 0
+                        ? 'Перерасход вчера съел часть сегодняшнего бюджета'
+                        : 'Бюджет идёт ровно — держим темп!'),
+                style: TextStyle(
+                    color: Colors.white.withAlpha(220), fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _kv(String k, String v, {Color? highlight}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(k,
+            style: const TextStyle(color: Colors.white70, fontSize: 11)),
+        Text(v,
+            style: TextStyle(
+                color: highlight ?? Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w800)),
+      ],
+    );
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 2. Finance hero — rotating ring + counters around the budget cycle.
+// ───────────────────────────────────────────────────────────────────────────
+
+class FinanceHeroWidget extends ConsumerStatefulWidget {
+  const FinanceHeroWidget({super.key});
+
+  @override
+  ConsumerState<FinanceHeroWidget> createState() => _FinanceHeroWidgetState();
+}
+
+class _FinanceHeroWidgetState extends ConsumerState<FinanceHeroWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin;
+
+  @override
+  void initState() {
+    super.initState();
+    _spin = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 18),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = ref.watch(budgetPlannerProvider);
+    final config = store.currentMonth;
+    final txs = ref.watch(transactionsProvider);
+    final accounts = ref.watch(accountsProvider);
+    final loans = ref.watch(loansProvider);
+    final loanPayments = ref.watch(loanPaymentsProvider);
+    final baseCurrency = ref.watch(defaultCurrencyProvider);
+    final rates = ref.watch(currencyRatesProvider);
+    num convert(num a, String f, String t) =>
+        convertCurrency(amount: a, from: f, to: t, rates: rates);
+    final facts = computeBudgetFacts(
+      monthKey: store.selectedMonthKey,
+      transactions: txs,
+      accounts: accounts,
+      convert: convert,
+      baseCurrency: baseCurrency,
+      linkedAccountIds: config.linkedAccountIds,
+    );
+    final cycles = computeBudgetCycles(
+      incomeSources: config.incomeSources,
+      plannedExpenses: config.plannedExpenses,
+      actualExpenses: config.actualExpenses,
+      transactions: txs,
+      accounts: accounts,
+      loans: loans,
+      loanPayments: loanPayments,
+      convert: convert,
+      baseCurrency: baseCurrency,
+      accountBalance: facts.accountBalance,
+    );
+
+    final cycle = cycles.isNotEmpty ? cycles.first : null;
+    final balance = facts.accountBalance.toDouble();
+    final daysLeft = cycle?.daysLeft ?? 0;
+    final daily = (cycle?.dailyBudget ?? 0).toDouble();
+    final spentPct = cycle != null && cycle.remainingAfterExpenses > 0
+        ? (cycle.actualSpent / cycle.remainingAfterExpenses)
+            .clamp(0.0, 1.0)
+        : 0.0;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: const BoxDecoration(gradient: _wowGradientA),
+        padding: const EdgeInsets.all(18),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 120,
+              height: 120,
+              child: AnimatedBuilder(
+                animation: _spin,
+                builder: (_, __) {
+                  return CustomPaint(
+                    painter: _RotatingHeroRingPainter(
+                      progress: spentPct.toDouble(),
+                      rotation: _spin.value * 2 * math.pi,
+                    ),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.savings_rounded,
+                              color: Colors.white, size: 22),
+                          const SizedBox(height: 2),
+                          Text(_wowFmtShort.format(daily),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800)),
+                          const Text('в день',
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 10)),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Финансовая магия',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text('${_wowFmt.format(balance)} $baseCurrency',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  _heroChip('Циклы', '${cycles.length}'),
+                  const SizedBox(height: 4),
+                  _heroChip('До конца', '$daysLeft дн.'),
+                  const SizedBox(height: 4),
+                  _heroChip('Кредиты', '${loans.where((l) => l.balance > 0).length}'),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _heroChip(String k, String v) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(40),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(k,
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 10)),
+          const SizedBox(width: 6),
+          Text(v,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+}
+
+class _RotatingHeroRingPainter extends CustomPainter {
+  _RotatingHeroRingPainter({required this.progress, required this.rotation});
+  final double progress;
+  final double rotation;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 6;
+    final track = Paint()
+      ..color = Colors.white.withAlpha(40)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8;
+    canvas.drawCircle(center, radius, track);
+
+    final arc = Paint()
+      ..shader = const SweepGradient(
+        colors: [
+          Color(0xFFFFFFFF),
+          Color(0xFFA7F3D0),
+          Color(0xFFFFE08A),
+          Color(0xFFFFFFFF),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round;
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(rotation);
+    canvas.translate(-center.dx, -center.dy);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      2 * math.pi * progress.clamp(0.05, 1.0),
+      false,
+      arc,
+    );
+    canvas.restore();
+
+    // tiny sparkle dot
+    final dotAngle = -math.pi / 2 + 2 * math.pi * progress + rotation;
+    final dot = Offset(center.dx + radius * math.cos(dotAngle),
+        center.dy + radius * math.sin(dotAngle));
+    canvas.drawCircle(
+        dot,
+        4,
+        Paint()
+          ..color = Colors.white
+          ..maskFilter = const MaskFilter.blur(BlurStyle.solid, 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant _RotatingHeroRingPainter old) =>
+      old.rotation != rotation || old.progress != progress;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 3. Goals Roadmap — Gantt of all active goals on a single timeline.
+// ───────────────────────────────────────────────────────────────────────────
+
+class GoalsRoadmapWidget extends ConsumerWidget {
+  const GoalsRoadmapWidget({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final goals = ref.watch(goalsProvider);
+    final active = goals
+        .where((g) => g.status != GoalStatus.completed && g.deadline != null)
+        .toList();
+    if (active.isEmpty) {
+      return _emptyCard(context,
+          icon: Icons.timeline,
+          title: 'Дорожная карта целей',
+          subtitle: 'Добавьте цели с дедлайнами — увидите весь маршрут.');
+    }
+
+    DateTime? parse(String? s) {
+      if (s == null) return null;
+      try {
+        return DateTime.parse(s);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final entries = <_RoadmapEntry>[];
+    for (final g in active) {
+      final start = parse(g.createdAt) ?? DateTime.now();
+      final end = parse(g.deadline);
+      if (end == null) continue;
+      double progress = (g.progress?.toDouble() ?? 0).clamp(0.0, 1.0);
+      if (progress == 0 && g.steps.isNotEmpty) {
+        progress =
+            g.steps.where((s) => s.completed).length / g.steps.length;
+      }
+      entries.add(_RoadmapEntry(
+        title: g.title,
+        start: start,
+        end: end,
+        progress: progress,
+        status: g.status,
+      ));
+    }
+
+    if (entries.isEmpty) {
+      return _emptyCard(context,
+          icon: Icons.timeline,
+          title: 'Дорожная карта целей',
+          subtitle: 'Нет целей с корректными датами.');
+    }
+
+    final timelineStart = entries
+        .map((e) => e.start)
+        .reduce((a, b) => a.isBefore(b) ? a : b);
+    final timelineEnd = entries
+        .map((e) => e.end)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.timeline, size: 18),
+                const SizedBox(width: 6),
+                const Text('Дорожная карта целей',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 14)),
+                const Spacer(),
+                Text(
+                    '${DateFormat('d MMM', 'ru_RU').format(timelineStart)} → ${DateFormat('d MMM yy', 'ru_RU').format(timelineEnd)}',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurfaceVariant)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            for (final e in entries) ...[
+              _RoadmapRow(
+                  entry: e,
+                  start: timelineStart,
+                  end: timelineEnd),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 4),
+            _RoadmapAxis(start: timelineStart, end: timelineEnd),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RoadmapEntry {
+  _RoadmapEntry({
+    required this.title,
+    required this.start,
+    required this.end,
+    required this.progress,
+    required this.status,
+  });
+  final String title;
+  final DateTime start;
+  final DateTime end;
+  final double progress;
+  final GoalStatus status;
+}
+
+class _RoadmapRow extends StatelessWidget {
+  const _RoadmapRow(
+      {required this.entry, required this.start, required this.end});
+  final _RoadmapEntry entry;
+  final DateTime start;
+  final DateTime end;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final totalMs = end.difference(start).inMilliseconds;
+    final ratioStart = totalMs <= 0
+        ? 0.0
+        : entry.start.difference(start).inMilliseconds / totalMs;
+    final ratioEnd = totalMs <= 0
+        ? 1.0
+        : entry.end.difference(start).inMilliseconds / totalMs;
+    final color = entry.status == GoalStatus.in_progress
+        ? const Color(0xFF6D5CFF)
+        : entry.status == GoalStatus.completed
+            ? const Color(0xFF22C55E)
+            : entry.status == GoalStatus.not_started
+                ? const Color(0xFFF59E0B)
+                : scheme.primary;
+
+    return LayoutBuilder(builder: (context, c) {
+      final width = c.maxWidth;
+      final left = (ratioStart.clamp(0.0, 1.0) * width).toDouble();
+      final barW = ((ratioEnd - ratioStart).clamp(0.02, 1.0) * width).toDouble();
+      return SizedBox(
+        height: 32,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 14,
+              child: Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            Positioned(
+              left: left,
+              top: 11,
+              child: Container(
+                width: barW,
+                height: 10,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [
+                    color.withAlpha(150),
+                    color,
+                  ]),
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                        color: color.withAlpha(80),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2)),
+                  ],
+                ),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: entry.progress.clamp(0.0, 1.0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(80),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              left: left.clamp(0, width - 120).toDouble(),
+              top: 0,
+              child: Text(
+                entry.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              top: 0,
+              child: Text(
+                '${(entry.progress * 100).toStringAsFixed(0)}%',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: color),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+class _RoadmapAxis extends StatelessWidget {
+  const _RoadmapAxis({required this.start, required this.end});
+  final DateTime start;
+  final DateTime end;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final mid = DateTime.fromMillisecondsSinceEpoch(
+      (start.millisecondsSinceEpoch + end.millisecondsSinceEpoch) ~/ 2,
+    );
+    final fmt = DateFormat('d MMM', 'ru_RU');
+    return Row(
+      children: [
+        Text(fmt.format(start),
+            style: TextStyle(
+                fontSize: 10, color: scheme.onSurfaceVariant)),
+        Expanded(
+          child: Center(
+            child: Text(fmt.format(mid),
+                style: TextStyle(
+                    fontSize: 10, color: scheme.onSurfaceVariant)),
+          ),
+        ),
+        Text(fmt.format(end),
+            style: TextStyle(
+                fontSize: 10, color: scheme.onSurfaceVariant)),
+      ],
+    );
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 4. Habits Year Heatmap — GitHub-style annual grid (52 weeks × 7 days).
+// ───────────────────────────────────────────────────────────────────────────
+
+class HabitsYearHeatmapWidget extends ConsumerWidget {
+  const HabitsYearHeatmapWidget({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final habits = ref.watch(habitsProvider);
+    final logs = ref.watch(habitLogsProvider);
+    if (habits.isEmpty) {
+      return _emptyCard(context,
+          icon: Icons.grid_on,
+          title: 'Карта года',
+          subtitle: 'Создайте привычки — здесь появится годовая сетка.');
+    }
+
+    final today = DateTime.now();
+    final dayCount = 52 * 7; // 52 weeks back from today
+    // Anchor on Sunday so the rightmost column aligns with the current week.
+    final endAnchor = today.subtract(Duration(days: today.weekday % 7));
+    final start = endAnchor.subtract(Duration(days: dayCount - 1));
+
+    // Total good-habit completions per day across all habits.
+    final dailyCount = <String, int>{};
+    for (final l in logs) {
+      if (l.status != HabitLogStatus.done) continue;
+      dailyCount.update(l.date, (v) => v + 1, ifAbsent: () => 1);
+    }
+    final maxCount = dailyCount.values.fold<int>(0, math.max);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.grid_on, size: 18),
+                const SizedBox(width: 6),
+                const Text('Карта года',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 14)),
+                const Spacer(),
+                _legendDot(0),
+                _legendDot(0.25),
+                _legendDot(0.5),
+                _legendDot(0.75),
+                _legendDot(1.0),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var w = 0; w < 52; w++)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 3),
+                      child: Column(
+                        children: [
+                          for (var d = 0; d < 7; d++) ...[
+                            () {
+                              final dayOffset = w * 7 + d;
+                              final day = start.add(Duration(days: dayOffset));
+                              if (day.isAfter(today)) {
+                                return const SizedBox(
+                                    width: 11, height: 11);
+                              }
+                              final iso = _iso(day);
+                              final v = dailyCount[iso] ?? 0;
+                              final intensity =
+                                  maxCount == 0 ? 0.0 : v / maxCount;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 3),
+                                child: Container(
+                                  width: 11,
+                                  height: 11,
+                                  decoration: BoxDecoration(
+                                    color: _intensityColor(intensity),
+                                    borderRadius:
+                                        BorderRadius.circular(2),
+                                  ),
+                                ),
+                              );
+                            }(),
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Всего отметок: ${dailyCount.values.fold<int>(0, (a, b) => a + b)} за год · максимум за день: $maxCount',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _legendDot(double intensity) => Padding(
+        padding: const EdgeInsets.only(left: 3),
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: _intensityColor(intensity),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+      );
+}
+
+Color _intensityColor(double intensity) {
+  if (intensity <= 0) return const Color(0xFFE5E7EB);
+  if (intensity < 0.25) return const Color(0xFFBBF7D0);
+  if (intensity < 0.5) return const Color(0xFF86EFAC);
+  if (intensity < 0.75) return const Color(0xFF34D399);
+  if (intensity < 1.0) return const Color(0xFF22C55E);
+  return const Color(0xFF15803D);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// 5. Progress Dashboard — animated rings for goals + streak chips for habits.
+// ───────────────────────────────────────────────────────────────────────────
+
+class ProgressDashboardWidget extends ConsumerStatefulWidget {
+  const ProgressDashboardWidget({super.key});
+
+  @override
+  ConsumerState<ProgressDashboardWidget> createState() =>
+      _ProgressDashboardWidgetState();
+}
+
+class _ProgressDashboardWidgetState
+    extends ConsumerState<ProgressDashboardWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1400))
+      ..forward();
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  double _goalProgress(Goal g) {
+    if (g.progress != null) return g.progress!.toDouble().clamp(0.0, 1.0);
+    if (g.steps.isNotEmpty) {
+      return (g.steps.where((s) => s.completed).length / g.steps.length)
+          .clamp(0.0, 1.0);
+    }
+    if (g.targetValue != null && g.targetValue! > 0 && g.currentValue != null) {
+      return (g.currentValue! / g.targetValue!).toDouble().clamp(0.0, 1.0);
+    }
+    return 0;
+  }
+
+  int _habitStreak(Habit h, List<HabitLog> logs) {
+    final byDate = <String, HabitLog>{
+      for (final l in logs.where((l) => l.habitId == h.id)) l.date: l,
+    };
+    var streak = 0;
+    var day = DateTime.now();
+    while (true) {
+      final iso = _iso(day);
+      final log = byDate[iso];
+      if (log != null && log.status == HabitLogStatus.done) {
+        streak++;
+        day = day.subtract(const Duration(days: 1));
+        if (streak > 366) break;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final goals = ref
+        .watch(goalsProvider)
+        .where((g) => g.status != GoalStatus.completed)
+        .toList();
+    final habits = ref.watch(habitsProvider);
+    final logs = ref.watch(habitLogsProvider);
+
+    if (goals.isEmpty && habits.isEmpty) {
+      return _emptyCard(context,
+          icon: Icons.show_chart,
+          title: 'Прогресс-дашборд',
+          subtitle: 'Добавьте цели или привычки — увидите кольца и стрики.');
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: const [
+                Icon(Icons.show_chart, size: 18),
+                SizedBox(width: 6),
+                Text('Прогресс-дашборд',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 14)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (goals.isNotEmpty) ...[
+              const Text('Цели',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12)),
+              const SizedBox(height: 6),
+              SizedBox(
+                height: 100,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: goals.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (_, i) {
+                    final g = goals[i];
+                    final p = _goalProgress(g);
+                    return SizedBox(
+                      width: 78,
+                      child: Column(
+                        children: [
+                          AnimatedBuilder(
+                            animation: _anim,
+                            builder: (_, __) {
+                              return _AnimatedRing(
+                                progress: p * _anim.value,
+                                color: _palette[i % _palette.length],
+                                trackColor: _palette[i % _palette.length]
+                                    .withAlpha(40),
+                                size: 60,
+                                strokeWidth: 6,
+                                child: Text(
+                                  '${(p * 100 * _anim.value).toStringAsFixed(0)}%',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color:
+                                          _palette[i % _palette.length]),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            g.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 10),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (habits.isNotEmpty) ...[
+              const Text('Стрики привычек',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (var i = 0; i < habits.length; i++)
+                    _StreakChip(
+                      title: habits[i].title,
+                      streak: _habitStreak(habits[i], logs),
+                      color: _palette[i % _palette.length],
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StreakChip extends StatelessWidget {
+  const _StreakChip({
+    required this.title,
+    required this.streak,
+    required this.color,
+  });
+  final String title;
+  final int streak;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withAlpha(40), color.withAlpha(15)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withAlpha(80), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.local_fire_department,
+              size: 14, color: streak > 0 ? color : Colors.grey),
+          const SizedBox(width: 4),
+          Text(title,
+              style:
+                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 4),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: color.withAlpha(60),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text('$streak',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: color)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Shared helpers
+// ───────────────────────────────────────────────────────────────────────────
+
+class _AnimatedRing extends StatelessWidget {
+  const _AnimatedRing({
+    required this.progress,
+    required this.color,
+    required this.trackColor,
+    required this.size,
+    required this.strokeWidth,
+    required this.child,
+  });
+  final double progress;
+  final Color color;
+  final Color trackColor;
+  final double size;
+  final double strokeWidth;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _RingPainter(
+          progress: progress,
+          color: color,
+          trackColor: trackColor,
+          strokeWidth: strokeWidth,
+        ),
+        child: Center(child: child),
+      ),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  _RingPainter({
+    required this.progress,
+    required this.color,
+    required this.trackColor,
+    required this.strokeWidth,
+  });
+  final double progress;
+  final Color color;
+  final Color trackColor;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - strokeWidth / 2;
+    final track = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    canvas.drawCircle(center, radius, track);
+    final arc = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius),
+      -math.pi / 2,
+      2 * math.pi * progress.clamp(0.0, 1.0),
+      false,
+      arc,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPainter old) =>
+      old.progress != progress ||
+      old.color != color ||
+      old.trackColor != trackColor;
+}
+
+Widget _emptyCard(BuildContext context,
+    {required IconData icon,
+    required String title,
+    required String subtitle}) {
+  final scheme = Theme.of(context).colorScheme;
+  return Card(
+    margin: EdgeInsets.zero,
+    child: Padding(
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          Icon(icon, size: 28, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style:
+                        const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(subtitle,
+                    style: TextStyle(
+                        fontSize: 12, color: scheme.onSurfaceVariant)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Suppress unused-import lint when a model file is only referenced via
+/// downstream code paths (kept here intentionally because some widgets in
+/// this file rely on the model types being visible to other files that
+/// import this module via `dashboard_widgets_v2.dart`).
+// ignore: unused_element
+void _wow_unused_imports_anchor(BudgetCycle a, IncomeSource b, PlannedExpense c) {}
+
+/// Compact dashboard widget that links to the Claude chat. We don't load
+/// conversation history here — just a one-tap shortcut with a few preset
+/// prompts to make the entrypoint discoverable.
+class ClaudeChatLauncherWidget extends StatelessWidget {
+  const ClaudeChatLauncherWidget({super.key});
+
+  static const _quickPrompts = <_QuickPrompt>[
+    _QuickPrompt('План тренировок', 'Составь план тренировок на неделю.'),
+    _QuickPrompt('Бюджет', 'Помоги сократить расходы на 10%.'),
+    _QuickPrompt('Привычки', 'Подбери 3 новые полезные привычки.'),
+    _QuickPrompt('Задачи',
+        'Помоги разложить большую цель на задачи по SMART.'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: () => context.go('/chat'),
+        child: Ink(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              colors: [
+                scheme.tertiaryContainer,
+                scheme.primaryContainer,
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: scheme.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(Icons.auto_awesome,
+                        size: 20, color: scheme.onPrimary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Claude чат',
+                            style: TextStyle(
+                                color: scheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16)),
+                        Text('Личный коуч по финансам, спорту и привычкам',
+                            style: TextStyle(
+                                color: scheme.onPrimaryContainer
+                                    .withValues(alpha: 0.85),
+                                fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios,
+                      size: 14, color: scheme.onPrimaryContainer),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final p in _quickPrompts)
+                    InputChip(
+                      label: Text(p.label),
+                      onPressed: () => context.go('/chat'),
+                      backgroundColor: scheme.surface.withValues(alpha: 0.55),
+                      side: BorderSide(
+                          color: scheme.outline.withValues(alpha: 0.2)),
+                      labelStyle: TextStyle(
+                          color: scheme.onSurface, fontSize: 12),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickPrompt {
+  const _QuickPrompt(this.label, this.prompt);
+  final String label;
+  // The full prompt is intentionally unused for now — the launcher is a
+  // shortcut into chat. Kept for a future "prefill" wiring.
+  // ignore: unused_element
+  final String prompt;
 }

@@ -1,3 +1,4 @@
+import '../../widgets/app_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -49,7 +50,7 @@ class _ShoppingListPageState extends ConsumerState<ShoppingListPage>
 
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: const Row(
           children: [
             Icon(Icons.shopping_cart_outlined, size: 22),

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Target, CheckSquare, Activity, BarChart3, Wallet, Dumbbell, Settings as SettingsIcon, Key, Home, Rocket, Menu, X, Calendar, ShoppingCart, Calculator } from 'lucide-react';
+import { LayoutDashboard, Target, CheckSquare, Activity, BarChart3, Wallet, Dumbbell, Settings as SettingsIcon, Key, Home, Rocket, Menu, X, Calendar, ShoppingCart, Calculator, Moon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store/useStore';
@@ -26,6 +26,7 @@ export function Layout() {
     { to: '/goals', icon: Rocket, label: 'Развитие', shortLabel: 'Рост', module: 'goals' },
     { to: '/work-schedule', icon: Calendar, label: 'График', shortLabel: 'Смена', module: 'schedule' },
     { to: '/passwords', icon: Key, label: 'Пароли', shortLabel: 'Пароли', module: 'passwords' },
+    { to: '/sleep', icon: Moon, label: 'Сон', shortLabel: 'Сон', module: 'sleep' },
     { to: '/analytics', icon: BarChart3, label: 'Аналитика', shortLabel: 'Анализ', module: 'analytics' },
     { to: '/shopping-list', icon: ShoppingCart, label: 'Покупки', shortLabel: 'Чек', module: 'household' },
     { to: '/tools', icon: Calculator, label: 'Инструменты', shortLabel: 'Инстр.' },
@@ -46,6 +47,7 @@ export function Layout() {
     { to: '/household', icon: Home, label: 'Быт', shortLabel: 'Быт', module: 'household' },
     { to: '/work-schedule', icon: Calendar, label: 'График', shortLabel: 'Смена', module: 'schedule' },
     { to: '/passwords', icon: Key, label: 'Пароли', shortLabel: 'Пароли', module: 'passwords' },
+    { to: '/sleep', icon: Moon, label: 'Сон', shortLabel: 'Сон', module: 'sleep' },
     { to: '/analytics', icon: BarChart3, label: 'Аналитика', shortLabel: 'Анализ', module: 'analytics' },
     { to: '/shopping-list', icon: ShoppingCart, label: 'Покупки', shortLabel: 'Чек', module: 'household' },
     { to: '/tools', icon: Calculator, label: 'Инструменты', shortLabel: 'Инстр.' },

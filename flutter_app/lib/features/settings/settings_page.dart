@@ -1,10 +1,11 @@
+import '../../widgets/app_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/app_localizations.dart';
-import '../../services/ai_service.dart';
 import '../../services/backup_service.dart';
+import '../../services/claude_service.dart';
 import '../../services/storage.dart';
 import '../../state/settings_state.dart';
 
@@ -21,7 +22,7 @@ class SettingsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: const BackButton(),
+        leading: const AppBackButton(),
         title: Text(t.navSettings),
       ),
       body: ListView(
@@ -186,10 +187,18 @@ class SettingsPage extends ConsumerWidget {
             child: Column(
               children: [
                 _AiEnabledTile(),
-                const Divider(height: 1),
-                _GeminiKeyTile(),
               ],
             ),
+          ),
+          const SizedBox(height: 16),
+          const _ClaudeDataAccessBanner(),
+          const SizedBox(height: 8),
+          Card(
+            child: _ClaudeKeyTile(),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: _ClaudeToolsToggleTile(),
           ),
           const SizedBox(height: 24),
           Text(t.settingsData, style: Theme.of(context).textTheme.labelLarge),
@@ -363,7 +372,7 @@ class _AiEnabledTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final enabled = ref.watch(aiEnabledProvider);
-    final hasKey = (ref.watch(geminiKeyProvider) ?? '').isNotEmpty;
+    final hasKey = (ref.watch(claudeKeyProvider) ?? '').isNotEmpty;
     return SwitchListTile(
       secondary: Icon(
         Icons.auto_awesome,
@@ -375,9 +384,9 @@ class _AiEnabledTile extends ConsumerWidget {
       subtitle: Text(
         hasKey
             ? (enabled
-                ? 'Классификатор, финкоуч, парсер чеков, сводки'
+                ? 'Классификатор инбокса, финкоуч, парсер чеков, сводки'
                 : 'Выключены — AI не вызывается')
-            : 'Задай ключ Gemini ниже',
+            : 'Задай ключ Claude ниже',
       ),
       value: enabled && hasKey,
       onChanged: hasKey
@@ -387,30 +396,125 @@ class _AiEnabledTile extends ConsumerWidget {
   }
 }
 
-class _GeminiKeyTile extends ConsumerStatefulWidget {
+/// Warning banner shown in Settings so the user understands that enabling
+/// Claude tools gives the assistant full read/write access to all of their
+/// app data. Visible right above the Claude key tile.
+class _ClaudeDataAccessBanner extends ConsumerWidget {
+  const _ClaudeDataAccessBanner();
+
   @override
-  ConsumerState<_GeminiKeyTile> createState() => _GeminiKeyTileState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    final toolsOn = ref.watch(claudeToolsEnabledProvider);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: toolsOn
+            ? scheme.tertiaryContainer
+            : scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                toolsOn
+                    ? Icons.shield_outlined
+                    : Icons.lock_outline,
+                size: 18,
+                color: toolsOn
+                    ? scheme.onTertiaryContainer
+                    : scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  toolsOn
+                      ? 'Claude управляет приложением'
+                      : 'Claude отвечает только текстом',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: toolsOn
+                        ? scheme.onTertiaryContainer
+                        : scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            toolsOn
+                ? 'У Claude есть полный доступ к чтению и записи всех твоих '
+                    'данных: задачи, привычки, финансы (включая транзакции '
+                    'и кредиты), цели, тренировки, сон, вода, сферы и '
+                    'заметки. Он может создавать, изменять и удалять записи '
+                    'из чата. Отключить можно тумблером ниже.'
+                : 'Tool-use выключен — Claude видит только то, что ты пишешь '
+                    'в чате, и НЕ имеет доступа к локальным данным.',
+            style: TextStyle(
+              fontSize: 12,
+              color: toolsOn
+                  ? scheme.onTertiaryContainer.withValues(alpha: 0.92)
+                  : scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
+/// Toggle that turns the entire tool-use system on/off. When off the chat
+/// behaves like a plain LLM conversation (no CRUD against local data).
+class _ClaudeToolsToggleTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(claudeToolsEnabledProvider);
+    return SwitchListTile(
+      secondary: const Icon(Icons.bolt_outlined),
+      title: const Text('Разрешить Claude управлять приложением'),
+      subtitle: const Text(
+        'Tool-use: задачи, привычки, финансы, цели, тренировки, сон, вода, '
+        'сферы и заметки. По умолчанию включено.',
+      ),
+      value: enabled,
+      onChanged: (v) =>
+          ref.read(claudeToolsEnabledProvider.notifier).set(v),
+    );
+  }
+}
+
+class _ClaudeKeyTile extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_ClaudeKeyTile> createState() => _ClaudeKeyTileState();
+}
+
+class _ClaudeKeyTileState extends ConsumerState<_ClaudeKeyTile> {
   late final TextEditingController _ctrl;
+  late final TextEditingController _systemCtrl;
   bool _obscure = true;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = TextEditingController(text: AiService.apiKey ?? '');
+    _ctrl = TextEditingController(text: ClaudeService.apiKey ?? '');
+    _systemCtrl = TextEditingController(text: ClaudeService.systemPrompt);
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _systemCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final stored = ref.watch(geminiKeyProvider);
+    final stored = ref.watch(claudeKeyProvider);
     final hasKey = stored != null && stored.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -419,11 +523,16 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome_outlined),
+              Icon(Icons.auto_awesome_outlined,
+                  color: hasKey
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outline),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  hasKey ? 'Ключ сохранён' : 'Ключ Gemini API не задан',
+                  hasKey
+                      ? 'Ключ Claude сохранён'
+                      : 'Ключ Anthropic Claude не задан',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: hasKey
@@ -432,13 +541,18 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
                   ),
                 ),
               ),
+              TextButton.icon(
+                icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                label: const Text('Открыть чат'),
+                onPressed: hasKey ? () => context.go('/chat') : null,
+              ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Используется для AI-функций: классификатор инбокса, финкоуч, парсер '
-            'чеков, сводки по сферам. Ключ хранится локально (Hive). '
-            'Получить: aistudio.google.com/apikey',
+            'Используется чатом с Claude. Ключ хранится локально (Hive) и '
+            'отправляется напрямую на api.anthropic.com. '
+            'Получить: console.anthropic.com → Settings → API Keys.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 12),
@@ -446,7 +560,8 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
             controller: _ctrl,
             obscureText: _obscure,
             decoration: InputDecoration(
-              labelText: 'GEMINI_API_KEY',
+              labelText: 'CLAUDE_API_KEY',
+              hintText: 'sk-ant-…',
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
                 icon: Icon(_obscure
@@ -464,12 +579,11 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
                   icon: const Icon(Icons.save_outlined),
                   onPressed: () async {
                     await ref
-                        .read(geminiKeyProvider.notifier)
+                        .read(claudeKeyProvider.notifier)
                         .save(_ctrl.text);
                     if (!context.mounted) return;
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Ключ сохранён')),
+                      const SnackBar(content: Text('Ключ сохранён')),
                     );
                   },
                   label: const Text('Сохранить'),
@@ -482,7 +596,7 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
                     ? () async {
                         _ctrl.clear();
                         await ref
-                            .read(geminiKeyProvider.notifier)
+                            .read(claudeKeyProvider.notifier)
                             .save(null);
                       }
                     : null,
@@ -490,57 +604,174 @@ class _GeminiKeyTileState extends ConsumerState<_GeminiKeyTile> {
             ],
           ),
           const SizedBox(height: 12),
-          const _GeminiModelPicker(),
+          const _ClaudeModelPicker(),
+          const SizedBox(height: 12),
+          _ClaudeBaseUrlField(),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _systemCtrl,
+            minLines: 2,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              labelText: 'System prompt',
+              helperText: 'Тон ответов Claude. Можно оставить по умолчанию.',
+              helperMaxLines: 2,
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Сбросить prompt'),
+                  onPressed: () async {
+                    await ClaudeService.setSystemPrompt(null);
+                    if (!mounted) return;
+                    setState(() {
+                      _systemCtrl.text = ClaudeService.systemPrompt;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  icon: const Icon(Icons.check),
+                  label: const Text('Сохранить prompt'),
+                  onPressed: () async {
+                    await ClaudeService.setSystemPrompt(_systemCtrl.text);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('System prompt обновлён')),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-/// Lets the user override the Gemini model used for all AI features.
-/// Defaults to [AiService.defaultModel] when nothing is selected. We expose
-/// this because Google retires individual versions (e.g. 1.5-flash-latest
-/// → HTTP 404 starting April 2025) and users want to switch without an app
-/// update.
-class _GeminiModelPicker extends StatefulWidget {
-  const _GeminiModelPicker();
-
+class _ClaudeBaseUrlField extends ConsumerStatefulWidget {
   @override
-  State<_GeminiModelPicker> createState() => _GeminiModelPickerState();
+  ConsumerState<_ClaudeBaseUrlField> createState() =>
+      _ClaudeBaseUrlFieldState();
 }
 
-class _GeminiModelPickerState extends State<_GeminiModelPicker> {
-  static const _options = <String>[
-    'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.5-pro',
-    'gemini-2.0-flash',
-    'gemini-2.0-flash-lite',
-  ];
-
-  late String _selected;
+class _ClaudeBaseUrlFieldState extends ConsumerState<_ClaudeBaseUrlField> {
+  late final TextEditingController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _selected = AiService.currentModel;
+    final stored = ClaudeService.baseUrl;
+    // Hide the default value so the field reads "empty = default", which
+    // matches user expectations and avoids a wall of placeholder text.
+    _ctrl = TextEditingController(
+        text: stored == ClaudeService.defaultBaseUrl ? '' : stored);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = {..._options, _selected}.toList();
+    final current = ref.watch(claudeBaseUrlProvider);
+    final isDefault = current == ClaudeService.defaultBaseUrl;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _ctrl,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          decoration: InputDecoration(
+            labelText: 'Base URL (proxy)',
+            hintText: ClaudeService.defaultBaseUrl,
+            helperText: isDefault
+                ? 'По умолчанию запросы идут на api.anthropic.com. '
+                    'Если ловишь HTTP 403 — пропиши сюда свой прокси '
+                    '(Cloudflare Worker / nginx) — он будет проксировать на '
+                    'api.anthropic.com.'
+                : 'Сейчас запросы идут через ваш прокси.',
+            helperMaxLines: 4,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: FilledButton.tonalIcon(
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Сохранить URL'),
+                onPressed: () async {
+                  await ref
+                      .read(claudeBaseUrlProvider.notifier)
+                      .save(_ctrl.text);
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text(
+                            'Base URL: ${ClaudeService.resolvedEndpoint}')),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.outlined(
+              icon: const Icon(Icons.restart_alt),
+              tooltip: 'Сбросить на api.anthropic.com',
+              onPressed: !isDefault
+                  ? () async {
+                      _ctrl.clear();
+                      await ref
+                          .read(claudeBaseUrlProvider.notifier)
+                          .save(null);
+                    }
+                  : null,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ClaudeModelPicker extends ConsumerStatefulWidget {
+  const _ClaudeModelPicker();
+
+  @override
+  ConsumerState<_ClaudeModelPicker> createState() =>
+      _ClaudeModelPickerState();
+}
+
+class _ClaudeModelPickerState extends ConsumerState<_ClaudeModelPicker> {
+  @override
+  Widget build(BuildContext context) {
+    final current = ref.watch(claudeModelProvider);
+    final items = {...ClaudeService.availableModels, current}.toList();
     return InputDecorator(
       decoration: const InputDecoration(
-        labelText: 'Модель Gemini',
+        labelText: 'Модель Claude',
         border: OutlineInputBorder(),
-        helperText: 'По умолчанию gemini-2.5-flash. Старые версии вроде '
-            '1.5-flash-latest Google убрала.',
+        helperText:
+            'По умолчанию claude-3-5-sonnet-latest. Anthropic иногда меняет '
+            'имена моделей — обнови если ловишь 404.',
         helperMaxLines: 3,
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           isExpanded: true,
-          value: _selected,
+          value: current,
           items: [
             for (final m in items)
               DropdownMenuItem(value: m, child: Text(m)),
@@ -548,9 +779,8 @@ class _GeminiModelPickerState extends State<_GeminiModelPicker> {
           onChanged: (v) async {
             if (v == null) return;
             final messenger = ScaffoldMessenger.of(context);
-            await AiService.setModel(v);
+            await ref.read(claudeModelProvider.notifier).save(v);
             if (!mounted) return;
-            setState(() => _selected = v);
             messenger.showSnackBar(
               SnackBar(content: Text('Модель: $v')),
             );
