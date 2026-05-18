@@ -71,14 +71,25 @@ class ExpenseWeekChartWidget extends ConsumerWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              Container(
-                                height: maxV == 0
-                                    ? 2
-                                    : 2 + (values[i] / maxV) * 50,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEF4444)
-                                      .withValues(alpha: 0.7),
-                                  borderRadius: BorderRadius.circular(3),
+                              TweenAnimationBuilder<double>(
+                                key: ValueKey('expense-bar-$i-${values[i]}'),
+                                duration: Duration(
+                                    milliseconds: 500 + i * 60),
+                                curve: Curves.easeOutCubic,
+                                tween: Tween<double>(
+                                  begin: 0,
+                                  end: maxV == 0
+                                      ? 2
+                                      : 2 + (values[i] / maxV) * 50,
+                                ),
+                                builder: (_, h, __) => Container(
+                                  height: h,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444)
+                                        .withValues(alpha: 0.7),
+                                    borderRadius:
+                                        BorderRadius.circular(3),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -176,6 +187,7 @@ class HabitHeatmapWidget extends ConsumerWidget {
                                         right: d == 6 ? 0 : 4),
                                     child: _Cell(
                                       size: cell,
+                                      index: w * 7 + d,
                                       ratio: () {
                                         final i = w * 7 + d;
                                         if (i >= days.length) return 0.0;
@@ -207,22 +219,42 @@ class HabitHeatmapWidget extends ConsumerWidget {
 }
 
 class _Cell extends StatelessWidget {
-  const _Cell({required this.size, required this.ratio});
+  const _Cell({required this.size, required this.ratio, required this.index});
   final double size;
   final double ratio;
+  final int index;
 
   @override
   Widget build(BuildContext context) {
     final base = const Color(0xFF22C55E);
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: ratio == 0
-            ? Theme.of(context).colorScheme.surfaceContainerHighest
-            : base.withValues(alpha: (0.25 + ratio * 0.75).clamp(0.25, 1.0)),
-        borderRadius: BorderRadius.circular(3),
-      ),
+    final scheme = Theme.of(context).colorScheme;
+    final targetColor = ratio == 0
+        ? scheme.surfaceContainerHighest
+        : base.withValues(alpha: (0.25 + ratio * 0.75).clamp(0.25, 1.0));
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('heatmap-cell-$index-$ratio'),
+      duration: Duration(milliseconds: 280 + (index * 12).clamp(0, 360)),
+      curve: Curves.easeOutBack,
+      tween: Tween<double>(begin: 0, end: 1),
+      builder: (_, t, __) {
+        final scale = 0.6 + 0.4 * t;
+        return Opacity(
+          opacity: t.clamp(0.0, 1.0),
+          child: Transform.scale(
+            scale: scale,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 350),
+              curve: Curves.easeOut,
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: targetColor,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -297,6 +329,7 @@ class TaskWeekProgressWidget extends ConsumerWidget {
                                 child: _StackedBar(
                                   bucket: byDay[_iso(days[i])] ?? _DayBucket(),
                                   primary: scheme.primary,
+                                  index: i,
                                 ),
                               ),
                               const SizedBox(height: 4),
@@ -332,9 +365,11 @@ class _DayBucket {
 }
 
 class _StackedBar extends StatelessWidget {
-  const _StackedBar({required this.bucket, required this.primary});
+  const _StackedBar(
+      {required this.bucket, required this.primary, required this.index});
   final _DayBucket bucket;
   final Color primary;
+  final int index;
   @override
   Widget build(BuildContext context) {
     if (bucket.total == 0) {
@@ -351,40 +386,50 @@ class _StackedBar extends StatelessWidget {
     final remaining = 1 - doneFrac;
     return LayoutBuilder(
       builder: (ctx, c) {
-        return Stack(
-          children: [
-            Positioned.fill(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Container(
-                    height: c.maxHeight * remaining,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(3),
-                        topRight: Radius.circular(3),
+        return TweenAnimationBuilder<double>(
+          key: ValueKey('task-bar-$index-${bucket.done}-${bucket.total}'),
+          duration: Duration(milliseconds: 550 + index * 70),
+          curve: Curves.easeOutCubic,
+          tween: Tween<double>(begin: 0, end: 1),
+          builder: (_, t, __) {
+            final doneH = c.maxHeight * doneFrac * t;
+            final remH = c.maxHeight * remaining * t;
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Container(
+                        height: remH,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(3),
+                            topRight: Radius.circular(3),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  Container(
-                    height: c.maxHeight * doneFrac,
-                    decoration: BoxDecoration(
-                      color: primary,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(remaining == 0 ? 3 : 0),
-                        topRight: Radius.circular(remaining == 0 ? 3 : 0),
-                        bottomLeft: const Radius.circular(3),
-                        bottomRight: const Radius.circular(3),
+                      Container(
+                        height: doneH,
+                        decoration: BoxDecoration(
+                          color: primary,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(remaining == 0 ? 3 : 0),
+                            topRight: Radius.circular(remaining == 0 ? 3 : 0),
+                            bottomLeft: const Radius.circular(3),
+                            bottomRight: const Radius.circular(3),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         );
       },
     );

@@ -224,11 +224,16 @@ class DashboardPage extends ConsumerWidget {
     }
 
     final widgets = <Widget>[];
+    var animIndex = 0;
     for (final id in visibleIds) {
       final w = buildWidget(id);
       if (w == null) continue;
       if (widgets.isNotEmpty) widgets.add(const SizedBox(height: 12));
-      widgets.add(w);
+      widgets.add(_DashboardEntrance(
+        index: animIndex,
+        child: w,
+      ));
+      animIndex += 1;
     }
     if (widgets.isEmpty) {
       widgets.add(_EmptyDashboardHint(
@@ -267,6 +272,40 @@ class DashboardPage extends ConsumerWidget {
   }
 }
 
+/// Staggered fade + slide-in for dashboard sections. Each section animates
+/// once when first mounted; reorderings keep their existing keys so the
+/// stagger doesn't replay on every rebuild.
+class _DashboardEntrance extends StatelessWidget {
+  const _DashboardEntrance({required this.index, required this.child});
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final delay = Duration(milliseconds: 60 * index.clamp(0, 12));
+    final duration =
+        Duration(milliseconds: 420 + 50 * index.clamp(0, 12));
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: duration + delay,
+      curve: Curves.easeOutCubic,
+      builder: (_, t, child) {
+        // Phase the entrance so earlier cards finish first.
+        final phased = ((t * (1 + index * 0.05)) - index * 0.02)
+            .clamp(0.0, 1.0);
+        return Opacity(
+          opacity: phased,
+          child: Transform.translate(
+            offset: Offset(0, 16 * (1 - phased)),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
 class _EmptyDashboardHint extends StatelessWidget {
   const _EmptyDashboardHint({required this.onConfigure});
   final VoidCallback onConfigure;
@@ -298,12 +337,36 @@ class _EmptyDashboardHint extends StatelessWidget {
   }
 }
 
-class _GreetingCard extends StatelessWidget {
+class _GreetingCard extends StatefulWidget {
   const _GreetingCard({required this.scheme});
   final ColorScheme scheme;
 
   @override
+  State<_GreetingCard> createState() => _GreetingCardState();
+}
+
+class _GreetingCardState extends State<_GreetingCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _twinkle;
+
+  @override
+  void initState() {
+    super.initState();
+    _twinkle = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _twinkle.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final scheme = widget.scheme;
     final hour = DateTime.now().hour;
     String greeting;
     if (hour < 6) {
@@ -361,7 +424,24 @@ class _GreetingCard extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.auto_awesome, color: scheme.onPrimary, size: 36),
+          AnimatedBuilder(
+            animation: _twinkle,
+            builder: (_, __) {
+              final t = _twinkle.value;
+              return Transform.rotate(
+                angle: 0.08 * (t - 0.5),
+                child: Transform.scale(
+                  scale: 0.92 + 0.16 * t,
+                  child: Icon(
+                    Icons.auto_awesome,
+                    color: scheme.onPrimary
+                        .withValues(alpha: 0.85 + 0.15 * t),
+                    size: 36,
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -401,43 +481,76 @@ class _StatsRow extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _StatCard extends StatefulWidget {
   const _StatCard({required this.data});
   final _StatData data;
 
   @override
+  State<_StatCard> createState() => _StatCardState();
+}
+
+class _StatCardState extends State<_StatCard> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: data.onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: data.color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+    final data = widget.data;
+    return AnimatedScale(
+      scale: _pressed ? 0.97 : 1.0,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      child: Card(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: data.onTap,
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: data.color
+                        .withValues(alpha: _pressed ? 0.22 : 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(data.icon, color: data.color, size: 20),
                 ),
-                child: Icon(data.icon, color: data.color, size: 20),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                data.value,
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                data.label,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
+                const SizedBox(height: 12),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 280),
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.2),
+                        end: Offset.zero,
+                      ).animate(anim),
+                      child: child,
+                    ),
+                  ),
+                  child: Text(
+                    data.value,
+                    key: ValueKey(data.value),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w700),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  data.label,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
         ),
       ),
