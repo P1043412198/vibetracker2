@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../services/claude_service.dart';
 import '../../state/claude_chat_state.dart';
+import '../../state/tool_confirmation_state.dart';
 
 /// Full-screen chat with Claude.
 ///
@@ -51,6 +52,77 @@ class _ClaudeChatPageState extends ConsumerState<ClaudeChatPage> {
     _scrollToBottom();
   }
 
+  /// Render an AlertDialog that blocks Claude's tool loop until the user
+  /// approves or rejects a destructive tool call. The controller awaits
+  /// [ToolConfirmationController.resolve] before either running the tool or
+  /// returning a "cancelled" tool_result to Claude.
+  Future<void> _showDestructiveConfirmation(
+      PendingToolConfirmation pending) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        final scheme = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          icon: Icon(Icons.warning_amber_rounded, color: scheme.error),
+          title: Text('Claude хочет выполнить «${pending.toolName}»'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Это действие нельзя отменить. Проверьте параметры '
+                  'и подтвердите, если согласны.',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SelectableText(
+                    _formatInput(pending.input),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: scheme.error,
+                foregroundColor: scheme.onError,
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Удалить'),
+            ),
+          ],
+        );
+      },
+    );
+    ref.read(toolConfirmationProvider.notifier).resolve(ok == true);
+  }
+
+  String _formatInput(Map<String, dynamic> input) {
+    if (input.isEmpty) return '{}';
+    final buf = StringBuffer();
+    input.forEach((k, v) {
+      buf.writeln('$k: $v');
+    });
+    return buf.toString().trimRight();
+  }
+
   @override
   Widget build(BuildContext context) {
     final chat = ref.watch(claudeChatProvider);
@@ -62,6 +134,15 @@ class _ClaudeChatPageState extends ConsumerState<ClaudeChatPage> {
       if (prev?.messages.length != next.messages.length) {
         _scrollToBottom();
       }
+    });
+
+    // Surface destructive-tool confirmation dialogs spawned by the chat
+    // controller. Only act on transitions into a non-null pending — pop
+    // anything stale on subsequent rebuilds.
+    ref.listen<PendingToolConfirmation?>(toolConfirmationProvider,
+        (prev, next) {
+      if (next == null || prev?.id == next.id) return;
+      _showDestructiveConfirmation(next);
     });
 
     return Scaffold(

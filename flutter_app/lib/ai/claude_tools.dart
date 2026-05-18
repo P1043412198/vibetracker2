@@ -22,12 +22,18 @@ class ClaudeTool {
     required this.description,
     required this.inputSchema,
     required this.handler,
+    this.destructive = false,
   });
 
   final String name;
   final String description;
   final Map<String, dynamic> inputSchema;
   final Future<String> Function(Ref ref, Map<String, dynamic> args) handler;
+
+  /// When true, the chat controller pauses the tool loop and asks the user
+  /// to confirm before executing this tool. Used for irreversible actions
+  /// (delete_*) so an LLM hallucination can't silently destroy data.
+  final bool destructive;
 
   Map<String, dynamic> toApiJson() => {
         'name': name,
@@ -124,7 +130,8 @@ final List<ClaudeTool> claudeToolRegistry = [
   ),
   ClaudeTool(
     name: 'delete_task',
-    description: 'Удалить задачу по ID.',
+    description: 'Удалить задачу по ID. Действие необратимо — пользователь подтвердит в UI.',
+    destructive: true,
     inputSchema: {
       'type': 'object',
       'properties': {
@@ -215,7 +222,8 @@ final List<ClaudeTool> claudeToolRegistry = [
   ),
   ClaudeTool(
     name: 'delete_habit',
-    description: 'Удалить привычку по ID.',
+    description: 'Удалить привычку по ID. Действие необратимо — пользователь подтвердит в UI.',
+    destructive: true,
     inputSchema: {
       'type': 'object',
       'properties': {'id': {'type': 'string'}},
@@ -331,7 +339,8 @@ final List<ClaudeTool> claudeToolRegistry = [
   ),
   ClaudeTool(
     name: 'delete_transaction',
-    description: 'Удалить транзакцию по ID.',
+    description: 'Удалить транзакцию по ID. Действие необратимо — пользователь подтвердит в UI.',
+    destructive: true,
     inputSchema: {
       'type': 'object',
       'properties': {'id': {'type': 'string'}},
@@ -417,7 +426,8 @@ final List<ClaudeTool> claudeToolRegistry = [
   ),
   ClaudeTool(
     name: 'delete_account',
-    description: 'Удалить финансовый счёт по ID.',
+    description: 'Удалить финансовый счёт по ID. Действие необратимо — пользователь подтвердит в UI.',
+    destructive: true,
     inputSchema: {
       'type': 'object',
       'properties': {'id': {'type': 'string'}},
@@ -753,7 +763,10 @@ final List<ClaudeTool> claudeToolRegistry = [
   ),
   ClaudeTool(
     name: 'add_workout_log',
-    description: 'Добавить запись тренировки (метрики упражнения: weight, reps, distance, time, speed, calories).',
+    description:
+        'Зафиксировать УЖЕ СДЕЛАННОЕ упражнение с метриками (вес, повторы, '
+        'дистанция, время, скорость, калории). НЕ для планирования будущей '
+        'тренировки — для этого используй add_planned_workout.',
     inputSchema: {
       'type': 'object',
       'properties': {
@@ -785,6 +798,212 @@ final List<ClaudeTool> claudeToolRegistry = [
       );
       await ref.read(exerciseLogsProvider.notifier).add(log);
       return jsonEncode({'ok': true, 'id': log.id, 'exerciseId': log.exerciseId, 'metricsCount': metrics.length});
+    },
+  ),
+  ClaudeTool(
+    name: 'list_workout_programs',
+    description:
+        'Получить список программ тренировок (папок из дерева упражнений) — '
+        'их id и названия. Используй, чтобы найти `programId` для '
+        'add_planned_workout / update_planned_workout.',
+    inputSchema: {'type': 'object', 'properties': {}},
+    handler: (ref, args) async {
+      final nodes = ref.read(workoutNodesProvider);
+      final folders = nodes
+          .where((n) => n.type == WorkoutNodeType.folder)
+          .toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
+      final list = folders
+          .map((f) => {
+                'id': f.id,
+                'name': f.name,
+                if (f.parentId != null) 'parentId': f.parentId,
+              })
+          .toList();
+      return jsonEncode({'count': list.length, 'programs': list});
+    },
+  ),
+  ClaudeTool(
+    name: 'list_planned_workouts',
+    description:
+        'Получить запланированные тренировки из календаря (страница '
+        '«Тренировки» → вкладка «Календарь»). Опциональный фильтр по периоду.',
+    inputSchema: {
+      'type': 'object',
+      'properties': {
+        'from': {'type': 'string', 'description': 'ISO date (yyyy-MM-dd)'},
+        'to': {'type': 'string', 'description': 'ISO date (yyyy-MM-dd)'},
+        'status': {
+          'type': 'string',
+          'enum': ['planned', 'completed', 'missed'],
+        },
+        'limit': {'type': 'integer'},
+      },
+    },
+    handler: (ref, args) async {
+      var planned = ref.read(plannedWorkoutsProvider).toList();
+      final from = args['from'] as String?;
+      final to = args['to'] as String?;
+      final status = args['status'] as String?;
+      final limit = (args['limit'] as num?)?.toInt() ?? 60;
+      if (from != null) {
+        planned = planned.where((p) => p.date.compareTo(from) >= 0).toList();
+      }
+      if (to != null) {
+        planned = planned.where((p) => p.date.compareTo(to) <= 0).toList();
+      }
+      if (status != null) {
+        planned = planned.where((p) => p.status.name == status).toList();
+      }
+      planned.sort((a, b) => a.date.compareTo(b.date));
+      final limited = planned.take(limit).toList();
+      final list = limited
+          .map((p) => {
+                'id': p.id,
+                'date': p.date,
+                'status': p.status.name,
+                if (p.label != null) 'label': p.label,
+                if (p.programId != null) 'programId': p.programId,
+              })
+          .toList();
+      return jsonEncode({'count': list.length, 'plannedWorkouts': list});
+    },
+  ),
+  ClaudeTool(
+    name: 'add_planned_workout',
+    description:
+        'Запланировать тренировку на конкретный день — она появится в '
+        'календаре на странице «Тренировки». Это правильный tool, когда '
+        'пользователь просит «запланируй тренировку», «поставь тренировку '
+        'на …», «забей тренировку в расписание».',
+    inputSchema: {
+      'type': 'object',
+      'properties': {
+        'date': {
+          'type': 'string',
+          'description': 'ISO date (yyyy-MM-dd). По умолчанию сегодня.',
+        },
+        'label': {
+          'type': 'string',
+          'description': 'Короткий заголовок, например "Ноги" или "Кардио 30 мин".',
+        },
+        'programId': {
+          'type': 'string',
+          'description':
+              'ID программы (папки из дерева упражнений). '
+              'Получить через list_workout_programs.',
+        },
+        'status': {
+          'type': 'string',
+          'enum': ['planned', 'completed', 'missed'],
+          'description': 'По умолчанию planned.',
+        },
+      },
+      'required': ['date'],
+    },
+    handler: (ref, args) async {
+      final planned = PlannedWorkout(
+        id: _uuid.v4(),
+        date: (args['date'] as String?) ?? _today(),
+        status: enumFromName(
+          PlannedWorkoutStatus.values,
+          args['status'] as String?,
+          PlannedWorkoutStatus.planned,
+        ),
+        label: (args['label'] as String?)?.trim().isEmpty == true
+            ? null
+            : args['label'] as String?,
+        programId: args['programId'] as String?,
+      );
+      await ref.read(plannedWorkoutsProvider.notifier).add(planned);
+      return jsonEncode({
+        'ok': true,
+        'id': planned.id,
+        'date': planned.date,
+        'status': planned.status.name,
+        if (planned.label != null) 'label': planned.label,
+        if (planned.programId != null) 'programId': planned.programId,
+      });
+    },
+  ),
+  ClaudeTool(
+    name: 'update_planned_workout',
+    description:
+        'Обновить запланированную тренировку: статус (planned/completed/missed), '
+        'заголовок, программу. Например пометить «сделано» или перенести.',
+    inputSchema: {
+      'type': 'object',
+      'properties': {
+        'id': {'type': 'string'},
+        'status': {
+          'type': 'string',
+          'enum': ['planned', 'completed', 'missed'],
+        },
+        'label': {'type': 'string'},
+        'programId': {'type': 'string'},
+        'date': {'type': 'string'},
+      },
+      'required': ['id'],
+    },
+    handler: (ref, args) async {
+      final id = args['id'] as String;
+      await ref.read(plannedWorkoutsProvider.notifier).update(id, (p) {
+        // copyWith for date/status uses `?? this.x`, so omit when not set;
+        // label/programId use a sentinel default — call copyWith only when
+        // the caller actually provided the key, otherwise leave intact.
+        var next = p;
+        if (args['date'] is String) {
+          next = next.copyWith(date: args['date'] as String);
+        }
+        if (args['status'] is String) {
+          next = next.copyWith(
+            status: enumFromName(
+              PlannedWorkoutStatus.values,
+              args['status'] as String?,
+              p.status,
+            ),
+          );
+        }
+        if (args.containsKey('label')) {
+          next = next.copyWith(label: args['label'] as String?);
+        }
+        if (args.containsKey('programId')) {
+          next = next.copyWith(programId: args['programId'] as String?);
+        }
+        return next;
+      });
+      final cur = ref
+          .read(plannedWorkoutsProvider)
+          .where((p) => p.id == id)
+          .firstOrNull;
+      return jsonEncode({
+        'ok': true,
+        'id': id,
+        if (cur != null) ...{
+          'date': cur.date,
+          'status': cur.status.name,
+          if (cur.label != null) 'label': cur.label,
+          if (cur.programId != null) 'programId': cur.programId,
+        },
+      });
+    },
+  ),
+  ClaudeTool(
+    name: 'delete_planned_workout',
+    description:
+        'Удалить запланированную тренировку по ID. Действие необратимо — '
+        'пользователь подтвердит в UI.',
+    destructive: true,
+    inputSchema: {
+      'type': 'object',
+      'properties': {'id': {'type': 'string'}},
+      'required': ['id'],
+    },
+    handler: (ref, args) async {
+      await ref
+          .read(plannedWorkoutsProvider.notifier)
+          .remove(args['id'] as String);
+      return jsonEncode({'ok': true, 'deleted': args['id']});
     },
   ),
 
@@ -834,7 +1053,8 @@ final List<ClaudeTool> claudeToolRegistry = [
   ),
   ClaudeTool(
     name: 'delete_sphere',
-    description: 'Удалить сферу жизни по ID.',
+    description: 'Удалить сферу жизни по ID. Действие необратимо — пользователь подтвердит в UI.',
+    destructive: true,
     inputSchema: {
       'type': 'object',
       'properties': {'id': {'type': 'string'}},

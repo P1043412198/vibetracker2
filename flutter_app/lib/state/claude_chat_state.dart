@@ -7,6 +7,7 @@ import '../ai/claude_tools.dart';
 import '../services/claude_service.dart';
 import '../services/storage.dart';
 import 'settings_state.dart';
+import 'tool_confirmation_state.dart';
 
 const _uuid = Uuid();
 
@@ -216,7 +217,9 @@ class ClaudeChatController extends StateNotifier<ClaudeChatState> {
   }
 
   /// Execute a single tool by name, returning the JSON string result and
-  /// whether the tool errored out.
+  /// whether the tool errored out. For [ClaudeTool.destructive] tools, we
+  /// first surface a confirmation dialog via [toolConfirmationProvider] and
+  /// short-circuit with a "cancelled" tool_result if the user declines.
   Future<({String result, bool isError})> _runTool(
       String name, Map<String, dynamic> input) async {
     final matches = claudeToolRegistry.where((t) => t.name == name);
@@ -227,12 +230,36 @@ class ClaudeChatController extends StateNotifier<ClaudeChatState> {
       );
     }
     final tool = matches.first;
+
+    if (tool.destructive) {
+      state = state.copyWith(busyStatus: 'Жду подтверждения для $name…');
+      final ok = await _ref
+          .read(toolConfirmationProvider.notifier)
+          .request(name, input);
+      if (!ok) {
+        return (
+          result: jsonEncode({
+            'ok': false,
+            'cancelled': true,
+            'reason':
+                'Пользователь отклонил вызов $name. Не повторяй автоматически — '
+                'спроси, что делать дальше.',
+          }),
+          isError: false,
+        );
+      }
+      state = state.copyWith(busyStatus: 'Вызываю $name…');
+    }
+
     try {
       final result = await tool.handler(_ref, input);
       return (result: result, isError: false);
-    } catch (e, st) {
+    } catch (e) {
+      // Intentionally drop the stack trace — it can leak local file paths
+      // back to Anthropic on the next request. The message alone is enough
+      // for Claude to recover or apologise.
       return (
-        result: jsonEncode({'error': e.toString(), 'stack': st.toString()}),
+        result: jsonEncode({'error': e.toString()}),
         isError: true,
       );
     }
