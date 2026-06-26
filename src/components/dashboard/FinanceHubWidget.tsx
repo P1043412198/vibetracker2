@@ -5,6 +5,7 @@ import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { ReceiptScanner } from '../ReceiptScanner';
 import { useStore } from '../../store/useStore';
+import { SafeToSpendMini } from './SafeToSpendMini';
 
 interface FinanceHubWidgetProps {
   financeStats: {
@@ -52,6 +53,10 @@ export const FinanceHubWidget: React.FC<FinanceHubWidgetProps> = ({ financeStats
           </button>
           <Link to="/finance" className="text-[10px] text-zinc-500 hover:text-zinc-900 transition-colors">Подробнее</Link>
         </div>
+      </div>
+
+      <div className="mb-4">
+        <SafeToSpendMini compact />
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
