@@ -130,6 +130,7 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
           onPrev: () => _changeMonth(-1),
           onNext: () => _changeMonth(1),
           onRollover: _rollover,
+          onCopyForward: () => _showCopyForwardDialog(context),
         ),
         const SizedBox(height: 12),
         _SectionTabs(
@@ -178,6 +179,93 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
         .read(budgetPlannerProvider.notifier)
         .rolloverToMonth(store.selectedMonthKey);
   }
+
+  Future<void> _showCopyForwardDialog(BuildContext context) async {
+    var months = 3;
+    var overwrite = false;
+    final result = await showDialog<({int months, bool overwrite})>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Скопировать постоянные вперёд'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Скопировать доходы и плановые расходы текущего месяца '
+                'на следующие месяцы.',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text('На сколько месяцев:'),
+                  const SizedBox(width: 8),
+                  DropdownButton<int>(
+                    value: months,
+                    items: const [1, 2, 3, 6, 12]
+                        .map((n) =>
+                            DropdownMenuItem(value: n, child: Text('$n')))
+                        .toList(),
+                    onChanged: (v) => setLocal(() => months = v ?? 3),
+                  ),
+                ],
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: overwrite,
+                onChanged: (v) => setLocal(() => overwrite = v ?? false),
+                title: const Text(
+                  'Перезаписать заполненные месяцы',
+                  style: TextStyle(fontSize: 13),
+                ),
+                subtitle: const Text(
+                  'Факт. расходы этих месяцев сохранятся',
+                  style: TextStyle(fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Отмена'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                ctx,
+                (months: months, overwrite: overwrite),
+              ),
+              child: const Text('Скопировать'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null) return;
+    final copied = await ref
+        .read(budgetPlannerProvider.notifier)
+        .copyToNextMonths(result.months, overwrite: result.overwrite);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(copied > 0
+            ? 'Скопировано на $copied ${_pluralizeMonths(copied)} вперёд'
+            : 'Нет месяцев для копирования (уже заполнены)'),
+      ),
+    );
+  }
+
+  String _pluralizeMonths(int n) {
+    final mod10 = n % 10;
+    final mod100 = n % 100;
+    if (mod10 == 1 && mod100 != 11) return 'месяц';
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return 'месяца';
+    }
+    return 'месяцев';
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -191,12 +279,14 @@ class _MonthSelector extends StatelessWidget {
     required this.onPrev,
     required this.onNext,
     required this.onRollover,
+    required this.onCopyForward,
   });
   final String monthKey;
   final bool hasMonthData;
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final VoidCallback onRollover;
+  final VoidCallback onCopyForward;
 
   @override
   Widget build(BuildContext context) {
@@ -229,6 +319,11 @@ class _MonthSelector extends StatelessWidget {
                 label: const Text('Перенести', style: TextStyle(fontSize: 12)),
                 onPressed: onRollover,
               ),
+            IconButton(
+              icon: const Icon(Icons.copy_all_outlined),
+              tooltip: 'Скопировать постоянные на след. месяцы',
+              onPressed: onCopyForward,
+            ),
             IconButton(
               icon: const Icon(Icons.chevron_right),
               onPressed: onNext,

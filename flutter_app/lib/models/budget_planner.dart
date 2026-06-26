@@ -414,6 +414,56 @@ class BudgetPlanStore {
     );
   }
 
+  /// Copy a month's recurring income & planned expenses forward into the next
+  /// [count] months (P2). Months that already have a plan are skipped to keep
+  /// their per-month overrides intact, unless [overwrite] is true — in which
+  /// case the plan is replaced while real facts (actual expenses) and account
+  /// links of the target month are preserved.
+  ///
+  /// Returns the resulting store and how many months were written.
+  ({BudgetPlanStore store, int copied}) copyForward(
+    String sourceMonthKey,
+    int count, {
+    bool overwrite = false,
+  }) {
+    if (count < 1) return (store: this, copied: 0);
+    final parts = sourceMonthKey.split('-');
+    if (parts.length < 2) return (store: this, copied: 0);
+    final source = months.firstWhere(
+      (m) => m.monthKey == sourceMonthKey,
+      orElse: () => BudgetPlanConfig.empty(monthKey: sourceMonthKey),
+    );
+    final y = int.parse(parts[0]);
+    final m = int.parse(parts[1]);
+    final next = [...months];
+    var copied = 0;
+    for (var i = 1; i <= count; i++) {
+      final d = DateTime(y, m + i, 1);
+      final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+      final idx = next.indexWhere((mm) => mm.monthKey == key);
+      final exists = idx >= 0;
+      if (exists && !overwrite) continue;
+      var rolled = source.rolloverToMonth(key);
+      if (exists) {
+        rolled = rolled.copyWith(
+          actualExpenses: next[idx].actualExpenses,
+          linkedAccountIds: next[idx].linkedAccountIds,
+        );
+        next[idx] = rolled;
+      } else {
+        next.add(rolled);
+      }
+      copied++;
+    }
+    return (
+      store: BudgetPlanStore(
+        months: next,
+        selectedMonthKey: selectedMonthKey,
+      ),
+      copied: copied,
+    );
+  }
+
   /// Migrate from old single-config format.
   factory BudgetPlanStore.migrateFromLegacy(Map<String, dynamic> j) {
     final config = BudgetPlanConfig.fromJson(j);
