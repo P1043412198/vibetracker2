@@ -110,6 +110,16 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
       accountIds: selectedAccountIds,
     );
 
+    // Historical spending averages feed the average-based forecast scenarios
+    // (P3b) in the safe-to-spend card.
+    final averages = computeSpendingAverages(
+      accounts: accounts,
+      transactions: transactions,
+      convert: convert,
+      baseCurrency: baseCurrency,
+      accountIds: selectedAccountIds,
+    );
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
@@ -137,6 +147,7 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
             loanExpenses: loanExpenses,
             forecast: forecast,
             reserve: reserve.toDouble(),
+            averages: averages,
           ),
         if (_section == _Section.income)
           _IncomeSection(config: config, facts: facts),
@@ -306,6 +317,7 @@ class _DashboardSection extends StatelessWidget {
     required this.loanExpenses,
     required this.forecast,
     required this.reserve,
+    required this.averages,
   });
 
   final BudgetPlanConfig config;
@@ -316,6 +328,7 @@ class _DashboardSection extends StatelessWidget {
   final List<PlannedExpense> loanExpenses;
   final CashflowForecast forecast;
   final double reserve;
+  final SpendingAverages averages;
 
   @override
   Widget build(BuildContext context) {
@@ -393,7 +406,8 @@ class _DashboardSection extends StatelessWidget {
         const SizedBox(height: 12),
 
         // ── Safe-to-spend forecast ──
-        _SafeToSpendCard(forecast: forecast, reserve: reserve),
+        _SafeToSpendCard(
+            forecast: forecast, reserve: reserve, averages: averages),
         const SizedBox(height: 12),
 
         // ── Summary row ──
@@ -1451,11 +1465,24 @@ String _pluralizeDays(int n) {
   return 'дней';
 }
 
+String _pluralizeMonths(int n) {
+  final mod10 = n % 10;
+  final mod100 = n % 100;
+  if (mod10 == 1 && mod100 != 11) return 'месяц';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'месяца';
+  return 'месяцев';
+}
+
 class _SafeToSpendCard extends ConsumerStatefulWidget {
-  const _SafeToSpendCard({required this.forecast, required this.reserve});
+  const _SafeToSpendCard({
+    required this.forecast,
+    required this.reserve,
+    required this.averages,
+  });
 
   final CashflowForecast forecast;
   final double reserve;
+  final SpendingAverages averages;
 
   @override
   ConsumerState<_SafeToSpendCard> createState() => _SafeToSpendCardState();
@@ -1464,7 +1491,9 @@ class _SafeToSpendCard extends ConsumerStatefulWidget {
 class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
   late final TextEditingController _reserveCtrl;
   final _reserveFocus = FocusNode();
+  final _customDailyCtrl = TextEditingController();
   bool _showSegments = false;
+  SafeToSpendScenario _scenario = SafeToSpendScenario.planToZero;
 
   @override
   void initState() {
@@ -1473,6 +1502,7 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
     _reserveFocus.addListener(() {
       if (!_reserveFocus.hasFocus) _commitReserve();
     });
+    _customDailyCtrl.addListener(() => setState(() {}));
   }
 
   @override
@@ -1489,6 +1519,7 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
   void dispose() {
     _reserveCtrl.dispose();
     _reserveFocus.dispose();
+    _customDailyCtrl.dispose();
     super.dispose();
   }
 
@@ -1672,6 +1703,171 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
     );
   }
 
+  Widget _buildScenarioSelector(BuildContext context) {
+    final f = widget.forecast;
+    final ccy = f.baseCurrency;
+    const white70 = Color(0xB3FFFFFF);
+    const white54 = Color(0x8AFFFFFF);
+    const rose = Color(0xFFFECDD3);
+
+    final customDaily =
+        double.tryParse(_customDailyCtrl.text.trim().replaceAll(',', '.')) ?? 0;
+    final projection = computeScenarioProjection(
+      scenario: _scenario,
+      forecast: f,
+      reserve: widget.reserve,
+      averages: widget.averages,
+      customDaily: customDaily,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'СЦЕНАРИЙ ПЛАНА',
+          style: TextStyle(
+            color: white70,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final s in SafeToSpendScenario.values)
+              _pillButton(
+                label: scenarioLabels[s]!,
+                selected: _scenario == s,
+                onTap: () => setState(() => _scenario = s),
+              ),
+          ],
+        ),
+        if (_scenario == SafeToSpendScenario.customDaily) ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _customDailyCtrl,
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+            style: const TextStyle(
+              color: Color(0xFF18181B),
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: Colors.white.withAlpha(230),
+              hintText: 'Мой расход в день ($ccy), напр. 30',
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ],
+        if (projection != null) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(38),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: projection.insufficientHistory
+                ? const Text(
+                    'Недостаточно истории трат, чтобы посчитать средние. '
+                    'Добавьте фактические расходы за прошлые месяцы.',
+                    style: TextStyle(color: Colors.white, fontSize: 12),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'ТРАТА В ДЕНЬ',
+                              style: TextStyle(
+                                color: white70,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${_fmt.format(projection.dailySpend)} $ccy',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'ОСТАТОК К КОНЦУ',
+                              style: TextStyle(
+                                color: white70,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${_fmt.format(projection.endBalance)} $ccy',
+                            style: TextStyle(
+                              color:
+                                  projection.shortfall ? rose : Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        projection.surplusOverReserve >= 0
+                            ? 'профицит над резервом: '
+                                '+${_fmt.format(projection.surplusOverReserve)} $ccy'
+                            : 'не хватает до резерва: '
+                                '${_fmt.format(projection.surplusOverReserve)} $ccy',
+                        style: TextStyle(
+                          color: projection.surplusOverReserve >= 0
+                              ? white70
+                              : rose,
+                          fontSize: 11,
+                        ),
+                      ),
+                      if (_scenario == SafeToSpendScenario.avgExpense ||
+                          _scenario ==
+                              SafeToSpendScenario.avgExpenseIncome) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'По средним за ${widget.averages.monthsCounted} '
+                          '${_pluralizeMonths(widget.averages.monthsCounted)}; '
+                          'платежи уже внутри средних трат.',
+                          style: const TextStyle(
+                              color: white54, fontSize: 10),
+                        ),
+                      ],
+                    ],
+                  ),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final f = widget.forecast;
@@ -1753,6 +1949,9 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
                   : 'ближайших поступлений в горизонте нет',
               style: const TextStyle(color: white70, fontSize: 12),
             ),
+            const SizedBox(height: 12),
+
+            _buildScenarioSelector(context),
             const SizedBox(height: 12),
 
             // Balance + smoothed.

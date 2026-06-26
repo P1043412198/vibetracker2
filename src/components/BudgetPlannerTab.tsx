@@ -10,8 +10,8 @@ import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import { cn } from '../lib/utils';
-import { computeBudgetCycles, computeCashflowForecast, getPayDate, loansAsPlannedExpenses } from '../lib/finance/budgetPlanner';
-import type { CashflowForecast, CashflowRangeMode } from '../lib/finance/budgetPlanner';
+import { computeBudgetCycles, computeCashflowForecast, computeScenarioProjection, computeSpendingAverages, getPayDate, loansAsPlannedExpenses, scenarioLabels } from '../lib/finance/budgetPlanner';
+import type { CashflowForecast, CashflowRangeMode, SafeToSpendScenario, SpendingAverages } from '../lib/finance/budgetPlanner';
 import type { Account, IncomeSource, IncomeSourceType, PlannedExpense } from '../types';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -556,6 +556,7 @@ function SafeToSpendCard({
   accounts,
   selectedAccountIds,
   onSelectedAccountIdsChange,
+  averages,
 }: {
   forecast: CashflowForecast;
   reserve: number;
@@ -568,9 +569,25 @@ function SafeToSpendCard({
   accounts: Account[];
   selectedAccountIds: string[];
   onSelectedAccountIdsChange: (ids: string[]) => void;
+  averages: SpendingAverages;
 }) {
   const [reserveInput, setReserveInput] = useState(String(reserve || 0));
   const [showSegments, setShowSegments] = useState(false);
+  const [scenario, setScenario] = useState<SafeToSpendScenario>('planToZero');
+  const [customDailyInput, setCustomDailyInput] = useState('');
+
+  const customDaily = parseFloat(customDailyInput.replace(',', '.'));
+  const projection = useMemo(
+    () =>
+      computeScenarioProjection({
+        scenario,
+        forecast,
+        reserve,
+        averages,
+        customDaily: isNaN(customDaily) ? 0 : customDaily,
+      }),
+    [scenario, forecast, reserve, averages, customDaily]
+  );
 
   // Keep local input in sync when store value changes elsewhere.
   React.useEffect(() => {
@@ -718,6 +735,82 @@ function SafeToSpendCard({
             </div>
           )}
 
+          {/* Scenario selector (P3b) */}
+          {forecast.range && (
+            <div className="mb-3">
+              <span className="text-[10px] uppercase font-bold opacity-75 block mb-1.5">Сценарий плана</span>
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.keys(scenarioLabels) as SafeToSpendScenario[]).map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => setScenario(key)}
+                    className={cn(
+                      'text-[11px] font-semibold rounded-lg px-2.5 py-1 transition-colors',
+                      scenario === key
+                        ? 'bg-white text-indigo-700'
+                        : 'bg-white/15 text-white hover:bg-white/25'
+                    )}
+                  >
+                    {scenarioLabels[key]}
+                  </button>
+                ))}
+              </div>
+
+              {scenario === 'customDaily' && (
+                <label className="flex flex-col gap-0.5 mt-2">
+                  <span className="text-[9px] uppercase font-bold opacity-70">Мой расход в день ({ccy})</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    value={customDailyInput}
+                    onChange={(e) => setCustomDailyInput(e.target.value)}
+                    placeholder="напр. 30"
+                    className="bg-white/90 text-zinc-900 text-sm font-semibold rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-white/60"
+                  />
+                </label>
+              )}
+
+              {projection && (
+                <div className="bg-white/15 rounded-xl p-3 mt-2">
+                  {projection.insufficientHistory ? (
+                    <p className="text-xs opacity-90 leading-snug">
+                      Недостаточно истории трат, чтобы посчитать средние. Добавьте фактические расходы за прошлые месяцы.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold opacity-75">Трата в день</span>
+                        <span className="text-base font-bold">{fmtMoney(projection.dailySpend)} {ccy}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-[10px] uppercase font-bold opacity-75">Остаток к концу</span>
+                        <span className={cn('text-base font-bold', projection.shortfall && 'text-rose-200')}>
+                          {fmtMoney(projection.endBalance)} {ccy}
+                        </span>
+                      </div>
+                      <p className="text-[11px] opacity-80 mt-1.5 leading-snug">
+                        {projection.surplusOverReserve >= 0 ? (
+                          <>профицит над резервом: +{fmtMoney(projection.surplusOverReserve)} {ccy}</>
+                        ) : (
+                          <span className="text-rose-200">не хватает до резерва: {fmtMoney(projection.surplusOverReserve)} {ccy}</span>
+                        )}
+                        {projection.income > 0 && <> · доход +{fmtMoney(projection.income)} {ccy}</>}
+                        {projection.obligations > 0 && <> · платежи −{fmtMoney(projection.obligations)} {ccy}</>}
+                      </p>
+                      {(scenario === 'avgExpense' || scenario === 'avgExpenseIncome') && (
+                        <p className="text-[10px] opacity-65 mt-1 leading-snug">
+                          По средним за {averages.monthsCounted}{' '}
+                          {pluralizeMonths(averages.monthsCounted)}; платежи уже внутри средних трат.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Balance + smoothed */}
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="bg-white/15 rounded-xl p-3">
@@ -815,6 +908,14 @@ function pluralizeDays(n: number): string {
   return 'дней';
 }
 
+function pluralizeMonths(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'месяц';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'месяца';
+  return 'месяцев';
+}
+
 // ═══════════════ FACT SECTION ═══════════════
 
 function FactSection() {
@@ -859,6 +960,17 @@ function FactSection() {
 
   const customStart = safeToSpendCustomStart ? parseISO(safeToSpendCustomStart) : undefined;
   const customEnd = safeToSpendCustomEnd ? parseISO(safeToSpendCustomEnd) : undefined;
+
+  const averages = useMemo(() =>
+    computeSpendingAverages({
+      accounts: accounts || [],
+      transactions: transactions || [],
+      rates: rates || {},
+      baseCurrency: baseCurrency || 'BYN',
+      accountIds: safeToSpendAccountIds || [],
+    }),
+    [accounts, transactions, rates, baseCurrency, safeToSpendAccountIds]
+  );
 
   const forecast = useMemo(() =>
     computeCashflowForecast({
@@ -931,6 +1043,7 @@ function FactSection() {
         accounts={accounts || []}
         selectedAccountIds={safeToSpendAccountIds || []}
         onSelectedAccountIdsChange={setSafeToSpendAccountIds}
+        averages={averages}
       />
 
       {/* Summary cards */}
