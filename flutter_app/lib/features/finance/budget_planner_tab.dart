@@ -148,6 +148,9 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
             forecast: forecast,
             reserve: reserve.toDouble(),
             averages: averages,
+            transactions: transactions,
+            convert: convert,
+            comparisonAccountIds: selectedAccountIds,
           ),
         if (_section == _Section.income)
           _IncomeSection(config: config, facts: facts),
@@ -318,6 +321,9 @@ class _DashboardSection extends StatelessWidget {
     required this.forecast,
     required this.reserve,
     required this.averages,
+    required this.transactions,
+    required this.convert,
+    required this.comparisonAccountIds,
   });
 
   final BudgetPlanConfig config;
@@ -329,6 +335,9 @@ class _DashboardSection extends StatelessWidget {
   final CashflowForecast forecast;
   final double reserve;
   final SpendingAverages averages;
+  final List<Transaction> transactions;
+  final num Function(num amount, String from, String to) convert;
+  final List<String> comparisonAccountIds;
 
   @override
   Widget build(BuildContext context) {
@@ -496,6 +505,17 @@ class _DashboardSection extends StatelessWidget {
 
         // ── Monthly spending averages (P3) ──
         _MonthlyAveragesCard(averages: averages, baseCurrency: baseCurrency),
+        const SizedBox(height: 16),
+
+        // ── Month-vs-month comparison (P4) ──
+        _MonthComparisonCard(
+          availableMonths: [for (final m in averages.months) m.monthKey],
+          accounts: accounts,
+          transactions: transactions,
+          convert: convert,
+          baseCurrency: baseCurrency,
+          accountIds: comparisonAccountIds,
+        ),
         const SizedBox(height: 16),
 
         // ── Planned expenses progress ──
@@ -1485,6 +1505,15 @@ const _monthLabelsShort = [
 String _monthLabel(MonthlySpending m) =>
     '${_monthLabelsShort[(m.month - 1).clamp(0, 11)]} ${m.year % 100}';
 
+// Label for a 'yyyy-MM' month key, e.g. '2026-06' → 'июн 26'.
+String _monthKeyLabel(String key) {
+  final parts = key.split('-');
+  if (parts.length < 2) return key;
+  final year = int.tryParse(parts[0]) ?? 0;
+  final month = int.tryParse(parts[1]) ?? 0;
+  return '${_monthLabelsShort[(month - 1).clamp(0, 11)]} ${year % 100}';
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Monthly spending averages (P3): avg daily/monthly expense & income per month
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1698,6 +1727,327 @@ class _MonthlyAveragesCard extends StatelessWidget {
           Text('≈ ${_fmt.format(monthly)} $baseCurrency/мес',
               style: const TextStyle(fontSize: 10, color: Colors.grey)),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Month-vs-month comparison (P4): pick any two months, see income/expense deltas
+// and per-category changes (b − a).
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MonthComparisonCard extends StatefulWidget {
+  const _MonthComparisonCard({
+    required this.availableMonths,
+    required this.accounts,
+    required this.transactions,
+    required this.convert,
+    required this.baseCurrency,
+    required this.accountIds,
+  });
+
+  final List<String> availableMonths;
+  final List<Account> accounts;
+  final List<Transaction> transactions;
+  final num Function(num amount, String from, String to) convert;
+  final String baseCurrency;
+  final List<String> accountIds;
+
+  @override
+  State<_MonthComparisonCard> createState() => _MonthComparisonCardState();
+}
+
+class _MonthComparisonCardState extends State<_MonthComparisonCard> {
+  String? _monthKeyA;
+  String? _monthKeyB;
+
+  List<String> get _months {
+    final set = {...widget.availableMonths};
+    final sorted = set.toList()..sort();
+    return sorted;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const expenseColor = Color(0xFFF43F5E);
+    const incomeColor = Color(0xFF10B981);
+    final months = _months;
+
+    if (months.length < 2) {
+      return Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Row(
+                children: [
+                  Icon(Icons.compare_arrows, size: 16, color: Colors.grey),
+                  SizedBox(width: 6),
+                  Text('Сравнение месяцев',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15)),
+                ],
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Нужно минимум два месяца с фактическими данными, '
+                'чтобы сравнить.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Defaults: latest month (b) vs previous (a).
+    final keyB = (_monthKeyB != null && months.contains(_monthKeyB))
+        ? _monthKeyB!
+        : months.last;
+    final keyA = (_monthKeyA != null && months.contains(_monthKeyA))
+        ? _monthKeyA!
+        : months[months.length - 2];
+
+    final cmp = computeMonthlyComparison(
+      accounts: widget.accounts,
+      transactions: widget.transactions,
+      convert: widget.convert,
+      baseCurrency: widget.baseCurrency,
+      monthKeyA: keyA,
+      monthKeyB: keyB,
+      accountIds: widget.accountIds,
+    );
+
+    final topCategories = cmp.categories.take(8).toList();
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.compare_arrows, size: 16, color: Color(0xFF6D5CFF)),
+                SizedBox(width: 6),
+                Text('Сравнение месяцев',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _monthDropdown(
+                    label: 'Месяц A',
+                    value: keyA,
+                    months: months,
+                    onChanged: (v) => setState(() => _monthKeyA = v),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8),
+                  child: Icon(Icons.arrow_forward, size: 16, color: Colors.grey),
+                ),
+                Expanded(
+                  child: _monthDropdown(
+                    label: 'Месяц B',
+                    value: keyB,
+                    months: months,
+                    onChanged: (v) => setState(() => _monthKeyB = v),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _totalsTile(
+                    'Расходы',
+                    cmp.a.totalExpense,
+                    cmp.b.totalExpense,
+                    cmp.expenseDelta,
+                    expenseColor,
+                    higherIsBad: true,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _totalsTile(
+                    'Доходы',
+                    cmp.a.totalIncome,
+                    cmp.b.totalIncome,
+                    cmp.incomeDelta,
+                    incomeColor,
+                    higherIsBad: false,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _totalsTile(
+              'Сальдо (доход − расход)',
+              cmp.a.net,
+              cmp.b.net,
+              cmp.netDelta,
+              const Color(0xFF8B5CF6),
+              higherIsBad: false,
+              wide: true,
+            ),
+            if (topCategories.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Text('Изменения по категориям',
+                  style:
+                      TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              for (final c in topCategories)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          c.category,
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        '${_fmtShort.format(c.a)} → ${_fmtShort.format(c.b)}',
+                        style:
+                            const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                      const SizedBox(width: 10),
+                      _DeltaChip(
+                        value: c.delta,
+                        baseCurrency: widget.baseCurrency,
+                        higherIsBad: true,
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _monthDropdown({
+    required String label,
+    required String value,
+    required List<String> months,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        const SizedBox(height: 2),
+        DropdownButton<String>(
+          value: value,
+          isExpanded: true,
+          isDense: true,
+          underline: const SizedBox.shrink(),
+          items: [
+            for (final m in months.reversed)
+              DropdownMenuItem(value: m, child: Text(_monthKeyLabel(m))),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _totalsTile(
+    String label,
+    double a,
+    double b,
+    double delta,
+    Color color, {
+    required bool higherIsBad,
+    bool wide = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+          const SizedBox(height: 2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Text(
+                  '${_fmtShort.format(a)} → ${_fmtShort.format(b)}',
+                  style: TextStyle(
+                      fontSize: wide ? 15 : 13,
+                      fontWeight: FontWeight.w700,
+                      color: color),
+                ),
+              ),
+              _DeltaChip(
+                value: delta,
+                baseCurrency: widget.baseCurrency,
+                higherIsBad: higherIsBad,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeltaChip extends StatelessWidget {
+  const _DeltaChip({
+    required this.value,
+    required this.baseCurrency,
+    required this.higherIsBad,
+  });
+
+  final double value;
+  final String baseCurrency;
+  final bool higherIsBad;
+
+  @override
+  Widget build(BuildContext context) {
+    const good = Color(0xFF10B981);
+    const bad = Color(0xFFF43F5E);
+    final neutral = Colors.grey.shade500;
+    Color color;
+    if (value.abs() < 0.005) {
+      color = neutral;
+    } else {
+      final isPositive = value > 0;
+      final isGood = higherIsBad ? !isPositive : isPositive;
+      color = isGood ? good : bad;
+    }
+    final sign = value > 0 ? '+' : (value < 0 ? '−' : '');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withAlpha(28),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        '$sign${_fmtShort.format(value.abs())}',
+        style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w700, color: color),
       ),
     );
   }

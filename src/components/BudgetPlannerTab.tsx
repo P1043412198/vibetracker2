@@ -10,9 +10,9 @@ import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import { cn } from '../lib/utils';
-import { computeBudgetCycles, computeCashflowForecast, computeScenarioProjection, computeSpendingAverages, getPayDate, loansAsPlannedExpenses, scenarioLabels } from '../lib/finance/budgetPlanner';
-import type { CashflowForecast, CashflowRangeMode, SafeToSpendScenario, SpendingAverages } from '../lib/finance/budgetPlanner';
-import type { Account, IncomeSource, IncomeSourceType, PlannedExpense } from '../types';
+import { computeBudgetCycles, computeCashflowForecast, computeMonthlyComparison, computeScenarioProjection, computeSpendingAverages, getPayDate, loansAsPlannedExpenses, scenarioLabels } from '../lib/finance/budgetPlanner';
+import type { CashflowForecast, CashflowRangeMode, MonthComparisonSide, SafeToSpendScenario, SpendingAverages } from '../lib/finance/budgetPlanner';
+import type { Account, IncomeSource, IncomeSourceType, PlannedExpense, Transaction } from '../types';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip,
@@ -1015,6 +1015,145 @@ function MonthlyAveragesCard({
   );
 }
 
+// ═══════════════ MONTH-VS-MONTH COMPARISON (P4) ═══════════════
+// "Сравнение месяцев" — pick any two months from the history and see how income,
+// expense, net and each category changed (b − a), derived from real transactions.
+
+function monthKeyLabel(key: string): string {
+  const [y, m] = key.split('-').map(Number);
+  return `${MONTH_LABELS_SHORT[(m || 1) - 1]} ${String(y).slice(2)}`;
+}
+
+function DeltaPill({ value, baseCurrency, invert = false }: { value: number; baseCurrency: string; invert?: boolean }) {
+  const rounded = Math.round(value);
+  if (rounded === 0) {
+    return <span className="text-[11px] font-semibold text-zinc-400">±0</span>;
+  }
+  // invert=true for expenses: spending more (positive) is "bad" → rose.
+  const good = invert ? rounded < 0 : rounded > 0;
+  return (
+    <span className={cn('text-[11px] font-bold', good ? 'text-emerald-600' : 'text-rose-500')}>
+      {rounded > 0 ? '+' : ''}{fmtMoney(rounded)} {baseCurrency}
+    </span>
+  );
+}
+
+function MonthComparisonCard({
+  availableMonths,
+  accounts,
+  transactions,
+  rates,
+  baseCurrency,
+  accountIds,
+}: {
+  availableMonths: string[];
+  accounts: Account[];
+  transactions: Transaction[];
+  rates: Record<string, number>;
+  baseCurrency: string;
+  accountIds: string[];
+}) {
+  // Default: latest month vs the one before it.
+  const sorted = useMemo(() => availableMonths.slice().sort(), [availableMonths]);
+  const defaultB = sorted[sorted.length - 1] ?? '';
+  const defaultA = sorted[sorted.length - 2] ?? defaultB;
+  const [monthA, setMonthA] = useState(defaultA);
+  const [monthB, setMonthB] = useState(defaultB);
+
+  // Keep selections valid as the available months change.
+  const a = sorted.includes(monthA) ? monthA : defaultA;
+  const b = sorted.includes(monthB) ? monthB : defaultB;
+
+  const cmp = useMemo(() =>
+    computeMonthlyComparison({
+      accounts, transactions, rates, baseCurrency, monthKeyA: a, monthKeyB: b, accountIds,
+    }),
+    [accounts, transactions, rates, baseCurrency, a, b, accountIds]
+  );
+
+  if (sorted.length < 2) {
+    return (
+      <div className="bg-white p-4 rounded-2xl border border-stone-200">
+        <h3 className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1.5">
+          <BarChart3 className="w-3.5 h-3.5" /> Сравнение месяцев
+        </h3>
+        <p className="text-xs text-zinc-400 text-center py-3">
+          Нужно минимум два месяца с операциями, чтобы сравнить.
+        </p>
+      </div>
+    );
+  }
+
+  const renderSide = (side: MonthComparisonSide) => (
+    <div className="flex-1 bg-stone-50 rounded-xl p-2.5 text-center">
+      <p className="text-rose-500 font-bold text-sm">−{fmtMoney(side.totalExpense)}</p>
+      <p className="text-emerald-600 font-semibold text-[11px]">+{fmtMoney(side.totalIncome)}</p>
+      <p className={cn('text-[11px] font-bold mt-0.5', side.net >= 0 ? 'text-emerald-600' : 'text-rose-500')}>
+        {side.net >= 0 ? '+' : ''}{fmtMoney(side.net)} {baseCurrency}
+      </p>
+    </div>
+  );
+
+  const selectCls = 'text-xs font-semibold text-zinc-700 bg-stone-100 rounded-lg px-2 py-1 border border-stone-200 focus:outline-none focus:ring-1 focus:ring-emerald-400';
+
+  return (
+    <div className="bg-white p-4 rounded-2xl border border-stone-200">
+      <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-1.5">
+        <BarChart3 className="w-3.5 h-3.5" /> Сравнение месяцев
+      </h3>
+
+      {/* Month pickers */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <select className={selectCls} value={a} onChange={e => setMonthA(e.target.value)} aria-label="Месяц A">
+          {sorted.map(k => <option key={k} value={k}>{monthKeyLabel(k)}</option>)}
+        </select>
+        <ArrowRight className="w-4 h-4 text-zinc-300 shrink-0" />
+        <select className={selectCls} value={b} onChange={e => setMonthB(e.target.value)} aria-label="Месяц B">
+          {sorted.map(k => <option key={k} value={k}>{monthKeyLabel(k)}</option>)}
+        </select>
+      </div>
+
+      {/* Side-by-side totals */}
+      <div className="flex items-stretch gap-2 mb-3">
+        {renderSide(cmp.a)}
+        {renderSide(cmp.b)}
+      </div>
+
+      {/* Total deltas */}
+      <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+        <div className="bg-stone-50 rounded-lg py-1.5">
+          <span className="text-[9px] uppercase text-zinc-400 block">Расход</span>
+          <DeltaPill value={cmp.expenseDelta} baseCurrency={baseCurrency} invert />
+        </div>
+        <div className="bg-stone-50 rounded-lg py-1.5">
+          <span className="text-[9px] uppercase text-zinc-400 block">Доход</span>
+          <DeltaPill value={cmp.incomeDelta} baseCurrency={baseCurrency} />
+        </div>
+        <div className="bg-stone-50 rounded-lg py-1.5">
+          <span className="text-[9px] uppercase text-zinc-400 block">Сальдо</span>
+          <DeltaPill value={cmp.netDelta} baseCurrency={baseCurrency} />
+        </div>
+      </div>
+
+      {/* Per-category expense deltas */}
+      {cmp.categories.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] text-zinc-400 mb-1">Изменение по категориям расходов</p>
+          {cmp.categories.slice(0, 8).map(c => (
+            <div key={c.category} className="flex items-center justify-between py-1 px-2 bg-stone-50 rounded-lg">
+              <span className="text-xs text-zinc-700 capitalize truncate mr-2">{c.category}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] text-zinc-400">{fmtMoney(c.a)} → {fmtMoney(c.b)}</span>
+                <DeltaPill value={c.delta} baseCurrency={baseCurrency} invert />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════ FACT SECTION ═══════════════
 
 function FactSection() {
@@ -1225,6 +1364,16 @@ function FactSection() {
 
       {/* Monthly spending averages (P3) */}
       <MonthlyAveragesCard averages={averages} baseCurrency={baseCurrency || 'BYN'} />
+
+      {/* Month-vs-month comparison (P4) */}
+      <MonthComparisonCard
+        availableMonths={averages.months.map(m => m.monthKey)}
+        accounts={accounts || []}
+        transactions={transactions || []}
+        rates={rates || {}}
+        baseCurrency={baseCurrency || 'BYN'}
+        accountIds={safeToSpendAccountIds || []}
+      />
 
       {/* Budget cycles */}
       {cycles.map((cycle, i) => (

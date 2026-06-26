@@ -1132,3 +1132,182 @@ ScenarioProjection? computeScenarioProjection({
     insufficientHistory: insufficientHistory,
   );
 }
+
+// ── Month-vs-month comparison (P4) ──
+//
+// Compares the actual income/expense of two calendar months (converted to the
+// base currency), including per-category expense deltas. Built directly from
+// real transactions. Mirrors `computeMonthlyComparison` in
+// `src/lib/finance/budgetPlanner.ts`.
+
+/// One month's actual totals plus its per-category expense breakdown.
+class MonthComparisonSide {
+  MonthComparisonSide({
+    required this.monthKey,
+    required this.year,
+    required this.month,
+    required this.totalExpense,
+    required this.totalIncome,
+    required this.net,
+    required this.byCategory,
+  });
+
+  /// 'yyyy-MM'.
+  final String monthKey;
+  final int year;
+
+  /// 1-based (Dart convention).
+  final int month;
+  final double totalExpense;
+  final double totalIncome;
+  final double net;
+
+  /// Expense per category (base currency).
+  final Map<String, double> byCategory;
+}
+
+/// Per-category expense delta between the two compared months (b − a).
+class CategoryDelta {
+  CategoryDelta({
+    required this.category,
+    required this.a,
+    required this.b,
+    required this.delta,
+  });
+
+  final String category;
+  final double a;
+  final double b;
+
+  /// b − a: positive = spent more in month b.
+  final double delta;
+}
+
+class MonthlyComparison {
+  MonthlyComparison({
+    required this.a,
+    required this.b,
+    required this.expenseDelta,
+    required this.incomeDelta,
+    required this.netDelta,
+    required this.categories,
+  });
+
+  final MonthComparisonSide a;
+  final MonthComparisonSide b;
+
+  /// b − a for each total.
+  final double expenseDelta;
+  final double incomeDelta;
+  final double netDelta;
+
+  /// Per-category expense deltas, sorted by |delta| descending.
+  final List<CategoryDelta> categories;
+}
+
+MonthComparisonSide _emptyComparisonSide(String monthKey) {
+  final parts = monthKey.split('-');
+  final year = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 0) : 0;
+  final month = parts.length > 1 ? (int.tryParse(parts[1]) ?? 1) : 1;
+  return MonthComparisonSide(
+    monthKey: monthKey,
+    year: year,
+    month: month,
+    totalExpense: 0,
+    totalIncome: 0,
+    net: 0,
+    byCategory: {},
+  );
+}
+
+/// Compare the actual income/expense of two calendar months (`'yyyy-MM'`).
+///
+/// Transfers are ignored; amounts are converted from each account's currency to
+/// [baseCurrency]. Deltas are computed as `b − a` so a positive expense delta
+/// means month `b` spent more. `categories` lists every expense category present
+/// in either month, sorted by the magnitude of the change.
+MonthlyComparison computeMonthlyComparison({
+  required List<Account> accounts,
+  required List<Transaction> transactions,
+  required String monthKeyA,
+  required String monthKeyB,
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  List<String> accountIds = const [],
+}) {
+  final conv = convert ?? (num amount, String from, String to) => amount;
+  final selectedIds = accountIds.isEmpty
+      ? accounts.map((a) => a.id).toSet()
+      : accountIds.toSet();
+
+  final a = _emptyComparisonSide(monthKeyA);
+  final b = _emptyComparisonSide(monthKeyB);
+  var aIncome = 0.0, aExpense = 0.0, bIncome = 0.0, bExpense = 0.0;
+
+  for (final t in transactions) {
+    if (t.type != TransactionType.income && t.type != TransactionType.expense) {
+      continue;
+    }
+    if (t.accountId == null || !selectedIds.contains(t.accountId)) continue;
+    if (t.date.length < 7) continue;
+    final key = t.date.substring(0, 7);
+    final MonthComparisonSide? side =
+        key == monthKeyA ? a : (key == monthKeyB ? b : null);
+    if (side == null) continue;
+    final base =
+        conv(t.amount, _txCurrency(t, accounts, baseCurrency), baseCurrency)
+            .toDouble();
+    if (t.type == TransactionType.income) {
+      if (side == a) {
+        aIncome += base;
+      } else {
+        bIncome += base;
+      }
+    } else {
+      if (side == a) {
+        aExpense += base;
+      } else {
+        bExpense += base;
+      }
+      final cat = t.category.isEmpty ? 'Без категории' : t.category;
+      side.byCategory[cat] = (side.byCategory[cat] ?? 0) + base;
+    }
+  }
+
+  final aSide = MonthComparisonSide(
+    monthKey: a.monthKey,
+    year: a.year,
+    month: a.month,
+    totalExpense: aExpense,
+    totalIncome: aIncome,
+    net: aIncome - aExpense,
+    byCategory: a.byCategory,
+  );
+  final bSide = MonthComparisonSide(
+    monthKey: b.monthKey,
+    year: b.year,
+    month: b.month,
+    totalExpense: bExpense,
+    totalIncome: bIncome,
+    net: bIncome - bExpense,
+    byCategory: b.byCategory,
+  );
+
+  final cats = <String>{...aSide.byCategory.keys, ...bSide.byCategory.keys};
+  final categories = <CategoryDelta>[];
+  for (final category in cats) {
+    final av = aSide.byCategory[category] ?? 0;
+    final bv = bSide.byCategory[category] ?? 0;
+    categories.add(CategoryDelta(category: category, a: av, b: bv, delta: bv - av));
+  }
+  categories.sort((x, y) => y.delta.abs().compareTo(x.delta.abs()));
+
+  return MonthlyComparison(
+    a: aSide,
+    b: bSide,
+    expenseDelta: bSide.totalExpense - aSide.totalExpense,
+    incomeDelta: bSide.totalIncome - aSide.totalIncome,
+    netDelta: bSide.net - aSide.net,
+    categories: categories,
+  );
+}

@@ -901,3 +901,124 @@ export function computeScenarioProjection(opts: {
     insufficientHistory,
   };
 }
+
+// ── Month-vs-month comparison (P4) ──
+//
+// Compares the actual income/expense of two calendar months (converted to the
+// base currency), including per-category expense deltas. Built directly from
+// real transactions so it stays in sync with the rest of the finance engine.
+
+/** One month's actual totals plus its per-category expense breakdown. */
+export type MonthComparisonSide = {
+  /** 'yyyy-MM'. */
+  monthKey: string;
+  year: number;
+  /** 0-11. */
+  month: number;
+  totalExpense: number;
+  totalIncome: number;
+  /** income − expense. */
+  net: number;
+  /** Expense per category (base currency). */
+  byCategory: Record<string, number>;
+};
+
+/** Per-category expense delta between the two compared months (b − a). */
+export type CategoryDelta = {
+  category: string;
+  a: number;
+  b: number;
+  /** b − a: positive = spent more in month b. */
+  delta: number;
+};
+
+export type MonthlyComparison = {
+  a: MonthComparisonSide;
+  b: MonthComparisonSide;
+  /** b − a for each total. */
+  expenseDelta: number;
+  incomeDelta: number;
+  netDelta: number;
+  /** Per-category expense deltas, sorted by |delta| descending. */
+  categories: CategoryDelta[];
+};
+
+function emptyComparisonSide(monthKey: string): MonthComparisonSide {
+  const [y, m] = monthKey.split('-').map(Number);
+  return {
+    monthKey,
+    year: y,
+    month: (m || 1) - 1,
+    totalExpense: 0,
+    totalIncome: 0,
+    net: 0,
+    byCategory: {},
+  };
+}
+
+/**
+ * Compare the actual income/expense of two calendar months (`'yyyy-MM'`).
+ *
+ * Transfers are ignored; amounts are converted from each account's currency to
+ * `baseCurrency`. Deltas are computed as `b − a` so a positive expense delta
+ * means month `b` spent more. `categories` lists every expense category present
+ * in either month, sorted by the magnitude of the change.
+ */
+export function computeMonthlyComparison(opts: {
+  accounts: Account[];
+  transactions: Transaction[];
+  rates: Record<string, number>;
+  baseCurrency: string;
+  monthKeyA: string;
+  monthKeyB: string;
+  /** Restrict to these account IDs (empty/undefined = all). */
+  accountIds?: string[];
+}): MonthlyComparison {
+  const { accounts, transactions, rates, baseCurrency, monthKeyA, monthKeyB, accountIds } = opts;
+
+  const selected =
+    accountIds && accountIds.length > 0
+      ? accounts.filter(a => accountIds.includes(a.id))
+      : accounts;
+  const currencyById: Record<string, string> = {};
+  for (const acc of selected) currencyById[acc.id] = acc.currency;
+
+  const a = emptyComparisonSide(monthKeyA);
+  const b = emptyComparisonSide(monthKeyB);
+
+  for (const t of transactions) {
+    if (t.type !== 'income' && t.type !== 'expense') continue;
+    if (!t.accountId || !(t.accountId in currencyById)) continue;
+    const key = t.date.slice(0, 7);
+    const side = key === monthKeyA ? a : key === monthKeyB ? b : null;
+    if (!side) continue;
+    const base = convertCurrency(t.amount, currencyById[t.accountId], baseCurrency, rates);
+    if (t.type === 'income') {
+      side.totalIncome += base;
+    } else {
+      side.totalExpense += base;
+      const cat = t.category || 'Без категории';
+      side.byCategory[cat] = (side.byCategory[cat] || 0) + base;
+    }
+  }
+  a.net = a.totalIncome - a.totalExpense;
+  b.net = b.totalIncome - b.totalExpense;
+
+  const cats = new Set<string>([...Object.keys(a.byCategory), ...Object.keys(b.byCategory)]);
+  const categories: CategoryDelta[] = [];
+  for (const category of cats) {
+    const av = a.byCategory[category] || 0;
+    const bv = b.byCategory[category] || 0;
+    categories.push({ category, a: av, b: bv, delta: bv - av });
+  }
+  categories.sort((x, y) => Math.abs(y.delta) - Math.abs(x.delta));
+
+  return {
+    a,
+    b,
+    expenseDelta: b.totalExpense - a.totalExpense,
+    incomeDelta: b.totalIncome - a.totalIncome,
+    netDelta: b.net - a.net,
+    categories,
+  };
+}
