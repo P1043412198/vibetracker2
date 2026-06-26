@@ -227,6 +227,7 @@ class _MonthTile extends ConsumerWidget {
     );
     final transactions = ref.watch(transactionsProvider);
     final summary = computeSummary(activeScenario, transactions, month.monthKey);
+    final fact = factForMonth(transactions, month.monthKey);
     final color = Color(activeScenario.color);
     return Card(
       child: InkWell(
@@ -353,6 +354,7 @@ class _MonthTile extends ConsumerWidget {
                     child: _MetricChip(
                       label: 'Доход',
                       value: summary.income,
+                      fact: fact.income,
                       color: const Color(0xFF22C55E),
                     ),
                   ),
@@ -361,6 +363,7 @@ class _MonthTile extends ConsumerWidget {
                     child: _MetricChip(
                       label: 'Расход',
                       value: summary.expense,
+                      fact: fact.expense,
                       color: const Color(0xFFEF4444),
                     ),
                   ),
@@ -408,14 +411,24 @@ class _MetricChip extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    this.fact,
   });
 
   final String label;
   final double value;
   final Color color;
 
+  /// Optional actual amount from real transactions for this month. When set a
+  /// «факт N» subline is shown so the plan can be read against reality.
+  final double? fact;
+
   @override
   Widget build(BuildContext context) {
+    final fmt = NumberFormat.currency(
+      locale: 'ru',
+      symbol: '',
+      decimalDigits: 0,
+    );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
@@ -440,11 +453,7 @@ class _MetricChip extends StatelessWidget {
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              NumberFormat.currency(
-                locale: 'ru',
-                symbol: '',
-                decimalDigits: 0,
-              ).format(value),
+              fmt.format(value),
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
@@ -452,6 +461,21 @@ class _MetricChip extends StatelessWidget {
               ),
             ),
           ),
+          if (fact != null && fact! > 0) ...[
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'факт ${fmt.format(fact)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color.withValues(alpha: 0.85),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
