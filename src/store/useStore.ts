@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { format, isSameMonth, parseISO } from 'date-fns';
 import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset, IncomeSource, PlannedExpense, ActualExpense } from '../types';
 import { createMonthlyBudgetActions } from './slices/monthlyBudgetSlice';
+import { convertCurrency } from '../lib/utils';
 
 // Custom storage using IndexedDB to handle large data (like base64 images)
 const storage: StateStorage = {
@@ -874,9 +875,7 @@ export const useStore = create<AppState>()(
 
         let finalAmount = payment.amount;
         if (payment.currency && payment.currency !== account.currency) {
-          const fromRate = state.rates[payment.currency] || 1;
-          const toRate = state.rates[account.currency] || 1;
-          finalAmount = (payment.amount * fromRate) / toRate;
+          finalAmount = convertCurrency(payment.amount, payment.currency, account.currency, state.rates);
         }
 
         const transaction: Transaction = {
@@ -914,9 +913,7 @@ export const useStore = create<AppState>()(
           if (!isPaid && p.dueDate <= currentDay) {
             let finalAmount = p.amount;
             if (p.currency && p.currency !== defaultAccount.currency) {
-              const fromRate = state.rates[p.currency] || 1;
-              const toRate = state.rates[defaultAccount.currency] || 1;
-              finalAmount = (p.amount * fromRate) / toRate;
+              finalAmount = convertCurrency(p.amount, p.currency, defaultAccount.currency, state.rates);
             }
 
             newTransactions.push({

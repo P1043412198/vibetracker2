@@ -127,7 +127,7 @@ export function computeBudgetCycles(opts: {
         const d = new Date(e.paidDate!);
         return (isSameDay(d, start) || isAfter(d, start)) && (isSameDay(d, end) || isBefore(d, end));
       })
-      .reduce((sum, e) => e.paidAmount || e.amount, 0);
+      .reduce((sum, e) => sum + (e.paidAmount || e.amount), 0);
   }
 
   function actualSpentInRange(start: Date, end: Date): number {

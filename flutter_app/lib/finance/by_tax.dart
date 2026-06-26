@@ -1,13 +1,72 @@
-/// Belarus-specific tax calculators (port of src/lib/finance/byTax.ts).
+// Belarus-specific tax calculators (port of src/lib/finance/byTax.ts).
 
-const double baseValueByn = 42;
-const double minWageByn = 626;
-const double stdDeductionIncomeLimit = 1054;
-const double stdDeduction = 174;
-const double childDeduction = 51;
-const double childDeductionTwoPlus = 97;
-const double incomeTaxPct = 13;
-const double fsznEmployeePct = 1;
+/// Year-dependent НК РБ parameters. МЗП, base value and deduction thresholds
+/// change almost every year, so they live in a table keyed by year — updating
+/// is a one-line addition. Port of `BY_TAX_BY_YEAR` in `src/lib/finance/byTax.ts`.
+///
+/// ⚠️ Only 2024 values are confirmed. Add 2025/2026 from official sources
+/// (Совмин postановления for МЗП/БВ and art. 209 НК РБ for deductions).
+class ByTaxYearConstants {
+  final double baseValueByn;
+  final double minWageByn;
+  final double stdDeductionIncomeLimit;
+  final double stdDeduction;
+  final double childDeduction;
+  final double childDeductionTwoPlus;
+  final double incomeTaxPct;
+  final double fsznEmployeePct;
+
+  const ByTaxYearConstants({
+    required this.baseValueByn,
+    required this.minWageByn,
+    required this.stdDeductionIncomeLimit,
+    required this.stdDeduction,
+    required this.childDeduction,
+    required this.childDeductionTwoPlus,
+    required this.incomeTaxPct,
+    required this.fsznEmployeePct,
+  });
+}
+
+const Map<int, ByTaxYearConstants> byTaxByYear = {
+  2024: ByTaxYearConstants(
+    baseValueByn: 42,
+    minWageByn: 626,
+    stdDeductionIncomeLimit: 1054,
+    stdDeduction: 174,
+    childDeduction: 51,
+    childDeductionTwoPlus: 97,
+    incomeTaxPct: 13,
+    fsznEmployeePct: 1,
+  ),
+};
+
+/// Latest year with confirmed values — used by default.
+const int currentTaxYear = 2024;
+
+/// Returns constants for [year]: exact match → nearest earlier filled year →
+/// latest available, so the calculator never breaks for an un-filled year.
+ByTaxYearConstants getByTaxConstants([int year = currentTaxYear]) {
+  final exact = byTaxByYear[year];
+  if (exact != null) return exact;
+  final years = byTaxByYear.keys.toList()..sort();
+  final fallbackYear = years.reversed.firstWhere(
+    (y) => y <= year,
+    orElse: () => years.last,
+  );
+  return byTaxByYear[fallbackYear]!;
+}
+
+final ByTaxYearConstants _current = getByTaxConstants(currentTaxYear);
+
+final double baseValueByn = _current.baseValueByn;
+final double minWageByn = _current.minWageByn;
+final double stdDeductionIncomeLimit = _current.stdDeductionIncomeLimit;
+final double stdDeduction = _current.stdDeduction;
+final double childDeduction = _current.childDeduction;
+final double childDeductionTwoPlus = _current.childDeductionTwoPlus;
+final double incomeTaxPct = _current.incomeTaxPct;
+final double fsznEmployeePct = _current.fsznEmployeePct;
 
 // NPD
 const double npdLowRatePct = 10;

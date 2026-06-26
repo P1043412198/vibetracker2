@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BASE_VALUE_BYN,
+  BY_TAX_BY_YEAR,
+  CURRENT_TAX_YEAR,
   calcDepositBY,
   calcIpUsn,
   calcNetSalary,
   calcNpd,
   calcVacationPay,
+  getByTaxConstants,
   grossFromNet,
   INCOME_TAX_PCT,
 } from '../byTax';
@@ -151,5 +155,25 @@ describe('calcVacationPay', () => {
     const r = calcVacationPay(36000, 14);
     expect(r.avgDaily).toBeCloseTo(36000 / (12 * 29.7), 2);
     expect(r.payment).toBeCloseTo(r.avgDaily * 14, 2);
+  });
+});
+
+describe('getByTaxConstants (year-keyed table)', () => {
+  it('returns exact constants for a year present in the table', () => {
+    expect(getByTaxConstants(2024)).toBe(BY_TAX_BY_YEAR[2024]);
+  });
+
+  it('legacy exports reflect the current tax year', () => {
+    expect(BASE_VALUE_BYN).toBe(BY_TAX_BY_YEAR[CURRENT_TAX_YEAR].baseValueByn);
+  });
+
+  it('falls back to the latest available year for a future, not-yet-filled year', () => {
+    const latest = Math.max(...Object.keys(BY_TAX_BY_YEAR).map(Number));
+    expect(getByTaxConstants(2099)).toBe(BY_TAX_BY_YEAR[latest]);
+  });
+
+  it('falls back to the earliest year for a year below the table', () => {
+    const earliest = Math.min(...Object.keys(BY_TAX_BY_YEAR).map(Number));
+    expect(getByTaxConstants(1990)).toBe(BY_TAX_BY_YEAR[earliest]);
   });
 });

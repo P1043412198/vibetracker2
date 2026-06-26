@@ -1027,7 +1027,7 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
         .fold<double>(0, (s, e) => s + e.amount);
     final paidTotal = expenses
         .where((e) => e.isPaid)
-        .fold<double>(0, (s, e) => e.paidAmount ?? e.amount);
+        .fold<double>(0, (s, e) => s + (e.paidAmount ?? e.amount));
     final scheme = Theme.of(context).colorScheme;
     final manualActual =
         widget.config.actualExpenses.fold<double>(0, (s, e) => s + e.amount);

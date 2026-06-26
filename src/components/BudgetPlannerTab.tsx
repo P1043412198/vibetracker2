@@ -320,7 +320,7 @@ function ExpensePlanSection() {
 
   const expenses = plannedExpenses || [];
   const totalPlanned = expenses.filter(e => e.isActive).reduce((sum, e) => sum + e.amount, 0);
-  const totalPaid = expenses.filter(e => e.isPaid).reduce((sum, e) => e.paidAmount || e.amount, 0);
+  const totalPaid = expenses.filter(e => e.isPaid).reduce((sum, e) => sum + (e.paidAmount || e.amount), 0);
 
   const resetForm = () => {
     setForm({ name: '', amount: '', dayFrom: '1', dayTo: '5', category: '' });
@@ -552,7 +552,7 @@ function FactSection() {
 
   const totalIncome = sources.filter(s => s.isActive).reduce((sum, s) => sum + s.amount, 0);
   const totalPlannedExp = planned.filter(e => e.isActive).reduce((sum, e) => sum + e.amount, 0);
-  const totalPaid = planned.filter(e => e.isPaid).reduce((sum, e) => e.paidAmount || e.amount, 0);
+  const totalPaid = planned.filter(e => e.isPaid).reduce((sum, e) => sum + (e.paidAmount || e.amount), 0);
   const totalActual = actual.reduce((sum, e) => sum + e.amount, 0);
   const totalSpent = totalPaid + totalActual;
   const remaining = totalIncome - totalSpent;

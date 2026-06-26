@@ -374,7 +374,7 @@ List<BudgetCycle> computeBudgetCycles({
   double paidExpensesTotal() {
     return activeExpenses
         .where((e) => e.isPaid)
-        .fold<double>(0, (sum, e) => e.paidAmount ?? e.amount);
+        .fold<double>(0, (sum, e) => sum + (e.paidAmount ?? e.amount));
   }
 
   // Manual actual expenses total

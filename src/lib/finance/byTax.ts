@@ -7,25 +7,86 @@
  * NOTE: this is an estimator — not a substitute for an accountant.
  */
 
-/** Базовая величина (BV) — обновлять при изменениях постановления. */
-export const BASE_VALUE_BYN = 42; // 2024
+/**
+ * Год-зависимые параметры НК РБ. Значения МЗП, базовой величины и пороги
+ * вычетов меняются почти каждый год — держим их в таблице по годам, чтобы
+ * обновление сводилось к добавлению одной записи.
+ *
+ * ⚠️ Подтверждены только значения 2024 года. Значения 2025/2026 нужно
+ * добавить из официальных источников (постановления Совмина по МЗП/БВ и
+ * ст. 209 НК РБ по вычетам).
+ */
+export interface ByTaxYearConstants {
+  /** Базовая величина (BV). */
+  baseValueByn: number;
+  /** Минимальная заработная плата (МЗП). */
+  minWageByn: number;
+  /** Стандартный вычет «на себя» (ст. 209 НК РБ) — порог дохода. */
+  stdDeductionIncomeLimit: number;
+  /** Сумма стандартного вычета «на себя». */
+  stdDeduction: number;
+  /** Вычет на одного ребёнка / иждивенца. */
+  childDeduction: number;
+  /** Вычет на ребёнка для семей с 2+ детьми / одинокого родителя. */
+  childDeductionTwoPlus: number;
+  /** Подоходный налог, %. */
+  incomeTaxPct: number;
+  /** ФСЗН с работника, %. */
+  fsznEmployeePct: number;
+}
 
-/** Минимальная заработная плата (МЗП). */
-export const MIN_WAGE_BYN = 626; // 2024
+export const BY_TAX_BY_YEAR: Record<number, ByTaxYearConstants> = {
+  2024: {
+    baseValueByn: 42,
+    minWageByn: 626,
+    stdDeductionIncomeLimit: 1054,
+    stdDeduction: 174,
+    childDeduction: 51,
+    childDeductionTwoPlus: 97,
+    incomeTaxPct: 13,
+    fsznEmployeePct: 1,
+  },
+};
+
+/** Последний год с подтверждёнными значениями — используется по умолчанию. */
+export const CURRENT_TAX_YEAR = 2024;
+
+/**
+ * Возвращает константы для года: точное совпадение → ближайший предыдущий
+ * заполненный год → последний доступный. Так калькулятор не падает, если
+ * запрошен год, для которого таблица ещё не обновлена.
+ */
+export function getByTaxConstants(year: number = CURRENT_TAX_YEAR): ByTaxYearConstants {
+  const years = Object.keys(BY_TAX_BY_YEAR)
+    .map(Number)
+    .sort((a, b) => a - b);
+  if (BY_TAX_BY_YEAR[year]) return BY_TAX_BY_YEAR[year];
+  const fallbackYear =
+    [...years].reverse().find(y => y <= year) ?? years[years.length - 1];
+  return BY_TAX_BY_YEAR[fallbackYear];
+}
+
+const CURRENT = getByTaxConstants(CURRENT_TAX_YEAR);
+
+/** Базовая величина (BV) для текущего года. */
+export const BASE_VALUE_BYN = CURRENT.baseValueByn;
+
+/** Минимальная заработная плата (МЗП) для текущего года. */
+export const MIN_WAGE_BYN = CURRENT.minWageByn;
 
 /** Стандартный вычет «на себя» (ст. 209 НК РБ) — порог дохода. */
-export const STD_DEDUCTION_INCOME_LIMIT = 1054;
-export const STD_DEDUCTION = 174;
+export const STD_DEDUCTION_INCOME_LIMIT = CURRENT.stdDeductionIncomeLimit;
+export const STD_DEDUCTION = CURRENT.stdDeduction;
 
 /** Вычет на ребёнка / иждивенца (по умолчанию). */
-export const CHILD_DEDUCTION = 51;
-export const CHILD_DEDUCTION_TWO_PLUS = 97;
+export const CHILD_DEDUCTION = CURRENT.childDeduction;
+export const CHILD_DEDUCTION_TWO_PLUS = CURRENT.childDeductionTwoPlus;
 
 /** Подоходный налог. */
-export const INCOME_TAX_PCT = 13;
+export const INCOME_TAX_PCT = CURRENT.incomeTaxPct;
 
 /** ФСЗН с работника (1%). */
-export const FSZN_EMPLOYEE_PCT = 1;
+export const FSZN_EMPLOYEE_PCT = CURRENT.fsznEmployeePct;
 
 /**
  * Дополнительное удержание из зарплаты — профсоюз, ДМС, благотворительность,
