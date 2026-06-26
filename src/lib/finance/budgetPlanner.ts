@@ -649,3 +649,255 @@ export function computeCashflowForecast(opts: {
     ok: true,
   };
 }
+
+// ── Spending averages (actual history) ──
+//
+// Groups real income/expense transactions by calendar month (converted to the
+// base currency via each account's currency) and derives average daily and
+// monthly figures. Shared by the monthly-analysis section (P3) and the
+// average-based forecast scenarios in the safe-to-spend card (P3b).
+
+/** Per-month actual totals plus the average daily figures for that month. */
+export type MonthlySpending = {
+  /** 'yyyy-MM'. */
+  monthKey: string;
+  year: number;
+  /** 0-11. */
+  month: number;
+  totalExpense: number;
+  totalIncome: number;
+  /** income − expense. */
+  net: number;
+  /** Days counted for averaging (elapsed days for the current month). */
+  days: number;
+  avgDailyExpense: number;
+  avgDailyIncome: number;
+};
+
+export type SpendingAverages = {
+  /** Months with activity, oldest → newest. */
+  months: MonthlySpending[];
+  /** Total expense / total counted days across the covered months. */
+  avgDailyExpense: number;
+  avgDailyIncome: number;
+  /** Total expense / number of covered months. */
+  avgMonthlyExpense: number;
+  avgMonthlyIncome: number;
+  /** Number of months that contributed to the averages. */
+  monthsCounted: number;
+};
+
+const EMPTY_AVERAGES: SpendingAverages = {
+  months: [],
+  avgDailyExpense: 0,
+  avgDailyIncome: 0,
+  avgMonthlyExpense: 0,
+  avgMonthlyIncome: 0,
+  monthsCounted: 0,
+};
+
+/**
+ * Compute average daily / monthly expense and income from actual transactions.
+ *
+ * Only `income` and `expense` transactions count (transfers move money between
+ * own accounts and are ignored). Amounts are converted from each account's
+ * currency into `baseCurrency`. The window spans the most recent `monthsBack`
+ * calendar months (including the current, partial one); the current month is
+ * averaged over the days elapsed so far so its daily rate isn't diluted.
+ */
+export function computeSpendingAverages(opts: {
+  accounts: Account[];
+  transactions: Transaction[];
+  rates: Record<string, number>;
+  baseCurrency: string;
+  today?: Date;
+  /** How many recent calendar months (incl. the current one) to include. Default 6. */
+  monthsBack?: number;
+  /** Restrict to these account IDs (empty/undefined = all). */
+  accountIds?: string[];
+}): SpendingAverages {
+  const {
+    accounts,
+    transactions,
+    rates,
+    baseCurrency,
+    today = new Date(),
+    monthsBack = 6,
+    accountIds,
+  } = opts;
+
+  const selected =
+    accountIds && accountIds.length > 0
+      ? accounts.filter(a => accountIds.includes(a.id))
+      : accounts;
+  if (selected.length === 0) return EMPTY_AVERAGES;
+  const currencyById: Record<string, string> = {};
+  for (const a of selected) currencyById[a.id] = a.currency;
+
+  const curYear = today.getFullYear();
+  const curMonth = today.getMonth();
+  const windowStart = addMonth(curYear, curMonth, -(Math.max(1, monthsBack) - 1));
+  const startKey = `${windowStart.year}-${String(windowStart.month + 1).padStart(2, '0')}`;
+  const curKey = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
+
+  const buckets: Record<string, { expense: number; income: number }> = {};
+  for (const t of transactions) {
+    if (t.type !== 'income' && t.type !== 'expense') continue;
+    if (!t.accountId || !(t.accountId in currencyById)) continue;
+    const key = t.date.slice(0, 7); // 'yyyy-MM'
+    if (key < startKey || key > curKey) continue;
+    const base = convertCurrency(t.amount, currencyById[t.accountId], baseCurrency, rates);
+    const b = buckets[key] || (buckets[key] = { expense: 0, income: 0 });
+    if (t.type === 'expense') b.expense += base;
+    else b.income += base;
+  }
+
+  const keys = Object.keys(buckets).sort();
+  if (keys.length === 0) return EMPTY_AVERAGES;
+
+  const months: MonthlySpending[] = [];
+  let sumExpense = 0;
+  let sumIncome = 0;
+  let sumDays = 0;
+  for (const key of keys) {
+    const [y, m] = key.split('-').map(Number);
+    const year = y;
+    const month = m - 1;
+    const b = buckets[key];
+    const days =
+      key === curKey ? Math.max(1, today.getDate()) : getDaysInMonth(new Date(year, month));
+    months.push({
+      monthKey: key,
+      year,
+      month,
+      totalExpense: b.expense,
+      totalIncome: b.income,
+      net: b.income - b.expense,
+      days,
+      avgDailyExpense: b.expense / days,
+      avgDailyIncome: b.income / days,
+    });
+    sumExpense += b.expense;
+    sumIncome += b.income;
+    sumDays += days;
+  }
+
+  const monthsCounted = months.length;
+  return {
+    months,
+    avgDailyExpense: sumDays > 0 ? sumExpense / sumDays : 0,
+    avgDailyIncome: sumDays > 0 ? sumIncome / sumDays : 0,
+    avgMonthlyExpense: monthsCounted > 0 ? sumExpense / monthsCounted : 0,
+    avgMonthlyIncome: monthsCounted > 0 ? sumIncome / monthsCounted : 0,
+    monthsCounted,
+  };
+}
+
+// ── Safe-to-spend forecast scenarios (P3b) ──
+//
+// On top of a chosen window (`computeCashflowForecast`), project the ending
+// balance under different spending assumptions. Critical guard against
+// double-counting obligations:
+//   • planToZero / customDaily — the daily figure is *discretionary* spend, so
+//     planned obligations (rent, subscriptions, loans) are subtracted on top.
+//   • avgExpense / avgExpenseIncome — the daily figure is the *complete*
+//     historical spend (obligations already happened inside it), so obligations
+//     are NOT subtracted again.
+
+export type SafeToSpendScenario =
+  /** Safe discretionary spend/day to reach the window end at the reserve. */
+  | 'planToZero'
+  /** User enters their own daily spend; we project the ending balance. */
+  | 'customDaily'
+  /** Daily = historical average expense/day; planned income kept. */
+  | 'avgExpense'
+  /** Daily = historical average expense/day AND income = historical average. */
+  | 'avgExpenseIncome';
+
+export const scenarioLabels: Record<SafeToSpendScenario, string> = {
+  planToZero: 'План «в 0»',
+  customDaily: 'Свой лимит/день',
+  avgExpense: 'Средний расход',
+  avgExpenseIncome: 'Средние расход + доход',
+};
+
+export type ScenarioProjection = {
+  scenario: SafeToSpendScenario;
+  /** Daily spend used by this scenario (base currency). */
+  dailySpend: number;
+  /** Income assumed over the window (base currency). */
+  income: number;
+  /** Obligations subtracted (0 for the average-based scenarios). */
+  obligations: number;
+  daysLeft: number;
+  startBalance: number;
+  /** Projected balance at the end of the window (base currency). */
+  endBalance: number;
+  /** endBalance − reserve: positive = surplus, negative = breaks the reserve. */
+  surplusOverReserve: number;
+  /** True when the projection ends below the reserve / opens a cash gap. */
+  shortfall: boolean;
+  /** True when there is no history to back an average-based scenario. */
+  insufficientHistory: boolean;
+};
+
+/**
+ * Project the ending balance for a forecast window under a chosen scenario.
+ * Returns null when the forecast produced no window.
+ */
+export function computeScenarioProjection(opts: {
+  scenario: SafeToSpendScenario;
+  forecast: CashflowForecast;
+  reserve?: number;
+  averages?: SpendingAverages;
+  /** User's daily spend for the `customDaily` scenario (base currency). */
+  customDaily?: number;
+}): ScenarioProjection | null {
+  const { scenario, forecast, averages, customDaily } = opts;
+  const reserve = opts.reserve ?? forecast.reserve;
+  const range = forecast.range;
+  if (!range) return null;
+
+  const { startBalance, totalIncome, totalObligations, daysLeft } = range;
+  let dailySpend = 0;
+  let income = totalIncome;
+  let obligations = totalObligations;
+  let insufficientHistory = false;
+
+  switch (scenario) {
+    case 'planToZero':
+      dailySpend = range.smoothedDaily;
+      break;
+    case 'customDaily':
+      dailySpend = Math.max(0, customDaily ?? 0);
+      break;
+    case 'avgExpense':
+      dailySpend = averages?.avgDailyExpense ?? 0;
+      obligations = 0; // already inside the historical average
+      insufficientHistory = !averages || averages.monthsCounted === 0;
+      break;
+    case 'avgExpenseIncome':
+      dailySpend = averages?.avgDailyExpense ?? 0;
+      obligations = 0; // already inside the historical average
+      income = (averages?.avgDailyIncome ?? 0) * daysLeft;
+      insufficientHistory = !averages || averages.monthsCounted === 0;
+      break;
+  }
+
+  const endBalance = startBalance + income - obligations - dailySpend * daysLeft;
+  const surplusOverReserve = endBalance - reserve;
+  const shortfall = scenario === 'planToZero' ? forecast.hasCashGap : endBalance < reserve;
+
+  return {
+    scenario,
+    dailySpend,
+    income,
+    obligations,
+    daysLeft,
+    startBalance,
+    endBalance,
+    surplusOverReserve,
+    shortfall,
+    insufficientHistory,
+  };
+}
