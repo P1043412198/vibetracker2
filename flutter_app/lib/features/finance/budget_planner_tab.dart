@@ -48,6 +48,7 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
     final loanPayments = ref.watch(loanPaymentsProvider);
     final baseCurrency = ref.watch(defaultCurrencyProvider);
     final rates = ref.watch(currencyRatesProvider);
+    final reserve = ref.watch(safeToSpendReserveProvider);
 
     num convert(num amount, String from, String to) =>
         convertCurrency(amount: amount, from: from, to: to, rates: rates);
@@ -84,6 +85,19 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
       accountBalance: facts.accountBalance,
     );
 
+    // Safe-to-spend forecast: how much can be spent per day from the real
+    // account balance until the next income, honouring the user's reserve.
+    // Loans are folded into obligations so the runway reflects them.
+    final forecast = computeCashflowForecast(
+      accounts: accounts,
+      transactions: transactions,
+      incomeSources: config.incomeSources,
+      plannedExpenses: [...config.plannedExpenses, ...loanExpenses],
+      convert: convert,
+      baseCurrency: baseCurrency,
+      reserve: reserve.toDouble(),
+    );
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
@@ -109,6 +123,8 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
             accounts: accounts,
             baseCurrency: baseCurrency,
             loanExpenses: loanExpenses,
+            forecast: forecast,
+            reserve: reserve.toDouble(),
           ),
         if (_section == _Section.income)
           _IncomeSection(config: config, facts: facts),
@@ -276,6 +292,8 @@ class _DashboardSection extends StatelessWidget {
     required this.accounts,
     required this.baseCurrency,
     required this.loanExpenses,
+    required this.forecast,
+    required this.reserve,
   });
 
   final BudgetPlanConfig config;
@@ -284,6 +302,8 @@ class _DashboardSection extends StatelessWidget {
   final List<Account> accounts;
   final String baseCurrency;
   final List<PlannedExpense> loanExpenses;
+  final CashflowForecast forecast;
+  final double reserve;
 
   @override
   Widget build(BuildContext context) {
@@ -358,6 +378,10 @@ class _DashboardSection extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(height: 12),
+
+        // ── Safe-to-spend forecast ──
+        _SafeToSpendCard(forecast: forecast, reserve: reserve),
         const SizedBox(height: 12),
 
         // ── Summary row ──
@@ -1402,6 +1426,394 @@ class _ExpenseCard extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 // ██████  SHARED WIDGETS  ██████
 // ═════════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Safe-to-spend forecast card ("Сколько можно тратить")
+// ─────────────────────────────────────────────────────────────────────────────
+
+String _pluralizeDays(int n) {
+  final mod10 = n % 10;
+  final mod100 = n % 100;
+  if (mod10 == 1 && mod100 != 11) return 'день';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'дня';
+  return 'дней';
+}
+
+class _SafeToSpendCard extends ConsumerStatefulWidget {
+  const _SafeToSpendCard({required this.forecast, required this.reserve});
+
+  final CashflowForecast forecast;
+  final double reserve;
+
+  @override
+  ConsumerState<_SafeToSpendCard> createState() => _SafeToSpendCardState();
+}
+
+class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
+  late final TextEditingController _reserveCtrl;
+  final _reserveFocus = FocusNode();
+  bool _showSegments = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _reserveCtrl = TextEditingController(text: _formatReserve(widget.reserve));
+    _reserveFocus.addListener(() {
+      if (!_reserveFocus.hasFocus) _commitReserve();
+    });
+  }
+
+  @override
+  void didUpdateWidget(_SafeToSpendCard old) {
+    super.didUpdateWidget(old);
+    // Keep the field in sync when the reserve changes elsewhere, unless the
+    // user is actively editing it.
+    if (!_reserveFocus.hasFocus && widget.reserve != old.reserve) {
+      _reserveCtrl.text = _formatReserve(widget.reserve);
+    }
+  }
+
+  @override
+  void dispose() {
+    _reserveCtrl.dispose();
+    _reserveFocus.dispose();
+    super.dispose();
+  }
+
+  static String _formatReserve(double v) {
+    if (v == v.roundToDouble()) return v.toInt().toString();
+    return v.toString();
+  }
+
+  void _commitReserve() {
+    final raw = _reserveCtrl.text.trim().replaceAll(',', '.');
+    final parsed = double.tryParse(raw) ?? 0;
+    final value = parsed < 0 ? 0.0 : parsed;
+    ref.read(safeToSpendReserveProvider.notifier).set(value);
+    _reserveCtrl.text = _formatReserve(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final f = widget.forecast;
+    final ccy = f.baseCurrency;
+    const white70 = Color(0xB3FFFFFF);
+    const white54 = Color(0x8AFFFFFF);
+
+    return _GradientCard(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF6366F1), Color(0xFF7C3AED)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.savings_outlined, color: white70, size: 18),
+              SizedBox(width: 6),
+              Text(
+                'СКОЛЬКО МОЖНО ТРАТИТЬ',
+                style: TextStyle(
+                  color: white70,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (!f.ok)
+            const Text(
+              'Добавьте источники дохода с датами выплат, чтобы рассчитать дневной лимит.',
+              style: TextStyle(color: Colors.white, fontSize: 13),
+            )
+          else ...[
+            // Headline: daily until next income.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  _fmt.format(f.dailyUntilNextIncome),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$ccy/день',
+                  style: const TextStyle(
+                      color: white70, fontSize: 13, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              f.nextIncome != null
+                  ? 'до «${f.nextIncome!.name}» — через ${f.nextIncome!.daysUntil} '
+                      '${_pluralizeDays(f.nextIncome!.daysUntil)} '
+                      '(${DateFormat('d MMM', 'ru').format(f.nextIncome!.date)}, '
+                      '+${_fmt.format(f.nextIncome!.amount)} $ccy)'
+                  : 'ближайших поступлений в горизонте нет',
+              style: const TextStyle(color: white70, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+
+            // Balance + smoothed.
+            Row(
+              children: [
+                Expanded(
+                  child: _SafeStat(
+                    label: 'СЕЙЧАС НА СЧЕТАХ',
+                    value: '${_fmt.format(f.currentBalance)} $ccy',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _SafeStat(
+                    label: 'РОВНО В ДЕНЬ (ДО ЗАРПЛАТЫ)',
+                    value: '${_fmt.format(f.smoothedDaily)} $ccy',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Cash-gap warning.
+            if (f.hasCashGap) ...[
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF43F5E).withAlpha(80),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: white54),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Icon(Icons.warning_amber_rounded,
+                        color: Colors.white, size: 16),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Кассовый разрыв: остатка и резерва не хватает на '
+                        'обязательные платежи до следующего дохода.',
+                        style: TextStyle(color: Colors.white, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+
+            // Reserve input.
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(38),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'НЕСГОРАЕМЫЙ РЕЗЕРВ',
+                    style: TextStyle(
+                      color: white70,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _reserveCtrl,
+                          focusNode: _reserveFocus,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _commitReserve(),
+                          style: const TextStyle(
+                            color: Color(0xFF18181B),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            filled: true,
+                            fillColor: Colors.white.withAlpha(230),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        ccy,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Эта сумма не входит в дневной лимит — её приложение бережёт.',
+                    style: TextStyle(color: white54, fontSize: 10),
+                  ),
+                ],
+              ),
+            ),
+
+            // Segments toggle.
+            if (f.segments.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => setState(() => _showSegments = !_showSegments),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _showSegments
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: white70,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      'По периодам (${f.segments.length})',
+                      style: const TextStyle(
+                          color: white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+              if (_showSegments)
+                for (final seg in f.segments) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                seg.label,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            Text(
+                              '${_fmt.format(seg.dailyLimit)} $ccy/день',
+                              style: TextStyle(
+                                color: seg.shortfall
+                                    ? const Color(0xFFFECDD3)
+                                    : Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${DateFormat('d MMM', 'ru').format(seg.startDate)} → '
+                                '${DateFormat('d MMM', 'ru').format(seg.endDate)} '
+                                '(${seg.days} ${_pluralizeDays(seg.days)})',
+                                style:
+                                    const TextStyle(color: white54, fontSize: 10),
+                              ),
+                            ),
+                            if (seg.obligations > 0)
+                              Text(
+                                'платежи: −${_fmt.format(seg.obligations)}',
+                                style: const TextStyle(
+                                    color: white54, fontSize: 10),
+                              ),
+                          ],
+                        ),
+                        if (seg.shortfall) ...[
+                          const SizedBox(height: 4),
+                          const Text(
+                            'не хватает на платежи + резерв в этом окне',
+                            style:
+                                TextStyle(color: Color(0xFFFECDD3), fontSize: 10),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SafeStat extends StatelessWidget {
+  const _SafeStat({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(38),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xB3FFFFFF),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+                color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _GradientCard extends StatelessWidget {
   const _GradientCard({required this.gradient, required this.child});

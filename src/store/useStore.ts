@@ -72,6 +72,9 @@ interface AppState {
   incomeSources: IncomeSource[];
   plannedExpenses: PlannedExpense[];
   actualExpenses: ActualExpense[];
+  /** Untouchable reserve kept aside in the safe-to-spend forecast (base currency). */
+  safeToSpendReserve: number;
+  setSafeToSpendReserve: (amount: number) => void;
   
   // Currency
   rates: Record<string, number>;
@@ -349,6 +352,7 @@ export const useStore = create<AppState>()(
       incomeSources: [],
       plannedExpenses: [],
       actualExpenses: [],
+      safeToSpendReserve: 0,
       wealthTreeTarget: null,
       dashboardConfig: {
         widgetsOrder: ['smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 'spheres_hub', 'goals', 'tasks_habits', 'water', 'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'monthly_budget', 'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery', 'discipline_score', 'stoic_quote', 'shopping_list'],
@@ -1235,6 +1239,7 @@ export const useStore = create<AppState>()(
       resetMonthlyExpenseStatus: () => set((state) => ({
         plannedExpenses: (state.plannedExpenses || []).map(e => ({ ...e, isPaid: false, paidDate: undefined, paidAmount: undefined }))
       })),
+      setSafeToSpendReserve: (amount) => set({ safeToSpendReserve: Math.max(0, amount || 0) }),
 
       toggleHideHabitNames: () => set((state) => ({
         hideHabitNames: !state.hideHabitNames

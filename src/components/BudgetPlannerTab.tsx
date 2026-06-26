@@ -10,7 +10,8 @@ import { format, differenceInCalendarDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import { cn } from '../lib/utils';
-import { computeBudgetCycles, getPayDate } from '../lib/finance/budgetPlanner';
+import { computeBudgetCycles, computeCashflowForecast, getPayDate } from '../lib/finance/budgetPlanner';
+import type { CashflowForecast } from '../lib/finance/budgetPlanner';
 import type { IncomeSource, IncomeSourceType, PlannedExpense } from '../types';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -530,10 +531,168 @@ function ExpensePlanSection() {
   );
 }
 
+// ═══════════════ SAFE-TO-SPEND CARD ═══════════════
+
+const fmtMoney = (n: number) => Math.round(n).toLocaleString('ru-RU');
+
+function SafeToSpendCard({
+  forecast,
+  reserve,
+  onReserveChange,
+}: {
+  forecast: CashflowForecast;
+  reserve: number;
+  onReserveChange: (amount: number) => void;
+}) {
+  const [reserveInput, setReserveInput] = useState(String(reserve || 0));
+  const [showSegments, setShowSegments] = useState(false);
+
+  // Keep local input in sync when store value changes elsewhere.
+  React.useEffect(() => {
+    setReserveInput(String(reserve || 0));
+  }, [reserve]);
+
+  const ccy = forecast.baseCurrency;
+
+  const commitReserve = (raw: string) => {
+    const parsed = parseFloat(raw.replace(',', '.'));
+    onReserveChange(isNaN(parsed) ? 0 : Math.max(0, parsed));
+  };
+
+  return (
+    <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-5 rounded-2xl text-white shadow-lg shadow-indigo-500/20">
+      <div className="flex items-center gap-2 mb-3">
+        <PiggyBank className="w-4 h-4 opacity-90" />
+        <span className="text-[11px] uppercase font-bold tracking-wide opacity-90">
+          Сколько можно тратить
+        </span>
+      </div>
+
+      {!forecast.ok ? (
+        <p className="text-sm opacity-90">
+          Добавьте источники дохода с датами выплат, чтобы рассчитать дневной лимит.
+        </p>
+      ) : (
+        <>
+          {/* Headline: daily until next income */}
+          <div className="mb-1">
+            <span className="text-3xl font-bold">{fmtMoney(forecast.dailyUntilNextIncome)}</span>
+            <span className="text-sm font-medium opacity-80 ml-1.5">{ccy}/день</span>
+          </div>
+          {forecast.nextIncome ? (
+            <p className="text-xs opacity-85 mb-3">
+              до «{forecast.nextIncome.name}» — через {forecast.nextIncome.daysUntil}{' '}
+              {pluralizeDays(forecast.nextIncome.daysUntil)} ({format(forecast.nextIncome.date, 'd MMM', { locale: ru })},
+              {' '}+{fmtMoney(forecast.nextIncome.amount)} {ccy})
+            </p>
+          ) : (
+            <p className="text-xs opacity-85 mb-3">ближайших поступлений в горизонте нет</p>
+          )}
+
+          {/* Balance + smoothed */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-white/15 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold opacity-75 block">Сейчас на счетах</span>
+              <span className="text-lg font-bold">{fmtMoney(forecast.currentBalance)} {ccy}</span>
+            </div>
+            <div className="bg-white/15 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold opacity-75 block">Ровно в день (до зарплаты)</span>
+              <span className="text-lg font-bold">{fmtMoney(forecast.smoothedDaily)} {ccy}</span>
+            </div>
+          </div>
+
+          {/* Cash gap warning */}
+          {forecast.hasCashGap && (
+            <div className="flex items-start gap-2 bg-rose-500/30 border border-white/30 rounded-xl p-3 mb-3">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span className="text-xs leading-snug">
+                Кассовый разрыв: остатка и резерва не хватает на обязательные платежи до следующего дохода.
+              </span>
+            </div>
+          )}
+
+          {/* Reserve input */}
+          <div className="bg-white/15 rounded-xl p-3 mb-1">
+            <label className="text-[10px] uppercase font-bold opacity-75 block mb-1.5">
+              Несгораемый резерв
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={reserveInput}
+                onChange={(e) => setReserveInput(e.target.value)}
+                onBlur={(e) => commitReserve(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                }}
+                className="flex-1 bg-white/90 text-zinc-900 text-sm font-semibold rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-white/60"
+              />
+              <span className="text-sm font-medium opacity-90">{ccy}</span>
+            </div>
+            <p className="text-[10px] opacity-70 mt-1.5">
+              Эта сумма не входит в дневной лимит — её приложение бережёт.
+            </p>
+          </div>
+
+          {/* Segments toggle */}
+          {forecast.segments.length > 0 && (
+            <button
+              onClick={() => setShowSegments((v) => !v)}
+              className="flex items-center gap-1 text-xs font-medium opacity-90 mt-2"
+            >
+              {showSegments ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              По периодам ({forecast.segments.length})
+            </button>
+          )}
+          {showSegments && (
+            <div className="space-y-2 mt-2">
+              {forecast.segments.map((seg, i) => (
+                <div key={i} className="bg-white/10 rounded-xl p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold">{seg.label}</span>
+                    <span className={cn('text-sm font-bold', seg.shortfall && 'text-rose-200')}>
+                      {fmtMoney(seg.dailyLimit)} {ccy}/день
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] opacity-75 mt-1">
+                    <span>
+                      {format(seg.startDate, 'd MMM', { locale: ru })} → {format(seg.endDate, 'd MMM', { locale: ru })} ({seg.days}{' '}
+                      {pluralizeDays(seg.days)})
+                    </span>
+                    {seg.obligations > 0 && <span>платежи: −{fmtMoney(seg.obligations)}</span>}
+                  </div>
+                  {seg.shortfall && (
+                    <p className="text-[10px] text-rose-200 mt-1">
+                      не хватает на платежи + резерв в этом окне
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function pluralizeDays(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'день';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'дня';
+  return 'дней';
+}
+
 // ═══════════════ FACT SECTION ═══════════════
 
 function FactSection() {
-  const { incomeSources, plannedExpenses, actualExpenses, addActualExpense, deleteActualExpense } = useStore();
+  const {
+    incomeSources, plannedExpenses, actualExpenses, addActualExpense, deleteActualExpense,
+    accounts, transactions, rates, baseCurrency, safeToSpendReserve, setSafeToSpendReserve,
+  } = useStore();
   const [showExpForm, setShowExpForm] = useState(false);
   const [expForm, setExpForm] = useState({ name: '', amount: '', date: format(new Date(), 'yyyy-MM-dd') });
 
@@ -548,6 +707,19 @@ function FactSection() {
       actualExpenses: actual,
     }),
     [sources, planned, actual]
+  );
+
+  const forecast = useMemo(() =>
+    computeCashflowForecast({
+      accounts: accounts || [],
+      transactions: transactions || [],
+      rates: rates || {},
+      baseCurrency: baseCurrency || 'BYN',
+      incomeSources: sources,
+      plannedExpenses: planned,
+      reserve: safeToSpendReserve || 0,
+    }),
+    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve]
   );
 
   const totalIncome = sources.filter(s => s.isActive).reduce((sum, s) => sum + s.amount, 0);
@@ -591,6 +763,13 @@ function FactSection() {
 
   return (
     <div className="space-y-4">
+      {/* Safe-to-spend forecast */}
+      <SafeToSpendCard
+        forecast={forecast}
+        reserve={safeToSpendReserve || 0}
+        onReserveChange={setSafeToSpendReserve}
+      />
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 rounded-2xl text-white shadow-lg shadow-emerald-500/20">

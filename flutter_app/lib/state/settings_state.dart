@@ -36,6 +36,30 @@ final defaultCurrencyProvider = StateProvider<String>((ref) {
   return AppStorage.readString('defaultCurrency') ?? 'BYN';
 });
 
+/// Untouchable reserve kept aside in the safe-to-spend forecast (base
+/// currency). User-configurable; default 0 (spend down to zero).
+class SafeToSpendReserveController extends StateNotifier<double> {
+  SafeToSpendReserveController() : super(0) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) {
+      state = double.tryParse(stored) ?? 0;
+    }
+  }
+
+  static const _key = 'safeToSpendReserve';
+
+  Future<void> set(double amount) async {
+    final value = amount < 0 ? 0.0 : amount;
+    state = value;
+    await AppStorage.writeString(_key, value.toString());
+  }
+}
+
+final safeToSpendReserveProvider =
+    StateNotifierProvider<SafeToSpendReserveController, double>((ref) {
+  return SafeToSpendReserveController();
+});
+
 /// Water goal in ml (default 2000).
 class WaterGoalController extends StateNotifier<int> {
   WaterGoalController() : super(2000) {

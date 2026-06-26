@@ -504,3 +504,299 @@ List<BudgetCycle> computeBudgetCycles({
 
   return cycles;
 }
+
+// ── Cashflow forecast / "safe-to-spend" engine ──
+//
+// Unlike [computeBudgetCycles] (which is anchored to calendar pay dates and uses
+// income amounts as the budget), this engine starts from the *real* current
+// balance across all accounts and projects how much can be spent per day until
+// the next income arrives, while still covering upcoming obligations and keeping
+// an optional untouchable reserve. Mirrors `computeCashflowForecast` in
+// `src/lib/finance/budgetPlanner.ts`.
+
+bool _isAfter(DateTime a, DateTime b) => _diffDays(b, a) > 0;
+
+bool _isSameDayD(DateTime a, DateTime b) => _diffDays(a, b) == 0;
+
+({int year, int month}) _addMonth(int year, int month, int k) {
+  // month here is 1-based (Dart convention). Convert to 0-based for the maths.
+  final total = (month - 1) + k;
+  final y = year + (total / 12).floor();
+  final m = ((total % 12) + 12) % 12;
+  return (year: y, month: m + 1);
+}
+
+/// One window between today/an income and the next income.
+class CashflowSegment {
+  CashflowSegment({
+    required this.label,
+    required this.startDate,
+    required this.endDate,
+    required this.days,
+    required this.startBalance,
+    required this.obligations,
+    required this.incomeAtEnd,
+    required this.dailyLimit,
+    required this.endBalance,
+    required this.shortfall,
+  });
+
+  final String label;
+  final DateTime startDate;
+  final DateTime endDate;
+  final int days;
+  final double startBalance;
+  final double obligations;
+  final double incomeAtEnd;
+  final double dailyLimit;
+  final double endBalance;
+  final bool shortfall;
+}
+
+class NextIncome {
+  NextIncome({
+    required this.name,
+    required this.date,
+    required this.amount,
+    required this.daysUntil,
+  });
+
+  final String name;
+  final DateTime date;
+  final double amount;
+  final int daysUntil;
+}
+
+class CashflowForecast {
+  CashflowForecast({
+    required this.currentBalance,
+    required this.reserve,
+    required this.baseCurrency,
+    required this.segments,
+    required this.nextIncome,
+    required this.dailyUntilNextIncome,
+    required this.smoothedDaily,
+    required this.horizonEnd,
+    required this.hasCashGap,
+    required this.ok,
+  });
+
+  final double currentBalance;
+  final double reserve;
+  final String baseCurrency;
+  final List<CashflowSegment> segments;
+  final NextIncome? nextIncome;
+  final double dailyUntilNextIncome;
+  final double smoothedDaily;
+  final DateTime? horizonEnd;
+  final bool hasCashGap;
+  final bool ok;
+}
+
+class _CashEvent {
+  _CashEvent({required this.date, required this.amount, required this.name});
+  final DateTime date;
+  final double amount;
+  final String name;
+}
+
+/// Current balance per account = initialBalance + income − expense ± transfers,
+/// each account's running total converted into [baseCurrency].
+double computeCurrentBalance({
+  required List<Account> accounts,
+  required List<Transaction> transactions,
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+}) {
+  final conv = convert ?? (num amount, String from, String to) => amount;
+  double total = 0;
+  for (final a in accounts) {
+    final b = accountBalance(
+      account: a,
+      transactions: transactions,
+      accounts: accounts,
+      convert: conv,
+    );
+    total += conv(b, a.currency, baseCurrency).toDouble();
+  }
+  return total;
+}
+
+/// Project a cash runway from the current balance until the next salary (or the
+/// furthest income within [horizonDays] when there is no salary source), and
+/// work out a safe spend-per-day for each window and for the whole horizon.
+CashflowForecast computeCashflowForecast({
+  required List<Account> accounts,
+  required List<Transaction> transactions,
+  required List<IncomeSource> incomeSources,
+  required List<PlannedExpense> plannedExpenses,
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  double reserve = 0,
+  DateTime? today,
+  int horizonDays = 45,
+}) {
+  final conv = convert ?? (num amount, String from, String to) => amount;
+  final now = today ?? DateTime.now();
+  final startOfToday = DateTime(now.year, now.month, now.day);
+  final currentBalance = computeCurrentBalance(
+    accounts: accounts,
+    transactions: transactions,
+    convert: conv,
+    baseCurrency: baseCurrency,
+  );
+
+  CashflowForecast empty() => CashflowForecast(
+        currentBalance: currentBalance,
+        reserve: reserve,
+        baseCurrency: baseCurrency,
+        segments: const [],
+        nextIncome: null,
+        dailyUntilNextIncome: 0,
+        smoothedDaily: 0,
+        horizonEnd: null,
+        hasCashGap: false,
+        ok: false,
+      );
+
+  final active = incomeSources.where((s) => s.isActive).toList();
+  if (active.isEmpty) return empty();
+
+  double toBase(double amount, String currency) =>
+      conv(amount, currency, baseCurrency).toDouble();
+
+  // Build income occurrences across the next few months.
+  final incomeEvents = <_CashEvent>[];
+  DateTime? firstSalary;
+  for (var k = 0; k <= 3; k++) {
+    final ym = _addMonth(now.year, now.month, k);
+    for (final src in active) {
+      final date = getPayDate(src, ym.year, ym.month);
+      if (date == null) continue;
+      if (!_isAfter(date, startOfToday)) continue;
+      if (src.type == IncomeSourceType.salary &&
+          (firstSalary == null || _isBefore(date, firstSalary))) {
+        firstSalary = date;
+      }
+      incomeEvents.add(_CashEvent(
+        date: date,
+        amount: toBase(src.amount, src.currency),
+        name: src.name,
+      ));
+    }
+  }
+
+  // Horizon: up to and including the next salary; otherwise the furthest income
+  // within horizonDays.
+  DateTime? horizonEnd = firstSalary;
+  if (horizonEnd == null) {
+    final candidates = incomeEvents
+        .map((e) => e.date)
+        .where((d) => _diffDays(startOfToday, d) <= horizonDays)
+        .toList()
+      ..sort((a, b) => b.compareTo(a));
+    horizonEnd = candidates.isNotEmpty ? candidates.first : null;
+  }
+  if (horizonEnd == null) return empty();
+
+  final incomesInHorizon = incomeEvents
+      .where((e) => !_isAfter(e.date, horizonEnd!))
+      .toList()
+    ..sort((a, b) => a.date.compareTo(b.date));
+  if (incomesInHorizon.isEmpty) return empty();
+
+  // Build obligation occurrences (unpaid planned expenses) at their deadline.
+  final obligations = <_CashEvent>[];
+  for (final exp in plannedExpenses) {
+    if (!exp.isActive || exp.isPaid) continue;
+    for (var k = 0; k <= 3; k++) {
+      final ym = _addMonth(now.year, now.month, k);
+      final dim = DateTime(ym.year, ym.month + 1, 0).day;
+      final dayCandidate = exp.dayTo != 0 ? exp.dayTo : (exp.dayFrom != 0 ? exp.dayFrom : dim);
+      final day = dayCandidate.clamp(1, dim);
+      final date = DateTime(ym.year, ym.month, day);
+      if (_isAfter(date, startOfToday) && !_isAfter(date, horizonEnd)) {
+        obligations.add(_CashEvent(
+          date: date,
+          amount: toBase(exp.amount, exp.currency),
+          name: exp.name,
+        ));
+      }
+    }
+  }
+
+  // Walk segments between today and each income boundary.
+  final segments = <CashflowSegment>[];
+  var cursor = startOfToday;
+  var balance = currentBalance;
+  var hasCashGap = false;
+
+  // Feasibility accumulators for the smoothed daily figure.
+  var smoothedDaily = double.infinity;
+  var cumDays = 0;
+  var cumObligations = 0.0;
+  var cumIncomeBefore = 0.0;
+
+  for (var i = 0; i < incomesInHorizon.length; i++) {
+    final inc = incomesInHorizon[i];
+    final days = _diffDays(cursor, inc.date).clamp(1, 1 << 30);
+    final segObligations = obligations
+        .where((o) => _isAfter(o.date, cursor) || _isSameDayD(o.date, cursor))
+        .where((o) => !_isAfter(o.date, inc.date))
+        .fold<double>(0, (sum, o) => sum + o.amount);
+
+    final spendable = balance - reserve - segObligations;
+    final dailyLimit = spendable > 0 ? spendable / days : 0.0;
+    final shortfall = spendable < 0;
+    if (shortfall) hasCashGap = true;
+
+    final endBalance = balance - segObligations - dailyLimit * days + inc.amount;
+
+    segments.add(CashflowSegment(
+      label: i == 0
+          ? 'До «${inc.name}»'
+          : '«${incomesInHorizon[i - 1].name}» → «${inc.name}»',
+      startDate: cursor,
+      endDate: inc.date,
+      days: days,
+      startBalance: balance,
+      obligations: segObligations,
+      incomeAtEnd: inc.amount,
+      dailyLimit: dailyLimit,
+      endBalance: endBalance,
+      shortfall: shortfall,
+    ));
+
+    // Smoothed daily: keep balance ≥ reserve just before each income arrives.
+    cumDays += days;
+    cumObligations += segObligations;
+    final feasibleBefore =
+        currentBalance + cumIncomeBefore - cumObligations - reserve;
+    final perDay = feasibleBefore / cumDays;
+    if (perDay < smoothedDaily) smoothedDaily = perDay;
+    cumIncomeBefore += inc.amount;
+
+    balance = endBalance;
+    cursor = inc.date;
+  }
+
+  final next = incomesInHorizon.first;
+  return CashflowForecast(
+    currentBalance: currentBalance,
+    reserve: reserve,
+    baseCurrency: baseCurrency,
+    segments: segments,
+    nextIncome: NextIncome(
+      name: next.name,
+      date: next.date,
+      amount: next.amount,
+      daysUntil: _diffDays(startOfToday, next.date).clamp(0, 1 << 30),
+    ),
+    dailyUntilNextIncome: segments.isNotEmpty ? segments.first.dailyLimit : 0,
+    smoothedDaily:
+        smoothedDaily == double.infinity ? 0 : (smoothedDaily > 0 ? smoothedDaily : 0),
+    horizonEnd: horizonEnd,
+    hasCashGap: hasCashGap,
+    ok: true,
+  );
+}
