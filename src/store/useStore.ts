@@ -6,6 +6,7 @@ import { format, isSameMonth, parseISO } from 'date-fns';
 import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset, IncomeSource, PlannedExpense, ActualExpense } from '../types';
 import { createMonthlyBudgetActions } from './slices/monthlyBudgetSlice';
 import { convertCurrency } from '../lib/utils';
+import type { CashflowRangeMode } from '../lib/finance/budgetPlanner';
 
 // Custom storage using IndexedDB to handle large data (like base64 images)
 const storage: StateStorage = {
@@ -75,6 +76,13 @@ interface AppState {
   /** Untouchable reserve kept aside in the safe-to-spend forecast (base currency). */
   safeToSpendReserve: number;
   setSafeToSpendReserve: (amount: number) => void;
+  /** Which window the safe-to-spend card calculates over. */
+  safeToSpendRangeMode: CashflowRangeMode;
+  setSafeToSpendRangeMode: (mode: CashflowRangeMode) => void;
+  /** Custom window bounds (ISO yyyy-MM-dd) when range mode is 'custom'. */
+  safeToSpendCustomStart?: string;
+  safeToSpendCustomEnd?: string;
+  setSafeToSpendCustomRange: (start?: string, end?: string) => void;
   
   // Currency
   rates: Record<string, number>;
@@ -353,6 +361,9 @@ export const useStore = create<AppState>()(
       plannedExpenses: [],
       actualExpenses: [],
       safeToSpendReserve: 0,
+      safeToSpendRangeMode: 'auto',
+      safeToSpendCustomStart: undefined,
+      safeToSpendCustomEnd: undefined,
       wealthTreeTarget: null,
       dashboardConfig: {
         widgetsOrder: ['smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 'spheres_hub', 'goals', 'tasks_habits', 'water', 'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'monthly_budget', 'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery', 'discipline_score', 'stoic_quote', 'shopping_list'],
@@ -1240,6 +1251,8 @@ export const useStore = create<AppState>()(
         plannedExpenses: (state.plannedExpenses || []).map(e => ({ ...e, isPaid: false, paidDate: undefined, paidAmount: undefined }))
       })),
       setSafeToSpendReserve: (amount) => set({ safeToSpendReserve: Math.max(0, amount || 0) }),
+      setSafeToSpendRangeMode: (mode) => set({ safeToSpendRangeMode: mode }),
+      setSafeToSpendCustomRange: (start, end) => set({ safeToSpendCustomStart: start, safeToSpendCustomEnd: end }),
 
       toggleHideHabitNames: () => set((state) => ({
         hideHabitNames: !state.hideHabitNames

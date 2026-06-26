@@ -7,7 +7,7 @@
 import { getDaysInMonth, isWeekend, format, addDays, differenceInCalendarDays, isBefore, isAfter, isSameDay } from 'date-fns';
 import { isBYHoliday } from '../belarus/holidays';
 import { convertCurrency } from '../utils';
-import type { Account, IncomeSource, PlannedExpense, ActualExpense, Transaction } from '../../types';
+import type { Account, IncomeSource, PlannedExpense, Transaction } from '../../types';
 
 /**
  * Given a target day-of-month and a year/month, returns the last working day
@@ -68,137 +68,72 @@ export type BudgetCycle = {
 };
 
 /**
- * Calculate budget cycles based on income sources and expenses.
- * Returns cycles: salary→advance, advance→salary, salary→salary.
+ * Calculate budget cycles anchored to the *real* current balance, using the
+ * same cashflow engine as the "safe-to-spend" card so the two never diverge.
+ *
+ * Produces, when the matching income sources exist:
+ *   • До ближайшего дохода   (today → next income)
+ *   • Аванс → Аванс          (today → the advance after next)
+ *   • Зарплата → Зарплата    (today → the salary after next)
+ *
+ * Each cycle's budget is `currentBalance + income in window − obligations −
+ * reserve`, and the daily figure is the steady safe spend/day for the window.
  */
 export function computeBudgetCycles(opts: {
+  accounts: Account[];
+  transactions: Transaction[];
+  rates: Record<string, number>;
+  baseCurrency: string;
   incomeSources: IncomeSource[];
   plannedExpenses: PlannedExpense[];
-  actualExpenses: ActualExpense[];
+  reserve?: number;
   today?: Date;
 }): BudgetCycle[] {
-  const { incomeSources, plannedExpenses, actualExpenses, today = new Date() } = opts;
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const cycles: BudgetCycle[] = [];
-
-  // Find salary and advance dates/amounts
+  const { incomeSources, today = new Date() } = opts;
   const activeSources = incomeSources.filter(s => s.isActive);
-  const salarySource = activeSources.find(s => s.type === 'salary');
-  const advanceSource = activeSources.find(s => s.type === 'advance');
-  const additionalSources = activeSources.filter(s => s.type === 'additional');
-  const additionalTotal = additionalSources.reduce((sum, s) => sum + s.amount, 0);
+  const hasAdvance = activeSources.some(s => s.type === 'advance');
+  const hasSalary = activeSources.some(s => s.type === 'salary');
 
-  if (!salarySource && !advanceSource) return cycles;
+  const wanted: CashflowRangeMode[] = ['next'];
+  if (hasAdvance) wanted.push('advanceToAdvance');
+  if (hasSalary) wanted.push('salaryToSalary');
 
-  const salaryDate = salarySource ? getPayDate(salarySource, year, month) : null;
-  const advanceDate = advanceSource ? getPayDate(advanceSource, year, month) : null;
+  const cycles: BudgetCycle[] = [];
+  const seen = new Set<string>();
 
-  // Next month salary date for advance→salary cycle
-  const nextMonth = month === 11 ? 0 : month + 1;
-  const nextYear = month === 11 ? year + 1 : year;
-  const nextSalaryDate = salarySource ? getPayDate(salarySource, nextYear, nextMonth) : null;
+  for (const mode of wanted) {
+    const forecast = computeCashflowForecast({ ...opts, rangeMode: mode });
+    const range = forecast.range;
+    if (!forecast.ok || !range) continue;
 
-  // Previous month advance for salary→advance when salary is before advance
-  const prevMonth = month === 0 ? 11 : month - 1;
-  const prevYear = month === 0 ? year - 1 : year;
-  const prevAdvanceDate = advanceSource ? getPayDate(advanceSource, prevYear, prevMonth) : null;
+    // Skip duplicates (e.g. advance→advance window that coincides with another).
+    const key = `${range.startDate.getTime()}-${range.endDate.getTime()}-${range.label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
 
-  const activeExpenses = plannedExpenses.filter(e => e.isActive);
+    const available = range.startBalance + range.totalIncome;
+    // Keep the budget consistent with the card: total safe discretionary spend
+    // over the window is the steady daily figure across all its days.
+    const remainingBudget = range.smoothedDaily * range.daysLeft;
+    const fullWeeks = Math.floor(range.daysLeft / 7);
+    const extraDays = range.daysLeft % 7;
 
-  function expensesInRange(start: Date, end: Date): number {
-    return activeExpenses
-      .filter(e => {
-        if (e.isPaid) return false;
-        const expDay = e.dayFrom;
-        const startDay = start.getDate();
-        const endDay = end.getDate();
-        if (start.getMonth() === end.getMonth()) {
-          return expDay >= startDay && expDay <= endDay;
-        }
-        return expDay >= startDay || expDay <= endDay;
-      })
-      .reduce((sum, e) => sum + e.amount, 0);
-  }
-
-  function paidExpensesInRange(start: Date, end: Date): number {
-    return activeExpenses
-      .filter(e => e.isPaid && e.paidDate)
-      .filter(e => {
-        const d = new Date(e.paidDate!);
-        return (isSameDay(d, start) || isAfter(d, start)) && (isSameDay(d, end) || isBefore(d, end));
-      })
-      .reduce((sum, e) => sum + (e.paidAmount || e.amount), 0);
-  }
-
-  function actualSpentInRange(start: Date, end: Date): number {
-    return actualExpenses
-      .filter(e => {
-        const d = new Date(e.date);
-        return (isSameDay(d, start) || isAfter(d, start)) && (isSameDay(d, end) || isBefore(d, end));
-      })
-      .reduce((sum, e) => sum + e.amount, 0);
-  }
-
-  function buildCycle(label: string, startDate: Date, endDate: Date, income: number): BudgetCycle {
-    const totalDays = differenceInCalendarDays(endDate, startDate);
-    const daysFromToday = isBefore(today, startDate) ? totalDays : Math.max(1, differenceInCalendarDays(endDate, today));
-    const expenses = expensesInRange(startDate, endDate);
-    const paid = paidExpensesInRange(startDate, endDate);
-    const actual = actualSpentInRange(startDate, endDate);
-    const totalSpent = paid + actual;
-    const remaining = income - expenses - totalSpent;
-    const daily = daysFromToday > 0 ? remaining / daysFromToday : 0;
-    const fullWeeks = Math.floor(daysFromToday / 7);
-    const extraDays = daysFromToday % 7;
-
-    return {
-      label,
-      startDate,
-      endDate,
-      totalDays,
-      daysLeft: daysFromToday,
-      totalIncome: income,
-      totalPlannedExpenses: expenses,
-      remainingAfterExpenses: income - expenses,
-      actualSpent: totalSpent,
-      remainingBudget: remaining,
-      dailyBudget: Math.max(0, daily),
-      weeklyBudget: Math.max(0, daily * 7),
+    cycles.push({
+      label: range.label,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      totalDays: range.days,
+      daysLeft: range.daysLeft,
+      totalIncome: available,
+      totalPlannedExpenses: range.totalObligations,
+      remainingAfterExpenses: available - range.totalObligations,
+      actualSpent: 0,
+      remainingBudget,
+      dailyBudget: range.smoothedDaily,
+      weeklyBudget: range.smoothedDaily * 7,
       fullWeeks,
       extraDays,
-    };
-  }
-
-  // Cycle 1: Salary → Advance (if both exist and salary is before advance)
-  if (salaryDate && advanceDate && isBefore(salaryDate, advanceDate)) {
-    cycles.push(buildCycle(
-      'От зарплаты до аванса',
-      salaryDate,
-      advanceDate,
-      salarySource!.amount,
-    ));
-  }
-
-  // Cycle 2: Advance → Next Salary
-  if (advanceDate && nextSalaryDate) {
-    cycles.push(buildCycle(
-      'От аванса до зарплаты',
-      advanceDate,
-      nextSalaryDate,
-      advanceSource!.amount,
-    ));
-  }
-
-  // Cycle 3: Salary → Next Salary (full cycle)
-  if (salaryDate && nextSalaryDate) {
-    const totalIncome = (salarySource?.amount || 0) + (advanceSource?.amount || 0) + additionalTotal;
-    cycles.push(buildCycle(
-      'От зарплаты до зарплаты',
-      salaryDate,
-      nextSalaryDate,
-      totalIncome,
-    ));
+    });
   }
 
   return cycles;
@@ -242,6 +177,43 @@ export type CashflowSegment = {
   shortfall: boolean;
 };
 
+/**
+ * Which window the forecast should be calculated over.
+ * - `auto`            until the next salary (legacy default)
+ * - `next`            until the next income of any kind
+ * - `advanceToAdvance` a full advance→advance cycle ahead
+ * - `salaryToSalary`   a full salary→salary cycle ahead
+ * - `fullHorizon`      the furthest income within `horizonDays`
+ * - `custom`           a user-picked date window (`customStart`/`customEnd`)
+ */
+export type CashflowRangeMode =
+  | 'auto'
+  | 'next'
+  | 'advanceToAdvance'
+  | 'salaryToSalary'
+  | 'fullHorizon'
+  | 'custom';
+
+/** Summary of the period the forecast was calculated over. */
+export type CashflowRangeSummary = {
+  mode: CashflowRangeMode;
+  label: string;
+  startDate: Date;
+  endDate: Date;
+  /** Calendar days inside the window (>= 1). */
+  days: number;
+  /** Calendar days from today to the window end (>= 0). */
+  daysLeft: number;
+  /** Real balance at the window start, in base currency. */
+  startBalance: number;
+  /** Income arriving inside the window, base currency. */
+  totalIncome: number;
+  /** Obligations falling due inside the window, base currency. */
+  totalObligations: number;
+  /** Steady safe spend/day across the whole window keeping the reserve. */
+  smoothedDaily: number;
+};
+
 export type CashflowForecast = {
   /** Real current balance summed across accounts, converted to base currency. */
   currentBalance: number;
@@ -257,6 +229,8 @@ export type CashflowForecast = {
   smoothedDaily: number;
   /** End of the projection horizon (next salary, or furthest projected income). */
   horizonEnd: Date | null;
+  /** The window the forecast was calculated over (null when no forecast). */
+  range: CashflowRangeSummary | null;
   /** True when any segment cannot cover its obligations + reserve. */
   hasCashGap: boolean;
   /** True when a forecast could be produced (income sources + dates available). */
@@ -307,10 +281,26 @@ export function computeCurrentBalance(
   return total;
 }
 
+/** An income occurrence with the originating source type (for cycle detection). */
+type IncomeOccurrence = { date: Date; amount: number; name: string; type: IncomeSource['type'] };
+
+const RANGE_LABELS: Record<CashflowRangeMode, string> = {
+  auto: 'До зарплаты',
+  next: 'До ближайшего дохода',
+  advanceToAdvance: 'Аванс → Аванс',
+  salaryToSalary: 'Зарплата → Зарплата',
+  fullHorizon: 'Весь горизонт',
+  custom: 'Свой период',
+};
+
 /**
- * Project a cash runway from the current balance until the next salary (or the
- * furthest income within `horizonDays` when there is no salary source), and work
- * out a safe spend-per-day for each window and for the whole horizon.
+ * Project a cash runway from the current balance over a chosen window and work
+ * out a safe spend-per-day for each segment and for the whole window.
+ *
+ * The window is controlled by `rangeMode` (default `auto` = until the next
+ * salary, preserving the original behaviour). All figures derive from the real
+ * current balance across accounts, so the card and the budget cycles stay
+ * consistent.
  */
 export function computeCashflowForecast(opts: {
   accounts: Account[];
@@ -324,6 +314,12 @@ export function computeCashflowForecast(opts: {
   today?: Date;
   /** How far ahead to look for income when there is no salary source. */
   horizonDays?: number;
+  /** Which window to calculate over (default `auto`). */
+  rangeMode?: CashflowRangeMode;
+  /** Start of the custom window (only for `rangeMode: 'custom'`). */
+  customStart?: Date;
+  /** End of the custom window (only for `rangeMode: 'custom'`). */
+  customEnd?: Date;
 }): CashflowForecast {
   const {
     accounts,
@@ -335,9 +331,13 @@ export function computeCashflowForecast(opts: {
     reserve = 0,
     today = new Date(),
     horizonDays = 45,
+    rangeMode = 'auto',
+    customStart,
+    customEnd,
   } = opts;
 
-  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const startOfToday = startOf(today);
   const currentBalance = computeCurrentBalance(accounts, transactions, rates, baseCurrency);
 
   const empty: CashflowForecast = {
@@ -349,6 +349,7 @@ export function computeCashflowForecast(opts: {
     dailyUntilNextIncome: 0,
     smoothedDaily: 0,
     horizonEnd: null,
+    range: null,
     hasCashGap: false,
     ok: false,
   };
@@ -359,43 +360,72 @@ export function computeCashflowForecast(opts: {
   const toBase = (amount: number, currency?: string) =>
     convertCurrency(amount, currency || baseCurrency, baseCurrency, rates);
 
-  // Build income occurrences across the next few months.
-  const incomeEvents: CashEvent[] = [];
+  // Build income occurrences across the next several months (enough to find a
+  // second advance/salary for the repeating-cycle modes).
+  const incomeEvents: IncomeOccurrence[] = [];
+  const advanceDates: Date[] = [];
+  const salaryDates: Date[] = [];
   let firstSalary: Date | null = null;
-  for (let k = 0; k <= 3; k++) {
+  for (let k = 0; k <= 6; k++) {
     const { year, month } = addMonth(today.getFullYear(), today.getMonth(), k);
     for (const src of active) {
       const date = getPayDate(src, year, month);
       if (!date) continue;
       if (!isAfter(date, startOfToday)) continue;
-      if (src.type === 'salary' && (!firstSalary || isBefore(date, firstSalary))) {
-        firstSalary = date;
+      if (src.type === 'salary') {
+        if (!firstSalary || isBefore(date, firstSalary)) firstSalary = date;
+        salaryDates.push(date);
       }
-      incomeEvents.push({ date, amount: toBase(src.amount, src.currency), name: src.name, kind: 'income' });
+      if (src.type === 'advance') advanceDates.push(date);
+      incomeEvents.push({ date, amount: toBase(src.amount, src.currency), name: src.name, type: src.type });
     }
   }
+  incomeEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+  advanceDates.sort((a, b) => a.getTime() - b.getTime());
+  salaryDates.sort((a, b) => a.getTime() - b.getTime());
 
-  // Horizon: up to and including the next salary; otherwise the furthest income
-  // within horizonDays.
-  const horizonEnd =
-    firstSalary ?? incomeEvents
-      .map(e => e.date)
-      .filter(d => differenceInCalendarDays(d, startOfToday) <= horizonDays)
-      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+  const nextIncomeDate = incomeEvents[0]?.date ?? null;
+  const furthestWithinHorizon = incomeEvents
+    .map(e => e.date)
+    .filter(d => differenceInCalendarDays(d, startOfToday) <= horizonDays)
+    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
-  if (!horizonEnd) return empty;
-
-  const incomesInHorizon = incomeEvents
-    .filter(e => !isAfter(e.date, horizonEnd))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  if (incomesInHorizon.length === 0) return empty;
+  // Resolve the window [rangeStart, horizonEnd] from the requested mode.
+  let rangeStart = startOfToday;
+  let horizonEnd: Date | null;
+  switch (rangeMode) {
+    case 'next':
+      horizonEnd = nextIncomeDate;
+      break;
+    case 'advanceToAdvance':
+      horizonEnd = advanceDates[1] ?? advanceDates[0] ?? null;
+      break;
+    case 'salaryToSalary':
+      horizonEnd = salaryDates[1] ?? salaryDates[0] ?? null;
+      break;
+    case 'fullHorizon':
+      horizonEnd = furthestWithinHorizon;
+      break;
+    case 'custom':
+      rangeStart = customStart ? startOf(customStart) : startOfToday;
+      horizonEnd = customEnd ? startOf(customEnd) : null;
+      break;
+    case 'auto':
+    default:
+      horizonEnd = firstSalary ?? furthestWithinHorizon;
+      break;
+  }
+  // Fall back to the broadest sensible horizon if the requested one is missing.
+  if (!horizonEnd) horizonEnd = firstSalary ?? furthestWithinHorizon ?? nextIncomeDate;
+  if (!horizonEnd || !isAfter(horizonEnd, startOfToday)) return empty;
+  if (rangeStart < startOfToday) rangeStart = startOfToday;
+  if (!isAfter(horizonEnd, rangeStart)) return empty;
 
   // Build obligation occurrences (unpaid planned expenses) at their deadline day.
   const obligations: CashEvent[] = [];
   for (const exp of plannedExpenses) {
     if (!exp.isActive || exp.isPaid) continue;
-    for (let k = 0; k <= 3; k++) {
+    for (let k = 0; k <= 6; k++) {
       const { year, month } = addMonth(today.getFullYear(), today.getMonth(), k);
       const dim = getDaysInMonth(new Date(year, month));
       const day = Math.min(exp.dayTo || exp.dayFrom || dim, dim);
@@ -406,73 +436,145 @@ export function computeCashflowForecast(opts: {
     }
   }
 
-  // Walk segments between today and each income boundary.
-  const segments: CashflowSegment[] = [];
-  let cursor = startOfToday;
-  let balance = currentBalance;
-  let hasCashGap = false;
+  /**
+   * Walk the windows between `from` and `to`, splitting at each income event.
+   * Returns the segments plus aggregate figures for the whole window.
+   */
+  function walk(from: Date, startBalance: number, to: Date) {
+    const incs = incomeEvents.filter(e => isAfter(e.date, from) && !isAfter(e.date, to));
+    const boundaries: { date: Date; income: number; name: string | null }[] = incs.map(e => ({
+      date: e.date,
+      income: e.amount,
+      name: e.name,
+    }));
+    const last = boundaries[boundaries.length - 1];
+    if ((!last || isBefore(last.date, to)) && isAfter(to, from)) {
+      boundaries.push({ date: to, income: 0, name: null });
+    }
 
-  // Feasibility accumulators for the smoothed daily figure.
-  let smoothedDaily = Infinity;
-  let cumDays = 0;
-  let cumObligations = 0;
-  let cumIncomeBefore = 0; // income received strictly before the current boundary
+    const segs: CashflowSegment[] = [];
+    let cursor = from;
+    let balance = startBalance;
+    let gap = false;
+    let smoothed = Infinity;
+    let cumDays = 0;
+    let cumObligations = 0;
+    let cumIncomeBefore = 0;
+    let totalIncome = 0;
+    let totalObligations = 0;
 
-  for (let i = 0; i < incomesInHorizon.length; i++) {
-    const inc = incomesInHorizon[i];
-    const days = Math.max(1, differenceInCalendarDays(inc.date, cursor));
-    const segObligations = obligations
-      .filter(o => isAfter(o.date, cursor) || isSameDay(o.date, cursor))
-      .filter(o => !isAfter(o.date, inc.date))
-      .reduce((sum, o) => sum + Math.abs(o.amount), 0);
+    for (let i = 0; i < boundaries.length; i++) {
+      const b = boundaries[i];
+      const days = Math.max(1, differenceInCalendarDays(b.date, cursor));
+      const segObligations = obligations
+        .filter(o => isAfter(o.date, cursor) || isSameDay(o.date, cursor))
+        .filter(o => !isAfter(o.date, b.date))
+        .reduce((sum, o) => sum + Math.abs(o.amount), 0);
 
-    const spendable = balance - reserve - segObligations;
-    const dailyLimit = Math.max(0, spendable / days);
-    const shortfall = spendable < 0;
-    if (shortfall) hasCashGap = true;
+      const spendable = balance - reserve - segObligations;
+      const dailyLimit = Math.max(0, spendable / days);
+      const shortfall = spendable < 0;
+      if (shortfall) gap = true;
 
-    const endBalance = balance - segObligations - dailyLimit * days + inc.amount;
+      const endBalance = balance - segObligations - dailyLimit * days + b.income;
+      const prevName = i > 0 ? boundaries[i - 1].name : null;
+      const label =
+        i === 0
+          ? (b.name ? `До «${b.name}»` : 'До конца периода')
+          : (b.name ? `«${prevName ?? '…'}» → «${b.name}»` : `«${prevName ?? '…'}» → конец периода`);
 
-    segments.push({
-      label: i === 0 ? `До «${inc.name}»` : `«${incomesInHorizon[i - 1].name}» → «${inc.name}»`,
-      startDate: cursor,
-      endDate: inc.date,
-      days,
-      startBalance: balance,
-      obligations: segObligations,
-      incomeAtEnd: inc.amount,
-      dailyLimit,
-      endBalance,
-      shortfall,
-    });
+      segs.push({
+        label,
+        startDate: cursor,
+        endDate: b.date,
+        days,
+        startBalance: balance,
+        obligations: segObligations,
+        incomeAtEnd: b.income,
+        dailyLimit,
+        endBalance,
+        shortfall,
+      });
 
-    // Smoothed daily: keep balance ≥ reserve just before each income arrives.
-    cumDays += days;
-    cumObligations += segObligations;
-    const feasibleBefore = currentBalance + cumIncomeBefore - cumObligations - reserve;
-    smoothedDaily = Math.min(smoothedDaily, feasibleBefore / cumDays);
-    cumIncomeBefore += inc.amount;
+      cumDays += days;
+      cumObligations += segObligations;
+      const feasibleBefore = startBalance + cumIncomeBefore - cumObligations - reserve;
+      smoothed = Math.min(smoothed, feasibleBefore / cumDays);
+      cumIncomeBefore += b.income;
+      // Income that arrives exactly at the window's closing boundary belongs to
+      // the *next* cycle, so it is not spendable inside this window.
+      if (isBefore(b.date, to)) totalIncome += b.income;
+      totalObligations += segObligations;
 
-    balance = endBalance;
-    cursor = inc.date;
+      balance = endBalance;
+      cursor = b.date;
+    }
+
+    return {
+      segments: segs,
+      smoothedDaily: smoothed === Infinity ? 0 : Math.max(0, smoothed),
+      hasCashGap: gap,
+      totalIncome,
+      totalObligations,
+    };
   }
 
-  const next = incomesInHorizon[0];
+  // Project the balance forward to a future window start (custom ranges only),
+  // assuming no discretionary spend before the window opens.
+  let startBalance = currentBalance;
+  if (isAfter(rangeStart, startOfToday)) {
+    let projected = currentBalance;
+    for (const e of incomeEvents) {
+      if (isAfter(e.date, startOfToday) && !isAfter(e.date, rangeStart)) projected += e.amount;
+    }
+    for (const o of obligations) {
+      if (isAfter(o.date, startOfToday) && !isAfter(o.date, rangeStart)) projected -= Math.abs(o.amount);
+    }
+    startBalance = projected;
+  }
+
+  const rangeWalk = walk(rangeStart, startBalance, horizonEnd);
+  if (rangeWalk.segments.length === 0) return empty;
+
+  // Headline "until next income" is always measured from today, even when the
+  // selected window starts later.
+  const headline = nextIncomeDate ? walk(startOfToday, currentBalance, nextIncomeDate) : null;
+  const dailyUntilNextIncome =
+    rangeStart.getTime() === startOfToday.getTime()
+      ? rangeWalk.segments[0]?.dailyLimit ?? 0
+      : headline?.segments[0]?.dailyLimit ?? 0;
+
+  const next = incomeEvents[0];
+
   return {
     currentBalance,
     reserve,
     baseCurrency,
-    segments,
-    nextIncome: {
-      name: next.name,
-      date: next.date,
-      amount: next.amount,
-      daysUntil: Math.max(0, differenceInCalendarDays(next.date, startOfToday)),
-    },
-    dailyUntilNextIncome: segments[0]?.dailyLimit ?? 0,
-    smoothedDaily: Math.max(0, smoothedDaily === Infinity ? 0 : smoothedDaily),
+    segments: rangeWalk.segments,
+    nextIncome: next
+      ? {
+          name: next.name,
+          date: next.date,
+          amount: next.amount,
+          daysUntil: Math.max(0, differenceInCalendarDays(next.date, startOfToday)),
+        }
+      : null,
+    dailyUntilNextIncome,
+    smoothedDaily: rangeWalk.smoothedDaily,
     horizonEnd,
-    hasCashGap,
+    range: {
+      mode: rangeMode,
+      label: RANGE_LABELS[rangeMode],
+      startDate: rangeStart,
+      endDate: horizonEnd,
+      days: Math.max(1, differenceInCalendarDays(horizonEnd, rangeStart)),
+      daysLeft: Math.max(0, differenceInCalendarDays(horizonEnd, startOfToday)),
+      startBalance,
+      totalIncome: rangeWalk.totalIncome,
+      totalObligations: rangeWalk.totalObligations,
+      smoothedDaily: rangeWalk.smoothedDaily,
+    },
+    hasCashGap: rangeWalk.hasCashGap,
     ok: true,
   };
 }

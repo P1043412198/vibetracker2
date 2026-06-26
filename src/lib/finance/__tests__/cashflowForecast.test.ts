@@ -177,6 +177,81 @@ describe('computeCashflowForecast — edge cases', () => {
   });
 });
 
+describe('computeCashflowForecast — range modes', () => {
+  it('defaults to the salary horizon (auto) with the next income as the headline', () => {
+    const f = computeCashflowForecast({
+      accounts: balance360,
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: baseSources,
+      plannedExpenses: [],
+      today,
+    });
+    expect(f.range?.mode).toBe('auto');
+    // Salary on the 15th of July → horizon ends there.
+    expect(f.horizonEnd?.getMonth()).toBe(6); // July
+    expect(f.horizonEnd?.getDate()).toBe(15);
+  });
+
+  it('stops at the next income for the "next" mode', () => {
+    const f = computeCashflowForecast({
+      accounts: balance360,
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: baseSources,
+      plannedExpenses: [],
+      today,
+      rangeMode: 'next',
+    });
+    expect(f.segments).toHaveLength(1);
+    expect(f.range?.endDate.getDate()).toBe(30); // advance
+    expect(f.range?.label).toBe('До ближайшего дохода');
+    expect(f.dailyUntilNextIncome).toBeCloseTo(90, 6);
+  });
+
+  it('projects a full advance→advance cycle (over the salary in between)', () => {
+    const f = computeCashflowForecast({
+      accounts: balance360,
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: baseSources,
+      plannedExpenses: [],
+      today,
+      rangeMode: 'advanceToAdvance',
+    });
+    expect(f.range?.label).toBe('Аванс → Аванс');
+    // Advance (dayOfMonth >= 28) means last day of month → 31 July 2026.
+    expect(f.horizonEnd?.getMonth()).toBe(6); // July
+    expect(f.horizonEnd?.getDate()).toBe(31);
+    // Both the next advance and the salary fall inside the window.
+    expect(f.range?.totalIncome).toBeCloseTo(500 + 1200, 6);
+    // today→adv, adv→salary, salary→adv = 3 segments.
+    expect(f.segments).toHaveLength(3);
+  });
+
+  it('honours a custom end date', () => {
+    const f = computeCashflowForecast({
+      accounts: balance360,
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: baseSources,
+      plannedExpenses: [],
+      today,
+      rangeMode: 'custom',
+      customEnd: new Date(2026, 6, 5), // 5 July 2026
+    });
+    expect(f.range?.mode).toBe('custom');
+    expect(f.range?.endDate.getDate()).toBe(5);
+    expect(f.range?.endDate.getMonth()).toBe(6);
+    // Only the advance (30 June) falls inside; salary (15 July) does not.
+    expect(f.range?.totalIncome).toBeCloseTo(500, 6);
+  });
+});
+
 describe('computeCurrentBalance', () => {
   it('applies income, expense and transfers per account', () => {
     const accounts = [

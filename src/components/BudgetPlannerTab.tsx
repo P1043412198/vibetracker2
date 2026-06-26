@@ -6,12 +6,12 @@ import {
   CheckCircle2, Circle, AlertTriangle, Clock, ArrowRight,
   DollarSign, PiggyBank, BarChart3,
 } from 'lucide-react';
-import { format, differenceInCalendarDays } from 'date-fns';
+import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import { cn } from '../lib/utils';
 import { computeBudgetCycles, computeCashflowForecast, getPayDate } from '../lib/finance/budgetPlanner';
-import type { CashflowForecast } from '../lib/finance/budgetPlanner';
+import type { CashflowForecast, CashflowRangeMode } from '../lib/finance/budgetPlanner';
 import type { IncomeSource, IncomeSourceType, PlannedExpense } from '../types';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -535,14 +535,33 @@ function ExpensePlanSection() {
 
 const fmtMoney = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
+const RANGE_OPTIONS: { mode: CashflowRangeMode; label: string }[] = [
+  { mode: 'auto', label: 'До зарплаты' },
+  { mode: 'next', label: 'До ближайшего' },
+  { mode: 'advanceToAdvance', label: 'Аванс→Аванс' },
+  { mode: 'salaryToSalary', label: 'Зарплата→Зарплата' },
+  { mode: 'fullHorizon', label: 'Весь горизонт' },
+  { mode: 'custom', label: 'Свой период' },
+];
+
 function SafeToSpendCard({
   forecast,
   reserve,
   onReserveChange,
+  rangeMode,
+  onRangeModeChange,
+  customStart,
+  customEnd,
+  onCustomRangeChange,
 }: {
   forecast: CashflowForecast;
   reserve: number;
   onReserveChange: (amount: number) => void;
+  rangeMode: CashflowRangeMode;
+  onRangeModeChange: (mode: CashflowRangeMode) => void;
+  customStart?: string;
+  customEnd?: string;
+  onCustomRangeChange: (start?: string, end?: string) => void;
 }) {
   const [reserveInput, setReserveInput] = useState(String(reserve || 0));
   const [showSegments, setShowSegments] = useState(false);
@@ -589,6 +608,52 @@ function SafeToSpendCard({
             <p className="text-xs opacity-85 mb-3">ближайших поступлений в горизонте нет</p>
           )}
 
+          {/* Period selector */}
+          <div className="mb-3">
+            <span className="text-[10px] uppercase font-bold opacity-75 block mb-1.5">Период расчёта</span>
+            <div className="flex flex-wrap gap-1.5">
+              {RANGE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.mode}
+                  onClick={() => onRangeModeChange(opt.mode)}
+                  className={cn(
+                    'text-[11px] font-semibold rounded-lg px-2.5 py-1 transition-colors',
+                    rangeMode === opt.mode
+                      ? 'bg-white text-indigo-700'
+                      : 'bg-white/15 text-white hover:bg-white/25'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {rangeMode === 'custom' && (
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="date"
+                  value={customStart || ''}
+                  onChange={(e) => onCustomRangeChange(e.target.value || undefined, customEnd)}
+                  className="flex-1 bg-white/90 text-zinc-900 text-xs font-semibold rounded-lg px-2 py-1.5 outline-none"
+                />
+                <ArrowRight className="w-3.5 h-3.5 opacity-70 shrink-0" />
+                <input
+                  type="date"
+                  value={customEnd || ''}
+                  onChange={(e) => onCustomRangeChange(customStart, e.target.value || undefined)}
+                  className="flex-1 bg-white/90 text-zinc-900 text-xs font-semibold rounded-lg px-2 py-1.5 outline-none"
+                />
+              </div>
+            )}
+            {forecast.range && (
+              <p className="text-[11px] opacity-85 mt-2">
+                {forecast.range.label}: {format(forecast.range.startDate, 'd MMM', { locale: ru })} → {format(forecast.range.endDate, 'd MMM', { locale: ru })}
+                {' '}({forecast.range.daysLeft} {pluralizeDays(forecast.range.daysLeft)})
+                {forecast.range.totalIncome > 0 && <> · доход +{fmtMoney(forecast.range.totalIncome)} {ccy}</>}
+                {forecast.range.totalObligations > 0 && <> · платежи −{fmtMoney(forecast.range.totalObligations)} {ccy}</>}
+              </p>
+            )}
+          </div>
+
           {/* Balance + smoothed */}
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="bg-white/15 rounded-xl p-3">
@@ -596,7 +661,7 @@ function SafeToSpendCard({
               <span className="text-lg font-bold">{fmtMoney(forecast.currentBalance)} {ccy}</span>
             </div>
             <div className="bg-white/15 rounded-xl p-3">
-              <span className="text-[10px] uppercase font-bold opacity-75 block">Ровно в день (до зарплаты)</span>
+              <span className="text-[10px] uppercase font-bold opacity-75 block">Ровно в день ({forecast.range?.label ?? 'период'})</span>
               <span className="text-lg font-bold">{fmtMoney(forecast.smoothedDaily)} {ccy}</span>
             </div>
           </div>
@@ -692,6 +757,8 @@ function FactSection() {
   const {
     incomeSources, plannedExpenses, actualExpenses, addActualExpense, deleteActualExpense,
     accounts, transactions, rates, baseCurrency, safeToSpendReserve, setSafeToSpendReserve,
+    safeToSpendRangeMode, setSafeToSpendRangeMode,
+    safeToSpendCustomStart, safeToSpendCustomEnd, setSafeToSpendCustomRange,
   } = useStore();
   const [showExpForm, setShowExpForm] = useState(false);
   const [expForm, setExpForm] = useState({ name: '', amount: '', date: format(new Date(), 'yyyy-MM-dd') });
@@ -702,12 +769,19 @@ function FactSection() {
 
   const cycles = useMemo(() =>
     computeBudgetCycles({
+      accounts: accounts || [],
+      transactions: transactions || [],
+      rates: rates || {},
+      baseCurrency: baseCurrency || 'BYN',
       incomeSources: sources,
       plannedExpenses: planned,
-      actualExpenses: actual,
+      reserve: safeToSpendReserve || 0,
     }),
-    [sources, planned, actual]
+    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve]
   );
+
+  const customStart = safeToSpendCustomStart ? parseISO(safeToSpendCustomStart) : undefined;
+  const customEnd = safeToSpendCustomEnd ? parseISO(safeToSpendCustomEnd) : undefined;
 
   const forecast = useMemo(() =>
     computeCashflowForecast({
@@ -718,8 +792,11 @@ function FactSection() {
       incomeSources: sources,
       plannedExpenses: planned,
       reserve: safeToSpendReserve || 0,
+      rangeMode: safeToSpendRangeMode || 'auto',
+      customStart,
+      customEnd,
     }),
-    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve]
+    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve, safeToSpendRangeMode, safeToSpendCustomStart, safeToSpendCustomEnd]
   );
 
   const totalIncome = sources.filter(s => s.isActive).reduce((sum, s) => sum + s.amount, 0);
@@ -768,6 +845,11 @@ function FactSection() {
         forecast={forecast}
         reserve={safeToSpendReserve || 0}
         onReserveChange={setSafeToSpendReserve}
+        rangeMode={safeToSpendRangeMode || 'auto'}
+        onRangeModeChange={setSafeToSpendRangeMode}
+        customStart={safeToSpendCustomStart}
+        customEnd={safeToSpendCustomEnd}
+        onCustomRangeChange={setSafeToSpendCustomRange}
       />
 
       {/* Summary cards */}
@@ -920,15 +1002,15 @@ function FactSection() {
                   <circle
                     cx="18" cy="18" r="15.5" fill="none" stroke="#f59e0b"
                     strokeWidth="3"
-                    strokeDasharray={`${cycle.totalIncome > 0 ? Math.min(97.4, (cycle.actualSpent / cycle.totalIncome) * 97.4) : 0} 97.4`}
+                    strokeDasharray={`${cycle.totalIncome > 0 ? Math.min(97.4, (cycle.totalPlannedExpenses / cycle.totalIncome) * 97.4) : 0} 97.4`}
                     strokeLinecap="round"
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-zinc-900">
-                  {cycle.totalIncome > 0 ? Math.round((cycle.actualSpent / cycle.totalIncome) * 100) : 0}%
+                  {cycle.totalIncome > 0 ? Math.round((cycle.totalPlannedExpenses / cycle.totalIncome) * 100) : 0}%
                 </span>
               </div>
-              <span className="text-[9px] text-zinc-500 font-bold uppercase">Потрачено</span>
+              <span className="text-[9px] text-zinc-500 font-bold uppercase">Платежи</span>
             </div>
           </div>
 

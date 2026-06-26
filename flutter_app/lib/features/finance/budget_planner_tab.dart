@@ -49,6 +49,11 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
     final baseCurrency = ref.watch(defaultCurrencyProvider);
     final rates = ref.watch(currencyRatesProvider);
     final reserve = ref.watch(safeToSpendReserveProvider);
+    final rangeMode = ref.watch(safeToSpendRangeModeProvider);
+    final customRange = ref.watch(safeToSpendCustomRangeProvider);
+
+    DateTime? parseIso(String? iso) =>
+        (iso == null || iso.isEmpty) ? null : DateTime.tryParse(iso);
 
     num convert(num amount, String from, String to) =>
         convertCurrency(amount: amount, from: from, to: to, rates: rates);
@@ -83,10 +88,11 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
       convert: convert,
       baseCurrency: baseCurrency,
       accountBalance: facts.accountBalance,
+      reserve: reserve.toDouble(),
     );
 
     // Safe-to-spend forecast: how much can be spent per day from the real
-    // account balance until the next income, honouring the user's reserve.
+    // account balance over the user-selected window, honouring the reserve.
     // Loans are folded into obligations so the runway reflects them.
     final forecast = computeCashflowForecast(
       accounts: accounts,
@@ -96,6 +102,9 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
       convert: convert,
       baseCurrency: baseCurrency,
       reserve: reserve.toDouble(),
+      rangeMode: rangeMode,
+      customStart: parseIso(customRange.start),
+      customEnd: parseIso(customRange.end),
     );
 
     return ListView(
@@ -1493,6 +1502,99 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
     _reserveCtrl.text = _formatReserve(value);
   }
 
+  Future<void> _pickCustomDate(BuildContext context, {required bool isStart}) async {
+    final custom = ref.read(safeToSpendCustomRangeProvider);
+    final current = isStart ? custom.start : custom.end;
+    final initial = (current != null && current.isNotEmpty
+            ? DateTime.tryParse(current)
+            : null) ??
+        DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(DateTime.now().year - 2),
+      lastDate: DateTime(DateTime.now().year + 3),
+    );
+    if (picked == null) return;
+    final iso = DateFormat('yyyy-MM-dd').format(picked);
+    final notifier = ref.read(safeToSpendCustomRangeProvider.notifier);
+    if (isStart) {
+      await notifier.setStart(iso);
+    } else {
+      await notifier.setEnd(iso);
+    }
+  }
+
+  Widget _buildRangeSelector(BuildContext context) {
+    final mode = ref.watch(safeToSpendRangeModeProvider);
+    final custom = ref.watch(safeToSpendCustomRangeProvider);
+    const white70 = Color(0xB3FFFFFF);
+
+    String dateLabel(String? iso) {
+      if (iso == null || iso.isEmpty) return 'выбрать';
+      final d = DateTime.tryParse(iso);
+      return d != null ? DateFormat('d MMM yyyy', 'ru').format(d) : 'выбрать';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final m in CashflowRangeMode.values)
+              ChoiceChip(
+                label: Text(cashflowRangeLabels[m]!),
+                selected: mode == m,
+                onSelected: (_) =>
+                    ref.read(safeToSpendRangeModeProvider.notifier).set(m),
+                showCheckmark: false,
+                visualDensity: VisualDensity.compact,
+                labelStyle: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: mode == m ? const Color(0xFF4338CA) : Colors.white,
+                ),
+                backgroundColor: Colors.white.withAlpha(38),
+                selectedColor: Colors.white,
+                side: BorderSide.none,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              ),
+          ],
+        ),
+        if (mode == CashflowRangeMode.custom) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _CustomDateButton(
+                  label: 'С',
+                  value: dateLabel(custom.start),
+                  onTap: () => _pickCustomDate(context, isStart: true),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _CustomDateButton(
+                  label: 'По',
+                  value: dateLabel(custom.end),
+                  onTap: () => _pickCustomDate(context, isStart: false),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Выберите начало и конец периода для расчёта.',
+            style: TextStyle(color: white70, fontSize: 10),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final f = widget.forecast;
@@ -1523,12 +1625,24 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
             ],
           ),
           const SizedBox(height: 10),
+          _buildRangeSelector(context),
+          const SizedBox(height: 12),
           if (!f.ok)
             const Text(
               'Добавьте источники дохода с датами выплат, чтобы рассчитать дневной лимит.',
               style: TextStyle(color: Colors.white, fontSize: 13),
             )
           else ...[
+            if (f.range != null) ...[
+              Text(
+                'Период: ${f.range!.label} · '
+                '${DateFormat('d MMM', 'ru').format(f.range!.startDate)} → '
+                '${DateFormat('d MMM', 'ru').format(f.range!.endDate)} '
+                '(${f.range!.daysLeft} ${_pluralizeDays(f.range!.daysLeft)})',
+                style: const TextStyle(color: white70, fontSize: 11),
+              ),
+              const SizedBox(height: 8),
+            ],
             // Headline: daily until next income.
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -1810,6 +1924,63 @@ class _SafeStat extends StatelessWidget {
                 color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CustomDateButton extends StatelessWidget {
+  const _CustomDateButton({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(38),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xB3FFFFFF),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today_outlined,
+                    color: Colors.white, size: 12),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

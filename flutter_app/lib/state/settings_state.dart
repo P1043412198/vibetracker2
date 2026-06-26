@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/dashboard_config.dart';
+import '../services/budget_planner_calc.dart';
 import '../services/storage.dart';
 
 /// Persisted theme-mode toggle (system/light/dark).
@@ -58,6 +59,64 @@ class SafeToSpendReserveController extends StateNotifier<double> {
 final safeToSpendReserveProvider =
     StateNotifierProvider<SafeToSpendReserveController, double>((ref) {
   return SafeToSpendReserveController();
+});
+
+/// Selected calculation window for the safe-to-spend card. User-configurable;
+/// default `auto` (until the next salary).
+class SafeToSpendRangeModeController extends StateNotifier<CashflowRangeMode> {
+  SafeToSpendRangeModeController() : super(CashflowRangeMode.auto) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) {
+      state = CashflowRangeMode.values.firstWhere(
+        (m) => m.name == stored,
+        orElse: () => CashflowRangeMode.auto,
+      );
+    }
+  }
+
+  static const _key = 'safeToSpendRangeMode';
+
+  Future<void> set(CashflowRangeMode mode) async {
+    state = mode;
+    await AppStorage.writeString(_key, mode.name);
+  }
+}
+
+final safeToSpendRangeModeProvider =
+    StateNotifierProvider<SafeToSpendRangeModeController, CashflowRangeMode>(
+        (ref) {
+  return SafeToSpendRangeModeController();
+});
+
+/// Custom window bounds (ISO `yyyy-MM-dd`) used when the range mode is
+/// [CashflowRangeMode.custom]. `null` means unset.
+class SafeToSpendCustomRangeController
+    extends StateNotifier<({String? start, String? end})> {
+  SafeToSpendCustomRangeController() : super((start: null, end: null)) {
+    String? clean(String? v) => (v == null || v.isEmpty) ? null : v;
+    state = (
+      start: clean(AppStorage.readString(_startKey)),
+      end: clean(AppStorage.readString(_endKey)),
+    );
+  }
+
+  static const _startKey = 'safeToSpendCustomStart';
+  static const _endKey = 'safeToSpendCustomEnd';
+
+  Future<void> setStart(String? iso) async {
+    state = (start: iso, end: state.end);
+    await AppStorage.writeString(_startKey, iso ?? '');
+  }
+
+  Future<void> setEnd(String? iso) async {
+    state = (start: state.start, end: iso);
+    await AppStorage.writeString(_endKey, iso ?? '');
+  }
+}
+
+final safeToSpendCustomRangeProvider = StateNotifierProvider<
+    SafeToSpendCustomRangeController, ({String? start, String? end})>((ref) {
+  return SafeToSpendCustomRangeController();
 });
 
 /// Water goal in ml (default 2000).

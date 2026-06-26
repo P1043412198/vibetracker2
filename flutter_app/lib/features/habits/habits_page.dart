@@ -10,16 +10,53 @@ import '../../models/habit.dart';
 import '../../services/streak.dart';
 import '../../state/providers.dart';
 
-/// Counterpart of `src/pages/Habits.tsx`. Lists habits with today's status
-/// log (mark done / skip / failed-resisted).
-class HabitsPage extends ConsumerWidget {
+/// Counterpart of `src/pages/Habits.tsx`. Lists habits with the status log for
+/// the selected day (mark done / skip / failed-resisted). A date selector lets
+/// the user backfill or edit any past day.
+class HabitsPage extends ConsumerStatefulWidget {
   const HabitsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HabitsPage> createState() => _HabitsPageState();
+}
+
+class _HabitsPageState extends ConsumerState<HabitsPage> {
+  DateTime _selectedDate = DateTime.now();
+
+  static String _iso(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
+
+  bool get _isToday {
+    final now = DateTime.now();
+    return _selectedDate.year == now.year &&
+        _selectedDate.month == now.month &&
+        _selectedDate.day == now.day;
+  }
+
+  void _shiftDay(int delta) {
+    setState(() {
+      _selectedDate = DateTime(
+          _selectedDate.year, _selectedDate.month, _selectedDate.day + delta);
+    });
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(DateTime.now().year - 3),
+      lastDate: DateTime.now(),
+      locale: const Locale('ru'),
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final habits = ref.watch(habitsProvider);
     final logs = ref.watch(habitLogsProvider);
-    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final today = _iso(_selectedDate);
 
     HabitLog? logFor(String habitId) {
       try {
@@ -133,37 +170,53 @@ class HabitsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Привычки')),
-      body: habits.isEmpty
-          ? const _EmptyHabits()
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-              itemCount: habits.length + 1,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, i) {
-                if (i == 0) {
-                  return _HabitsStatsHeader(
-                    habits: habits,
-                    logs: logs,
-                  );
-                }
-                final h = habits[i - 1];
-                final log = logFor(h.id);
-                final stats = computeStreakStats(habit: h, logs: logs);
-                return _HabitCard(
-                  habit: h,
-                  todaysStatus: log?.status,
-                  todaysNote: log?.notes ?? '',
-                  todaysValue: log?.value,
-                  streak: stats.current,
-                  best: stats.best,
-                  onMark: (s) => markStatus(h, s),
-                  onEditNote: () => editTodayNote(h),
-                  onDelete: () =>
-                      ref.read(habitsProvider.notifier).remove(h.id),
-                  onTap: () => context.push('/habits/${h.id}'),
-                );
-              },
-            ),
+      body: Column(
+        children: [
+          _DateSelectorBar(
+            date: _selectedDate,
+            isToday: _isToday,
+            onPrev: () => _shiftDay(-1),
+            onNext: _isToday ? null : () => _shiftDay(1),
+            onPick: _pickDate,
+            onToday: _isToday
+                ? null
+                : () => setState(() => _selectedDate = DateTime.now()),
+          ),
+          Expanded(
+            child: habits.isEmpty
+                ? const _EmptyHabits()
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                    itemCount: habits.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, i) {
+                      if (i == 0) {
+                        return _HabitsStatsHeader(
+                          habits: habits,
+                          logs: logs,
+                        );
+                      }
+                      final h = habits[i - 1];
+                      final log = logFor(h.id);
+                      final stats = computeStreakStats(habit: h, logs: logs);
+                      return _HabitCard(
+                        habit: h,
+                        todaysStatus: log?.status,
+                        todaysNote: log?.notes ?? '',
+                        todaysValue: log?.value,
+                        streak: stats.current,
+                        best: stats.best,
+                        onMark: (s) => markStatus(h, s),
+                        onEditNote: () => editTodayNote(h),
+                        onDelete: () =>
+                            ref.read(habitsProvider.notifier).remove(h.id),
+                        onTap: () => context.push('/habits/${h.id}'),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _addHabit(context, ref),
         icon: const Icon(Icons.add),
@@ -530,6 +583,82 @@ class _HabitCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DateSelectorBar extends StatelessWidget {
+  const _DateSelectorBar({
+    required this.date,
+    required this.isToday,
+    required this.onPrev,
+    required this.onNext,
+    required this.onPick,
+    required this.onToday,
+  });
+
+  final DateTime date;
+  final bool isToday;
+  final VoidCallback onPrev;
+  final VoidCallback? onNext;
+  final VoidCallback onPick;
+  final VoidCallback? onToday;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final label = isToday
+        ? 'Сегодня, ${DateFormat('d MMM', 'ru').format(date)}'
+        : DateFormat('EEEE, d MMMM', 'ru').format(date);
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left),
+              tooltip: 'Предыдущий день',
+              onPressed: onPrev,
+            ),
+            Expanded(
+              child: InkWell(
+                onTap: onPick,
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.calendar_today_outlined,
+                          size: 16, color: scheme.primary),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right),
+              tooltip: 'Следующий день',
+              onPressed: onNext,
+            ),
+            if (onToday != null)
+              TextButton(
+                onPressed: onToday,
+                child: const Text('Сегодня'),
+              ),
+          ],
         ),
       ),
     );

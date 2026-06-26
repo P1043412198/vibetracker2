@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeBudgetCycles } from '../budgetPlanner';
-import type { IncomeSource, PlannedExpense, ActualExpense } from '../../../types';
+import type { Account, IncomeSource, PlannedExpense, Transaction } from '../../../types';
 
 function income(partial: Partial<IncomeSource> & Pick<IncomeSource, 'type' | 'amount'>): IncomeSource {
   return {
@@ -15,59 +15,112 @@ function income(partial: Partial<IncomeSource> & Pick<IncomeSource, 'type' | 'am
   };
 }
 
-function paid(id: string, amount: number, paidAmount: number | undefined, paidDate: string): PlannedExpense {
+function account(partial: Partial<Account> & Pick<Account, 'id' | 'initialBalance'>): Account {
   return {
-    id,
-    name: id,
-    amount,
-    dayFrom: 1,
-    dayTo: 28,
-    isPaid: true,
-    paidDate,
-    paidAmount,
-    isActive: true,
+    id: partial.id,
+    name: partial.name ?? partial.id,
+    type: partial.type ?? 'card',
+    currency: partial.currency ?? 'BYN',
+    initialBalance: partial.initialBalance,
+    color: partial.color ?? '#000',
     createdAt: '2025-01-01',
   };
 }
 
-describe('computeBudgetCycles — paid-expense accumulation (bug #1)', () => {
-  // Salary on the 5th, advance on the 20th of June 2025 → a deterministic cycle.
-  const today = new Date(2025, 5, 1);
-  const incomeSources = [
-    income({ type: 'salary', amount: 2000, dayOfMonth: 5 }),
-    income({ type: 'advance', amount: 1000, dayOfMonth: 20 }),
-  ];
+function expense(
+  partial: Partial<PlannedExpense> & Pick<PlannedExpense, 'name' | 'amount' | 'dayTo'>
+): PlannedExpense {
+  return {
+    id: partial.id ?? partial.name,
+    name: partial.name,
+    amount: partial.amount,
+    dayFrom: partial.dayFrom ?? partial.dayTo,
+    dayTo: partial.dayTo,
+    isPaid: partial.isPaid ?? false,
+    isActive: partial.isActive ?? true,
+    createdAt: '2025-01-01',
+  };
+}
 
-  it('sums every paid expense in the window rather than keeping only the last', () => {
-    const plannedExpenses: PlannedExpense[] = [
-      paid('rent', 500, undefined, '2025-06-06'),
-      paid('food', 300, undefined, '2025-06-10'),
-      paid('phone', 50, 60, '2025-06-12'), // paidAmount overrides amount
-    ];
-    const actualExpenses: ActualExpense[] = [];
+// Today 26 June 2026: advance on the 30th (+500), salary on the 15th (+1200).
+const today = new Date(2026, 5, 26);
+const incomeSources = [
+  income({ type: 'advance', name: 'Аванс', amount: 500, dayOfMonth: 30 }),
+  income({ type: 'salary', name: 'Зарплата', amount: 1200, dayOfMonth: 15 }),
+];
 
+describe('computeBudgetCycles — real-balance model', () => {
+  it('derives cycles from the current balance, not from income amounts', () => {
     const cycles = computeBudgetCycles({
-      incomeSources,
-      plannedExpenses,
-      actualExpenses,
-      today,
-    });
-
-    const salaryToAdvance = cycles.find((c) => c.label === 'От зарплаты до аванса');
-    expect(salaryToAdvance).toBeDefined();
-    // 500 + 300 + 60 = 860 — the pre-fix bug returned only the last item (60).
-    expect(salaryToAdvance!.actualSpent).toBeCloseTo(860, 6);
-    expect(salaryToAdvance!.remainingBudget).toBeCloseTo(2000 - 860, 6);
-  });
-
-  it('returns 0 spent when no expenses are paid', () => {
-    const cycles = computeBudgetCycles({
+      accounts: [account({ id: 'card', initialBalance: 360 })],
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
       incomeSources,
       plannedExpenses: [],
-      actualExpenses: [],
       today,
     });
-    const salaryToAdvance = cycles.find((c) => c.label === 'От зарплаты до аванса');
-    expect(salaryToAdvance!.actualSpent).toBe(0);
+
+    const untilIncome = cycles.find((c) => c.label === 'До ближайшего дохода');
+    expect(untilIncome).toBeDefined();
+    // today → advance = 4 days, 360 / 4 = 90 ₽/day (same as the safe-to-spend card).
+    expect(untilIncome!.daysLeft).toBe(4);
+    expect(untilIncome!.dailyBudget).toBeCloseTo(90, 6);
+    expect(untilIncome!.remainingBudget).toBeCloseTo(360, 6);
+
+    // The repeating-cycle windows are present.
+    expect(cycles.some((c) => c.label === 'Аванс → Аванс')).toBe(true);
+    expect(cycles.some((c) => c.label === 'Зарплата → Зарплата')).toBe(true);
+  });
+
+  it('sums every obligation in the window rather than keeping only the last (bug #1)', () => {
+    const cycles = computeBudgetCycles({
+      accounts: [account({ id: 'card', initialBalance: 360 })],
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources,
+      plannedExpenses: [
+        expense({ name: 'a', amount: 30, dayTo: 27 }),
+        expense({ name: 'b', amount: 20, dayTo: 28 }),
+        expense({ name: 'c', amount: 10, dayTo: 29 }),
+      ],
+      today,
+    });
+
+    const untilIncome = cycles.find((c) => c.label === 'До ближайшего дохода');
+    // 30 + 20 + 10 = 60 reserved → (360 − 60) / 4 = 75 ₽/day. A reduce without an
+    // accumulator (the original bug) would have kept only 10.
+    expect(untilIncome!.totalPlannedExpenses).toBeCloseTo(60, 6);
+    expect(untilIncome!.dailyBudget).toBeCloseTo(75, 6);
+  });
+
+  it('keeps the user reserve out of the daily budget', () => {
+    const cycles = computeBudgetCycles({
+      accounts: [account({ id: 'card', initialBalance: 360 })],
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources,
+      plannedExpenses: [],
+      reserve: 100,
+      today,
+    });
+    const untilIncome = cycles.find((c) => c.label === 'До ближайшего дохода');
+    // (360 − 100) / 4 = 65 ₽/day.
+    expect(untilIncome!.dailyBudget).toBeCloseTo(65, 6);
+  });
+
+  it('returns no cycles when there are no income sources', () => {
+    const cycles = computeBudgetCycles({
+      accounts: [account({ id: 'card', initialBalance: 360 })],
+      transactions: [] as Transaction[],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: [],
+      plannedExpenses: [],
+      today,
+    });
+    expect(cycles).toHaveLength(0);
   });
 });
