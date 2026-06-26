@@ -494,6 +494,10 @@ class _DashboardSection extends StatelessWidget {
           const SizedBox(height: 16),
         ],
 
+        // ── Monthly spending averages (P3) ──
+        _MonthlyAveragesCard(averages: averages, baseCurrency: baseCurrency),
+        const SizedBox(height: 16),
+
         // ── Planned expenses progress ──
         if (combinedExpenses.isNotEmpty) ...[
           Row(
@@ -1471,6 +1475,232 @@ String _pluralizeMonths(int n) {
   if (mod10 == 1 && mod100 != 11) return 'месяц';
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'месяца';
   return 'месяцев';
+}
+
+const _monthLabelsShort = [
+  'янв', 'фев', 'мар', 'апр', 'май', 'июн',
+  'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
+];
+
+String _monthLabel(MonthlySpending m) =>
+    '${_monthLabelsShort[(m.month - 1).clamp(0, 11)]} ${m.year % 100}';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Monthly spending averages (P3): avg daily/monthly expense & income per month
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _MonthlyAveragesCard extends StatelessWidget {
+  const _MonthlyAveragesCard({
+    required this.averages,
+    required this.baseCurrency,
+  });
+
+  final SpendingAverages averages;
+  final String baseCurrency;
+
+  @override
+  Widget build(BuildContext context) {
+    const expenseColor = Color(0xFFF43F5E);
+    const incomeColor = Color(0xFF10B981);
+
+    if (averages.monthsCounted == 0) {
+      return Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Row(
+                children: [
+                  Icon(Icons.bar_chart, size: 16, color: Colors.grey),
+                  SizedBox(width: 6),
+                  Text('Средние траты по месяцам',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15)),
+                ],
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Недостаточно истории. Добавьте фактические доходы/расходы '
+                'за прошлые месяцы.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final maxDaily = averages.months.fold<double>(
+      0,
+      (m, e) => math.max(m, math.max(e.avgDailyExpense, e.avgDailyIncome)),
+    );
+    final cap = maxDaily * 1.2;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.bar_chart, size: 16, color: Color(0xFF6D5CFF)),
+                SizedBox(width: 6),
+                Text('Средние траты по месяцам',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _avgTile(
+                    'Расход / день',
+                    averages.avgDailyExpense,
+                    averages.avgMonthlyExpense,
+                    expenseColor,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _avgTile(
+                    'Доход / день',
+                    averages.avgDailyIncome,
+                    averages.avgMonthlyIncome,
+                    incomeColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'По ${averages.monthsCounted} '
+              '${_pluralizeMonths(averages.monthsCounted)}; '
+              'текущий месяц — по прошедшим дням.',
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            if (averages.months.length > 1) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                height: 150,
+                child: BarChart(BarChartData(
+                  maxY: cap > 0 ? cap : 100,
+                  barGroups: [
+                    for (var i = 0; i < averages.months.length; i++)
+                      BarChartGroupData(x: i, barRods: [
+                        BarChartRodData(
+                          toY: averages.months[i].avgDailyIncome,
+                          width: 7,
+                          color: incomeColor,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        BarChartRodData(
+                          toY: averages.months[i].avgDailyExpense,
+                          width: 7,
+                          color: expenseColor,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ]),
+                  ],
+                  titlesData: FlTitlesData(
+                    leftTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0 || i >= averages.months.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(_monthLabel(averages.months[i]),
+                                style: const TextStyle(fontSize: 9)),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  gridData: const FlGridData(show: false),
+                )),
+              ),
+            ],
+            const SizedBox(height: 8),
+            for (final m in averages.months.reversed)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(_monthLabel(m),
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600)),
+                    ),
+                    Text('−${_fmt.format(m.avgDailyExpense)}/дн',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: expenseColor,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 10),
+                    Text('+${_fmt.format(m.avgDailyIncome)}/дн',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: incomeColor,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${m.net >= 0 ? '+' : ''}${_fmt.format(m.net)}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: m.net >= 0 ? incomeColor : expenseColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _avgTile(String label, double daily, double monthly, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: color)),
+          const SizedBox(height: 2),
+          Text('${_fmt.format(daily)} $baseCurrency',
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.w700, color: color)),
+          Text('≈ ${_fmt.format(monthly)} $baseCurrency/мес',
+              style: const TextStyle(fontSize: 10, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
 }
 
 class _SafeToSpendCard extends ConsumerStatefulWidget {

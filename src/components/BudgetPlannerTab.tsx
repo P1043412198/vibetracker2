@@ -916,6 +916,105 @@ function pluralizeMonths(n: number): string {
   return 'месяцев';
 }
 
+const MONTH_LABELS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+function monthLabel(m: { month: number; year: number }): string {
+  return `${MONTH_LABELS_SHORT[m.month]} ${String(m.year).slice(2)}`;
+}
+
+// ═══════════════ MONTHLY AVERAGES (P3) ═══════════════
+// "Средние траты по месяцам" — average daily/monthly expense & income per month,
+// with a trend bar chart, derived from real transactions (account-filtered).
+
+function MonthlyAveragesCard({
+  averages,
+  baseCurrency,
+}: {
+  averages: SpendingAverages;
+  baseCurrency: string;
+}) {
+  if (averages.monthsCounted === 0) {
+    return (
+      <div className="bg-white p-4 rounded-2xl border border-stone-200">
+        <h3 className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1.5">
+          <BarChart3 className="w-3.5 h-3.5" /> Средние траты по месяцам
+        </h3>
+        <p className="text-xs text-zinc-400 text-center py-3">
+          Недостаточно истории. Добавьте фактические доходы/расходы за прошлые месяцы.
+        </p>
+      </div>
+    );
+  }
+
+  const chartData = averages.months.map(m => ({
+    name: monthLabel(m),
+    расход: Math.round(m.avgDailyExpense),
+    доход: Math.round(m.avgDailyIncome),
+  }));
+
+  return (
+    <div className="bg-white p-4 rounded-2xl border border-stone-200">
+      <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-1.5">
+        <BarChart3 className="w-3.5 h-3.5" /> Средние траты по месяцам
+      </h3>
+
+      {/* Overall averages */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-rose-50 rounded-xl p-3">
+          <span className="text-[10px] uppercase font-bold text-rose-400 block mb-0.5">Расход / день</span>
+          <span className="text-lg font-bold text-rose-600">{fmtMoney(averages.avgDailyExpense)}</span>
+          <span className="text-[10px] text-rose-400 ml-1">{baseCurrency}</span>
+          <p className="text-[10px] text-zinc-400 mt-0.5">≈ {fmtMoney(averages.avgMonthlyExpense)} {baseCurrency}/мес</p>
+        </div>
+        <div className="bg-emerald-50 rounded-xl p-3">
+          <span className="text-[10px] uppercase font-bold text-emerald-500 block mb-0.5">Доход / день</span>
+          <span className="text-lg font-bold text-emerald-600">{fmtMoney(averages.avgDailyIncome)}</span>
+          <span className="text-[10px] text-emerald-400 ml-1">{baseCurrency}</span>
+          <p className="text-[10px] text-zinc-400 mt-0.5">≈ {fmtMoney(averages.avgMonthlyIncome)} {baseCurrency}/мес</p>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-zinc-400 mb-3">
+        По {averages.monthsCounted} {pluralizeMonths(averages.monthsCounted)}; текущий месяц — по прошедшим дням.
+      </p>
+
+      {/* Daily-average trend */}
+      {chartData.length > 1 && (
+        <div className="h-40 mb-3">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#71717a' }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#71717a' }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e4e4e7', borderRadius: '12px', fontSize: '10px' }}
+              />
+              <Bar dataKey="доход" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={20} />
+              <Bar dataKey="расход" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={20} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Per-month breakdown */}
+      <div className="space-y-1.5">
+        {averages.months.slice().reverse().map(m => (
+          <div key={m.monthKey} className="flex items-center justify-between py-1.5 px-2 bg-stone-50 rounded-lg">
+            <span className="text-xs font-medium text-zinc-700 capitalize">{monthLabel(m)}</span>
+            <div className="flex items-center gap-3 text-[11px]">
+              <span className="text-rose-500 font-semibold">−{fmtMoney(m.avgDailyExpense)}/дн</span>
+              <span className="text-emerald-600 font-semibold">+{fmtMoney(m.avgDailyIncome)}/дн</span>
+              <span className={cn('font-bold', m.net >= 0 ? 'text-emerald-600' : 'text-rose-500')}>
+                {m.net >= 0 ? '+' : ''}{fmtMoney(m.net)}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════ FACT SECTION ═══════════════
 
 function FactSection() {
@@ -1123,6 +1222,9 @@ function FactSection() {
           </div>
         </div>
       )}
+
+      {/* Monthly spending averages (P3) */}
+      <MonthlyAveragesCard averages={averages} baseCurrency={baseCurrency || 'BYN'} />
 
       {/* Budget cycles */}
       {cycles.map((cycle, i) => (
