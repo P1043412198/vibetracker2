@@ -1528,6 +1528,32 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
     }
   }
 
+  Widget _pillButton({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: selected ? Colors.white : Colors.white.withAlpha(38),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: selected ? const Color(0xFF4338CA) : Colors.white,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildRangeSelector(BuildContext context) {
     final mode = ref.watch(safeToSpendRangeModeProvider);
     final custom = ref.watch(safeToSpendCustomRangeProvider);
@@ -1547,23 +1573,11 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
           runSpacing: 6,
           children: [
             for (final m in CashflowRangeMode.values)
-              ChoiceChip(
-                label: Text(cashflowRangeLabels[m]!),
+              _pillButton(
+                label: cashflowRangeLabels[m]!,
                 selected: mode == m,
-                onSelected: (_) =>
+                onTap: () =>
                     ref.read(safeToSpendRangeModeProvider.notifier).set(m),
-                showCheckmark: false,
-                visualDensity: VisualDensity.compact,
-                labelStyle: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: mode == m ? const Color(0xFF4338CA) : Colors.white,
-                ),
-                backgroundColor: Colors.white.withAlpha(38),
-                selectedColor: Colors.white,
-                side: BorderSide.none,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               ),
           ],
         ),
@@ -1611,22 +1625,7 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
       required bool active,
       required VoidCallback onTap,
     }) {
-      return ChoiceChip(
-        label: Text(label),
-        selected: active,
-        onSelected: (_) => onTap(),
-        showCheckmark: false,
-        visualDensity: VisualDensity.compact,
-        labelStyle: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: active ? const Color(0xFF4338CA) : Colors.white,
-        ),
-        backgroundColor: Colors.white.withAlpha(38),
-        selectedColor: Colors.white,
-        side: BorderSide.none,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      );
+      return _pillButton(label: label, selected: active, onTap: onTap);
     }
 
     return Column(
