@@ -10,9 +10,9 @@ import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import { cn } from '../lib/utils';
-import { computeBudgetCycles, computeCashflowForecast, getPayDate } from '../lib/finance/budgetPlanner';
+import { computeBudgetCycles, computeCashflowForecast, getPayDate, loansAsPlannedExpenses } from '../lib/finance/budgetPlanner';
 import type { CashflowForecast, CashflowRangeMode } from '../lib/finance/budgetPlanner';
-import type { IncomeSource, IncomeSourceType, PlannedExpense } from '../types';
+import type { Account, IncomeSource, IncomeSourceType, PlannedExpense } from '../types';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip,
@@ -553,6 +553,9 @@ function SafeToSpendCard({
   customStart,
   customEnd,
   onCustomRangeChange,
+  accounts,
+  selectedAccountIds,
+  onSelectedAccountIdsChange,
 }: {
   forecast: CashflowForecast;
   reserve: number;
@@ -562,6 +565,9 @@ function SafeToSpendCard({
   customStart?: string;
   customEnd?: string;
   onCustomRangeChange: (start?: string, end?: string) => void;
+  accounts: Account[];
+  selectedAccountIds: string[];
+  onSelectedAccountIdsChange: (ids: string[]) => void;
 }) {
   const [reserveInput, setReserveInput] = useState(String(reserve || 0));
   const [showSegments, setShowSegments] = useState(false);
@@ -628,20 +634,31 @@ function SafeToSpendCard({
               ))}
             </div>
             {rangeMode === 'custom' && (
-              <div className="flex items-center gap-2 mt-2">
-                <input
-                  type="date"
-                  value={customStart || ''}
-                  onChange={(e) => onCustomRangeChange(e.target.value || undefined, customEnd)}
-                  className="flex-1 bg-white/90 text-zinc-900 text-xs font-semibold rounded-lg px-2 py-1.5 outline-none"
-                />
-                <ArrowRight className="w-3.5 h-3.5 opacity-70 shrink-0" />
-                <input
-                  type="date"
-                  value={customEnd || ''}
-                  onChange={(e) => onCustomRangeChange(customStart, e.target.value || undefined)}
-                  className="flex-1 bg-white/90 text-zinc-900 text-xs font-semibold rounded-lg px-2 py-1.5 outline-none"
-                />
+              <div className="mt-2">
+                <div className="flex items-end gap-2">
+                  <label className="flex-1 flex flex-col gap-0.5">
+                    <span className="text-[9px] uppercase font-bold opacity-70">С (пусто = сегодня)</span>
+                    <input
+                      type="date"
+                      value={customStart || ''}
+                      onChange={(e) => onCustomRangeChange(e.target.value || undefined, customEnd)}
+                      className="bg-white/90 text-zinc-900 text-xs font-semibold rounded-lg px-2 py-1.5 outline-none"
+                    />
+                  </label>
+                  <ArrowRight className="w-3.5 h-3.5 opacity-70 shrink-0 mb-2.5" />
+                  <label className="flex-1 flex flex-col gap-0.5">
+                    <span className="text-[9px] uppercase font-bold opacity-70">По</span>
+                    <input
+                      type="date"
+                      value={customEnd || ''}
+                      onChange={(e) => onCustomRangeChange(customStart, e.target.value || undefined)}
+                      className="bg-white/90 text-zinc-900 text-xs font-semibold rounded-lg px-2 py-1.5 outline-none"
+                    />
+                  </label>
+                </div>
+                {!customStart && (
+                  <p className="text-[10px] opacity-75 mt-1">Считаем с сегодняшнего дня до выбранной даты.</p>
+                )}
               </div>
             )}
             {forecast.range && (
@@ -653,6 +670,53 @@ function SafeToSpendCard({
               </p>
             )}
           </div>
+
+          {/* Account selector */}
+          {accounts.length > 0 && (
+            <div className="mb-3">
+              <span className="text-[10px] uppercase font-bold opacity-75 block mb-1.5">Счета для расчёта</span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => onSelectedAccountIdsChange([])}
+                  className={cn(
+                    'text-[11px] font-semibold rounded-lg px-2.5 py-1 transition-colors',
+                    selectedAccountIds.length === 0
+                      ? 'bg-white text-indigo-700'
+                      : 'bg-white/15 text-white hover:bg-white/25'
+                  )}
+                >
+                  Все счета
+                </button>
+                {accounts.map((a) => {
+                  const active = selectedAccountIds.includes(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => {
+                        const next = active
+                          ? selectedAccountIds.filter((id) => id !== a.id)
+                          : [...selectedAccountIds, a.id];
+                        onSelectedAccountIdsChange(next);
+                      }}
+                      className={cn(
+                        'text-[11px] font-semibold rounded-lg px-2.5 py-1 transition-colors',
+                        active
+                          ? 'bg-white text-indigo-700'
+                          : 'bg-white/15 text-white hover:bg-white/25'
+                      )}
+                    >
+                      {a.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedAccountIds.length > 0 && (
+                <p className="text-[10px] opacity-75 mt-1">
+                  Баланс считается только по выбранным счетам.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Balance + smoothed */}
           <div className="grid grid-cols-2 gap-3 mb-3">
@@ -759,13 +823,25 @@ function FactSection() {
     accounts, transactions, rates, baseCurrency, safeToSpendReserve, setSafeToSpendReserve,
     safeToSpendRangeMode, setSafeToSpendRangeMode,
     safeToSpendCustomStart, safeToSpendCustomEnd, setSafeToSpendCustomRange,
+    safeToSpendAccountIds, setSafeToSpendAccountIds, loans,
   } = useStore();
   const [showExpForm, setShowExpForm] = useState(false);
   const [expForm, setExpForm] = useState({ name: '', amount: '', date: format(new Date(), 'yyyy-MM-dd') });
 
   const sources = incomeSources || [];
-  const planned = plannedExpenses || [];
   const actual = actualExpenses || [];
+
+  // Fold active loan monthly payments into the expense plan so the budget and
+  // safe-to-spend card automatically account for credit obligations.
+  const planned = useMemo<PlannedExpense[]>(() => {
+    const base = plannedExpenses || [];
+    const loanExpenses = loansAsPlannedExpenses({
+      loans: loans || [],
+      rates: rates || {},
+      baseCurrency: baseCurrency || 'BYN',
+    });
+    return loanExpenses.length > 0 ? [...base, ...loanExpenses] : base;
+  }, [plannedExpenses, loans, rates, baseCurrency]);
 
   const cycles = useMemo(() =>
     computeBudgetCycles({
@@ -776,8 +852,9 @@ function FactSection() {
       incomeSources: sources,
       plannedExpenses: planned,
       reserve: safeToSpendReserve || 0,
+      accountIds: safeToSpendAccountIds || [],
     }),
-    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve]
+    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve, safeToSpendAccountIds]
   );
 
   const customStart = safeToSpendCustomStart ? parseISO(safeToSpendCustomStart) : undefined;
@@ -795,8 +872,9 @@ function FactSection() {
       rangeMode: safeToSpendRangeMode || 'auto',
       customStart,
       customEnd,
+      accountIds: safeToSpendAccountIds || [],
     }),
-    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve, safeToSpendRangeMode, safeToSpendCustomStart, safeToSpendCustomEnd]
+    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve, safeToSpendRangeMode, safeToSpendCustomStart, safeToSpendCustomEnd, safeToSpendAccountIds]
   );
 
   const totalIncome = sources.filter(s => s.isActive).reduce((sum, s) => sum + s.amount, 0);
@@ -850,6 +928,9 @@ function FactSection() {
         customStart={safeToSpendCustomStart}
         customEnd={safeToSpendCustomEnd}
         onCustomRangeChange={setSafeToSpendCustomRange}
+        accounts={accounts || []}
+        selectedAccountIds={safeToSpendAccountIds || []}
+        onSelectedAccountIdsChange={setSafeToSpendAccountIds}
       />
 
       {/* Summary cards */}

@@ -283,6 +283,8 @@ export type Loan = {
   overpayment: number; // Total interest paid
   createdAt: string;
   payments?: LoanPayment[];
+  /** Day of month (1-31) the monthly payment is due. Defaults to 5. */
+  paymentDay?: number;
 };
 
 export type FinancialGoalStep = {

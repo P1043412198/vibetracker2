@@ -7,7 +7,68 @@
 import { getDaysInMonth, isWeekend, format, addDays, differenceInCalendarDays, isBefore, isAfter, isSameDay } from 'date-fns';
 import { isBYHoliday } from '../belarus/holidays';
 import { convertCurrency } from '../utils';
-import type { Account, IncomeSource, PlannedExpense, Transaction } from '../../types';
+import type { Account, IncomeSource, Loan, PlannedExpense, Transaction } from '../../types';
+
+/**
+ * Remaining balance still owed on a loan: total scheduled payment minus the
+ * net of payments and withdrawals already recorded.
+ */
+export function loanRemaining(loan: Loan): number {
+  const paid = (loan.payments || [])
+    .filter(p => p.type === 'payment')
+    .reduce((s, p) => s + p.amount, 0);
+  const withdrawn = (loan.payments || [])
+    .filter(p => p.type === 'withdrawal')
+    .reduce((s, p) => s + p.amount, 0);
+  return loan.totalPayment - (paid - withdrawn);
+}
+
+/**
+ * Synthesise a virtual {@link PlannedExpense} for each active loan so the
+ * cashflow engine treats monthly loan payments as obligations automatically —
+ * the user owes a credit, so it must show up in the budget without re-typing it.
+ *
+ * Mirrors the Flutter `loansAsPlannedExpenses`. Anchored on the loan payment
+ * day (fallback: 5th) so it lines up with the `dayFrom` window filter. Skips
+ * paid-off loans and converts the payment into the base currency.
+ */
+export function loansAsPlannedExpenses(opts: {
+  loans: Loan[];
+  rates: Record<string, number>;
+  baseCurrency: string;
+  today?: Date;
+}): PlannedExpense[] {
+  const { loans, rates, baseCurrency, today = new Date() } = opts;
+  if (!loans || loans.length === 0) return [];
+  const monthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  const result: PlannedExpense[] = [];
+  for (const loan of loans) {
+    if (loan.monthlyPayment <= 0) continue;
+    const remaining = loanRemaining(loan);
+    if (remaining <= 0) continue;
+    const monthly = convertCurrency(loan.monthlyPayment, loan.currency || baseCurrency, baseCurrency, rates);
+    const amount = Math.min(monthly, remaining);
+    const day = Math.min(31, Math.max(1, loan.paymentDay ?? 5));
+    const paidEntry = (loan.payments || []).find(
+      p => p.type === 'payment' && p.date.startsWith(monthKey)
+    );
+    result.push({
+      id: `loan:${loan.id}`,
+      name: `Кредит: ${loan.name}`,
+      amount,
+      currency: baseCurrency,
+      dayFrom: day,
+      dayTo: day,
+      category: 'Кредиты',
+      isPaid: !!paidEntry,
+      paidDate: paidEntry?.date,
+      paidAmount: paidEntry ? paidEntry.amount : undefined,
+      isActive: true,
+      createdAt: loan.createdAt,
+    });
+  }
+  return result;
+}
 
 /**
  * Given a target day-of-month and a year/month, returns the last working day
@@ -88,6 +149,8 @@ export function computeBudgetCycles(opts: {
   plannedExpenses: PlannedExpense[];
   reserve?: number;
   today?: Date;
+  /** Restrict the balance to these account IDs (empty/undefined = all). */
+  accountIds?: string[];
 }): BudgetCycle[] {
   const { incomeSources, today = new Date() } = opts;
   const activeSources = incomeSources.filter(s => s.isActive);
@@ -320,9 +383,11 @@ export function computeCashflowForecast(opts: {
   customStart?: Date;
   /** End of the custom window (only for `rangeMode: 'custom'`). */
   customEnd?: Date;
+  /** Restrict the balance to these account IDs (empty/undefined = all). */
+  accountIds?: string[];
 }): CashflowForecast {
   const {
-    accounts,
+    accounts: allAccounts,
     transactions,
     rates,
     baseCurrency,
@@ -334,7 +399,13 @@ export function computeCashflowForecast(opts: {
     rangeMode = 'auto',
     customStart,
     customEnd,
+    accountIds,
   } = opts;
+
+  const accounts =
+    accountIds && accountIds.length > 0
+      ? allAccounts.filter(a => accountIds.includes(a.id))
+      : allAccounts;
 
   const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const startOfToday = startOf(today);

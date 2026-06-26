@@ -51,6 +51,7 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
     final reserve = ref.watch(safeToSpendReserveProvider);
     final rangeMode = ref.watch(safeToSpendRangeModeProvider);
     final customRange = ref.watch(safeToSpendCustomRangeProvider);
+    final selectedAccountIds = ref.watch(safeToSpendAccountIdsProvider);
 
     DateTime? parseIso(String? iso) =>
         (iso == null || iso.isEmpty) ? null : DateTime.tryParse(iso);
@@ -89,6 +90,7 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
       baseCurrency: baseCurrency,
       accountBalance: facts.accountBalance,
       reserve: reserve.toDouble(),
+      accountIds: selectedAccountIds,
     );
 
     // Safe-to-spend forecast: how much can be spent per day from the real
@@ -105,6 +107,7 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
       rangeMode: rangeMode,
       customStart: parseIso(customRange.start),
       customEnd: parseIso(customRange.end),
+      accountIds: selectedAccountIds,
     );
 
     return ListView(
@@ -1530,10 +1533,10 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
     final custom = ref.watch(safeToSpendCustomRangeProvider);
     const white70 = Color(0xB3FFFFFF);
 
-    String dateLabel(String? iso) {
-      if (iso == null || iso.isEmpty) return 'выбрать';
+    String dateLabel(String? iso, {String empty = 'выбрать'}) {
+      if (iso == null || iso.isEmpty) return empty;
       final d = DateTime.tryParse(iso);
-      return d != null ? DateFormat('d MMM yyyy', 'ru').format(d) : 'выбрать';
+      return d != null ? DateFormat('d MMM yyyy', 'ru').format(d) : empty;
     }
 
     return Column(
@@ -1571,7 +1574,7 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
               Expanded(
                 child: _CustomDateButton(
                   label: 'С',
-                  value: dateLabel(custom.start),
+                  value: dateLabel(custom.start, empty: 'сегодня'),
                   onTap: () => _pickCustomDate(context, isStart: true),
                 ),
               ),
@@ -1586,8 +1589,83 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
             ],
           ),
           const SizedBox(height: 4),
+          Text(
+            (custom.start == null || custom.start!.isEmpty)
+                ? 'Считаем с сегодняшнего дня до выбранной даты.'
+                : 'Выберите начало и конец периода для расчёта.',
+            style: const TextStyle(color: white70, fontSize: 10),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAccountSelector(BuildContext context) {
+    final accounts = ref.watch(accountsProvider);
+    if (accounts.isEmpty) return const SizedBox.shrink();
+    final selected = ref.watch(safeToSpendAccountIdsProvider);
+    const white70 = Color(0xB3FFFFFF);
+
+    Widget chip({
+      required String label,
+      required bool active,
+      required VoidCallback onTap,
+    }) {
+      return ChoiceChip(
+        label: Text(label),
+        selected: active,
+        onSelected: (_) => onTap(),
+        showCheckmark: false,
+        visualDensity: VisualDensity.compact,
+        labelStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: active ? const Color(0xFF4338CA) : Colors.white,
+        ),
+        backgroundColor: Colors.white.withAlpha(38),
+        selectedColor: Colors.white,
+        side: BorderSide.none,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'СЧЕТА ДЛЯ РАСЧЁТА',
+          style: TextStyle(
+            color: white70,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            chip(
+              label: 'Все счета',
+              active: selected.isEmpty,
+              onTap: () =>
+                  ref.read(safeToSpendAccountIdsProvider.notifier).set(const []),
+            ),
+            for (final a in accounts)
+              chip(
+                label: a.name,
+                active: selected.contains(a.id),
+                onTap: () => ref
+                    .read(safeToSpendAccountIdsProvider.notifier)
+                    .toggle(a.id),
+              ),
+          ],
+        ),
+        if (selected.isNotEmpty) ...[
+          const SizedBox(height: 4),
           const Text(
-            'Выберите начало и конец периода для расчёта.',
+            'Баланс считается только по выбранным счетам.',
             style: TextStyle(color: white70, fontSize: 10),
           ),
         ],
@@ -1626,6 +1704,8 @@ class _SafeToSpendCardState extends ConsumerState<_SafeToSpendCard> {
           ),
           const SizedBox(height: 10),
           _buildRangeSelector(context),
+          const SizedBox(height: 12),
+          _buildAccountSelector(context),
           const SizedBox(height: 12),
           if (!f.ok)
             const Text(

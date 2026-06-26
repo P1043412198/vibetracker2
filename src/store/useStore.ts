@@ -83,6 +83,9 @@ interface AppState {
   safeToSpendCustomStart?: string;
   safeToSpendCustomEnd?: string;
   setSafeToSpendCustomRange: (start?: string, end?: string) => void;
+  /** Account IDs the safe-to-spend forecast is restricted to (empty = all). */
+  safeToSpendAccountIds: string[];
+  setSafeToSpendAccountIds: (ids: string[]) => void;
   
   // Currency
   rates: Record<string, number>;
@@ -364,6 +367,7 @@ export const useStore = create<AppState>()(
       safeToSpendRangeMode: 'auto',
       safeToSpendCustomStart: undefined,
       safeToSpendCustomEnd: undefined,
+      safeToSpendAccountIds: [],
       wealthTreeTarget: null,
       dashboardConfig: {
         widgetsOrder: ['smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 'spheres_hub', 'goals', 'tasks_habits', 'water', 'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'monthly_budget', 'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery', 'discipline_score', 'stoic_quote', 'shopping_list'],
@@ -1253,6 +1257,7 @@ export const useStore = create<AppState>()(
       setSafeToSpendReserve: (amount) => set({ safeToSpendReserve: Math.max(0, amount || 0) }),
       setSafeToSpendRangeMode: (mode) => set({ safeToSpendRangeMode: mode }),
       setSafeToSpendCustomRange: (start, end) => set({ safeToSpendCustomStart: start, safeToSpendCustomEnd: end }),
+      setSafeToSpendAccountIds: (ids) => set({ safeToSpendAccountIds: ids }),
 
       toggleHideHabitNames: () => set((state) => ({
         hideHabitNames: !state.hideHabitNames

@@ -119,6 +119,36 @@ final safeToSpendCustomRangeProvider = StateNotifierProvider<
   return SafeToSpendCustomRangeController();
 });
 
+/// Account IDs the safe-to-spend forecast is restricted to. Empty = all
+/// accounts. User-configurable; persisted across launches.
+class SafeToSpendAccountIdsController extends StateNotifier<List<String>> {
+  SafeToSpendAccountIdsController() : super(const []) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null && stored.isNotEmpty) {
+      state = stored.split(',').where((s) => s.isNotEmpty).toList();
+    }
+  }
+
+  static const _key = 'safeToSpendAccountIds';
+
+  Future<void> set(List<String> ids) async {
+    state = ids;
+    await AppStorage.writeString(_key, ids.join(','));
+  }
+
+  Future<void> toggle(String id) async {
+    final next = state.contains(id)
+        ? (state.where((x) => x != id).toList())
+        : ([...state, id]);
+    await set(next);
+  }
+}
+
+final safeToSpendAccountIdsProvider =
+    StateNotifierProvider<SafeToSpendAccountIdsController, List<String>>((ref) {
+  return SafeToSpendAccountIdsController();
+});
+
 /// Water goal in ml (default 2000).
 class WaterGoalController extends StateNotifier<int> {
   WaterGoalController() : super(2000) {

@@ -257,6 +257,7 @@ List<BudgetCycle> computeBudgetCycles({
   double accountBalance = 0,
   double reserve = 0,
   DateTime? today,
+  List<String> accountIds = const [],
 }) {
   final now = today ?? DateTime.now();
   final active = incomeSources.where((s) => s.isActive).toList();
@@ -317,6 +318,7 @@ List<BudgetCycle> computeBudgetCycles({
       reserve: reserve,
       today: now,
       rangeMode: mode,
+      accountIds: accountIds,
     );
     final range = forecast.range;
     if (!forecast.ok || range == null) continue;
@@ -574,13 +576,17 @@ CashflowForecast computeCashflowForecast({
   CashflowRangeMode rangeMode = CashflowRangeMode.auto,
   DateTime? customStart,
   DateTime? customEnd,
+  List<String> accountIds = const [],
 }) {
   final conv = convert ?? (num amount, String from, String to) => amount;
   final now = today ?? DateTime.now();
   DateTime startOf(DateTime d) => DateTime(d.year, d.month, d.day);
   final startOfToday = startOf(now);
+  final selectedAccounts = accountIds.isEmpty
+      ? accounts
+      : accounts.where((a) => accountIds.contains(a.id)).toList();
   final currentBalance = computeCurrentBalance(
-    accounts: accounts,
+    accounts: selectedAccounts,
     transactions: transactions,
     convert: conv,
     baseCurrency: baseCurrency,
