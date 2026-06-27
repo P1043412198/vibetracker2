@@ -10,6 +10,9 @@ import {
   AlertTriangle, CheckCircle2, Wallet, ArrowRight, Target, X
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
+import { RecurringReviewCard } from './RecurringReviewCard';
+import { lastDueOccurrence, isOccurrencePosted } from '../lib/finance/recurring';
+import type { RecurringFrequency, TransactionType } from '../types';
 
 const EXPENSE_CATEGORIES = [
   'Продукты', 'Транспорт', 'Жилье', 'Развлечения', 'Одежда', 
@@ -24,7 +27,7 @@ export function BudgetControlTab() {
     baseCurrency = 'BYN',
     budgetLimits = [], addBudgetLimit, updateBudgetLimit, deleteBudgetLimit,
     regularPayments = [], addRegularPayment, updateRegularPayment, deleteRegularPayment,
-    processRegularPayment,
+    confirmRecurring,
     envelopes = [], addEnvelope, updateEnvelope, deleteEnvelope
   } = useStore();
 
@@ -90,42 +93,56 @@ export function BudgetControlTab() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentCurrency, setPaymentCurrency] = useState<string>(baseCurrency);
   const [paymentDay, setPaymentDay] = useState('1');
+  const [paymentType, setPaymentType] = useState<TransactionType>('expense');
+  const [paymentFreq, setPaymentFreq] = useState<RecurringFrequency>('monthly');
+  const [paymentWeekday, setPaymentWeekday] = useState('1');
+  const [paymentMonth, setPaymentMonth] = useState('1');
+  const [paymentAnchor, setPaymentAnchor] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentAccount, setPaymentAccount] = useState<string>(accounts[0]?.id || '');
+  const [paymentAutoConfirm, setPaymentAutoConfirm] = useState(false);
 
   const handleAddPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentName || !paymentAmount) return;
-    
+
     addRegularPayment({
       name: paymentName,
+      type: paymentType,
       amount: Number(paymentAmount),
       currency: paymentCurrency,
       dueDate: Number(paymentDay),
-      category: 'Подписки',
+      frequency: paymentFreq,
+      weekday: paymentFreq === 'weekly' || paymentFreq === 'biweekly' ? Number(paymentWeekday) : undefined,
+      month: paymentFreq === 'yearly' ? Number(paymentMonth) : undefined,
+      anchorDate: paymentFreq === 'biweekly' ? paymentAnchor : undefined,
+      accountId: paymentAccount || undefined,
+      autoConfirm: paymentAutoConfirm,
+      category: paymentType === 'income' ? 'Доход' : 'Подписки',
       isActive: true
     });
     setIsAddingPayment(false);
     setPaymentName('');
     setPaymentAmount('');
     setPaymentDay('1');
+    setPaymentAutoConfirm(false);
   };
 
+  const todayISO = new Date().toISOString().split('T')[0];
   const upcomingPayments = useMemo(() => {
-    const currentMonthTx = transactions.filter(t => isSameMonth(parseISO(t.date), currentMonth));
-    
     return regularPayments
       .filter(p => p.isActive)
       .map(p => {
         let status = 'upcoming';
         if (p.dueDate < currentDay) status = 'past';
         if (p.dueDate === currentDay) status = 'today';
-        
-        // Проверяем, был ли уже платеж в этом месяце
-        const isPaid = currentMonthTx.some(t => t.notes?.includes(`Автоплатеж: ${p.name}`));
-        
+
+        const occ = lastDueOccurrence(p, todayISO);
+        const isPaid = occ ? isOccurrencePosted(transactions, p.id, occ.periodKey) : false;
+
         return { ...p, status, isPaid };
       })
       .sort((a, b) => a.dueDate - b.dueDate);
-  }, [regularPayments, currentDay, transactions, currentMonth]);
+  }, [regularPayments, currentDay, transactions, todayISO]);
 
   const [processingPayment, setProcessingPayment] = useState<string | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<string>(accounts[0]?.id || '');
@@ -135,7 +152,9 @@ export function BudgetControlTab() {
       alert('Выберите счет для оплаты');
       return;
     }
-    processRegularPayment(id, selectedAccount);
+    const rule = regularPayments.find(p => p.id === id);
+    const occ = rule ? lastDueOccurrence(rule, todayISO) : null;
+    if (occ) confirmRecurring(id, occ.periodKey, selectedAccount);
     setProcessingPayment(null);
   };
 
@@ -436,9 +455,23 @@ export function BudgetControlTab() {
             </div>
           </div>
 
+          <RecurringReviewCard />
+
           {isAddingPayment && (
             <form onSubmit={handleAddPayment} className="bg-white p-4 rounded-xl border border-stone-200 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentType('expense')}
+                  className={cn('py-2 rounded-lg text-sm font-medium border', paymentType === 'expense' ? 'bg-red-500/10 border-red-400 text-red-500' : 'bg-stone-100 border-stone-300 text-zinc-500')}
+                >Расход</button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentType('income')}
+                  className={cn('py-2 rounded-lg text-sm font-medium border', paymentType === 'income' ? 'bg-emerald-500/10 border-emerald-500 text-emerald-600' : 'bg-stone-100 border-stone-300 text-zinc-500')}
+                >Доход</button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-zinc-500 mb-1">Название</label>
                   <input
@@ -473,20 +506,95 @@ export function BudgetControlTab() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs text-zinc-500 mb-1">День списания</label>
-                  <input
-                    type="number"
-                    min="1" max="31"
-                    value={paymentDay}
-                    onChange={(e) => setPaymentDay(e.target.value)}
+                  <label className="block text-xs text-zinc-500 mb-1">Периодичность</label>
+                  <select
+                    value={paymentFreq}
+                    onChange={(e) => setPaymentFreq(e.target.value as RecurringFrequency)}
                     className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
-                    required
-                  />
+                  >
+                    <option value="monthly">Ежемесячно</option>
+                    <option value="weekly">Еженедельно</option>
+                    <option value="biweekly">Раз в 2 недели</option>
+                    <option value="yearly">Ежегодно</option>
+                  </select>
+                </div>
+                {(paymentFreq === 'monthly' || paymentFreq === 'yearly') && (
+                  <div>
+                    <label className="block text-xs text-zinc-500 mb-1">День</label>
+                    <input
+                      type="number"
+                      min="1" max="31"
+                      value={paymentDay}
+                      onChange={(e) => setPaymentDay(e.target.value)}
+                      className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
+                      required
+                    />
+                  </div>
+                )}
+                {paymentFreq === 'yearly' && (
+                  <div>
+                    <label className="block text-xs text-zinc-500 mb-1">Месяц</label>
+                    <select
+                      value={paymentMonth}
+                      onChange={(e) => setPaymentMonth(e.target.value)}
+                      className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
+                    >
+                      {['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'].map((m, i) => (
+                        <option key={m} value={i + 1}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {paymentFreq === 'weekly' && (
+                  <div>
+                    <label className="block text-xs text-zinc-500 mb-1">День недели</label>
+                    <select
+                      value={paymentWeekday}
+                      onChange={(e) => setPaymentWeekday(e.target.value)}
+                      className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
+                    >
+                      {['Вс','Пн','Вт','Ср','Чт','Пт','Сб'].map((d, i) => (
+                        <option key={d} value={i}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {paymentFreq === 'biweekly' && (
+                  <div>
+                    <label className="block text-xs text-zinc-500 mb-1">Первая дата</label>
+                    <input
+                      type="date"
+                      value={paymentAnchor}
+                      onChange={(e) => setPaymentAnchor(e.target.value)}
+                      className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs text-zinc-500 mb-1">Счёт</label>
+                  <select
+                    value={paymentAccount}
+                    onChange={(e) => setPaymentAccount(e.target.value)}
+                    className="w-full bg-stone-100 text-zinc-900 rounded-lg px-3 py-2 border border-stone-300 focus:outline-none focus:border-emerald-500"
+                  >
+                    {accounts.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
+              <label className="flex items-center gap-2 text-sm text-zinc-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={paymentAutoConfirm}
+                  onChange={(e) => setPaymentAutoConfirm(e.target.checked)}
+                  className="w-4 h-4 accent-emerald-600"
+                />
+                Создавать автоматически, без подтверждения
+              </label>
               <div className="flex justify-end gap-2">
                 <button type="button" onClick={() => setIsAddingPayment(false)} className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-900">Отмена</button>
-                <button type="submit" className="px-4 py-2 bg-emerald-600 text-zinc-900 text-sm font-medium rounded-lg hover:bg-emerald-700">Добавить</button>
+                <button type="submit" className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700">Добавить</button>
               </div>
             </form>
           )}

@@ -274,6 +274,7 @@ export type Transaction = {
   toAccountId?: string; // Destination account ID for transfers
   tags?: string[]; // Array of tags like ['#food', '#restaurant']
   source?: string; // Source of income
+  recurringRef?: string; // "<ruleId>:<periodKey>" — marks a posted recurring occurrence
 };
 
 export type LoanPaymentType = 'payment' | 'withdrawal';
@@ -354,14 +355,29 @@ export type MonthlyBudgetPlan = {
   updatedAt: string;
 };
 
+export type RecurringFrequency = 'weekly' | 'biweekly' | 'monthly' | 'yearly';
+
 export type RegularPayment = {
   id: string;
   name: string;
+  type?: TransactionType; // 'income' | 'expense' (default 'expense'); transfers out of scope
   amount: number;
   currency?: Currency;
-  dueDate: number; // Day of the month (1-31)
+  dueDate: number; // Day of the month (1-31), used for monthly/yearly
+  frequency?: RecurringFrequency; // default 'monthly'
+  weekday?: number; // 0 (Sun) - 6 (Sat), used for weekly/biweekly
+  month?: number; // 1-12, used for yearly
+  anchorDate?: string; // YYYY-MM-DD anchor for biweekly cadence / start
   category: string;
+  accountId?: string; // Preferred account to post to
+  autoConfirm?: boolean; // true = post silently when due; default false = review queue
   isActive: boolean;
+};
+
+// Records a recurring occurrence the user explicitly skipped (won't be re-suggested).
+export type RecurringSkip = {
+  ruleId: string;
+  periodKey: string;
 };
 
 export type Envelope = {

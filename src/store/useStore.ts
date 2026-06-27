@@ -2,10 +2,11 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
-import { format, isSameMonth, parseISO } from 'date-fns';
-import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, WorkoutSession, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset, IncomeSource, PlannedExpense, ActualExpense } from '../types';
+import { format } from 'date-fns';
+import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, WorkoutSession, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, RecurringSkip, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset, IncomeSource, PlannedExpense, ActualExpense } from '../types';
 import { createMonthlyBudgetActions } from './slices/monthlyBudgetSlice';
 import { convertCurrency } from '../lib/utils';
+import { lastDueOccurrence, refFor, isOccurrencePosted } from '../lib/finance/recurring';
 import type { CashflowRangeMode } from '../lib/finance/budgetPlanner';
 
 // Custom storage using IndexedDB to handle large data (like base64 images)
@@ -48,6 +49,7 @@ interface AppState {
   financialGoals: FinancialGoal[];
   budgetLimits: BudgetLimit[];
   regularPayments: RegularPayment[];
+  recurringSkips: RecurringSkip[];
   envelopes: Envelope[];
   goals: Goal[];
   goalLogs: GoalLog[];
@@ -226,6 +228,8 @@ interface AppState {
   // Regular Payments
   processRegularPayment: (id: string, accountId: string) => void;
   checkRegularPayments: () => void;
+  confirmRecurring: (ruleId: string, periodKey: string, accountId?: string) => void;
+  skipRecurring: (ruleId: string, periodKey: string) => void;
 
   // Price History
   addPriceHistory: (item: Omit<ShoppingItemPrice, 'id'>) => void;
@@ -358,6 +362,7 @@ export const useStore = create<AppState>()(
       financialGoals: [],
       budgetLimits: [],
       regularPayments: [],
+      recurringSkips: [],
       envelopes: [],
       goals: [],
       goalLogs: [],
@@ -971,46 +976,89 @@ export const useStore = create<AppState>()(
         };
       }),
 
+      // Only rules opted into silent posting (autoConfirm) are processed here.
+      // All other due rules surface in the review queue (getDueRecurring) for
+      // one-tap confirmation — no money is posted without the user's say-so.
       checkRegularPayments: () => set((state) => {
-        const today = new Date();
-        const currentDay = today.getDate();
-        const currentMonthTx = (state.transactions || []).filter(t => 
-          isSameMonth(parseISO(t.date), today)
-        );
-
+        const todayISO = new Date().toISOString().split('T')[0];
+        const transactions = state.transactions || [];
         const newTransactions: Transaction[] = [];
-        const defaultAccountId = state.accounts?.[0]?.id;
-        const defaultAccount = state.accounts?.[0];
-
-        if (!defaultAccountId || !defaultAccount) return state;
 
         (state.regularPayments || []).forEach(p => {
-          if (!p.isActive) return;
-          
-          const isPaid = currentMonthTx.some(t => t.notes?.includes(`Автоплатеж: ${p.name}`));
-          if (!isPaid && p.dueDate <= currentDay) {
-            let finalAmount = p.amount;
-            if (p.currency && p.currency !== defaultAccount.currency) {
-              finalAmount = convertCurrency(p.amount, p.currency, defaultAccount.currency, state.rates);
-            }
+          if (!p.isActive || !p.autoConfirm) return;
 
-            newTransactions.push({
-              id: uuidv4(),
-              type: 'expense',
-              amount: finalAmount,
-              category: p.category,
-              date: today.toISOString().split('T')[0],
-              notes: `Автоплатеж: ${p.name}`,
-              accountId: defaultAccountId
-            });
+          const occ = lastDueOccurrence(p, todayISO);
+          if (!occ) return;
+          if (isOccurrencePosted(transactions, p.id, occ.periodKey)) return;
+
+          const accountId = p.accountId && state.accounts?.some(a => a.id === p.accountId)
+            ? p.accountId
+            : state.accounts?.[0]?.id;
+          const account = state.accounts?.find(a => a.id === accountId);
+          if (!accountId || !account) return;
+
+          let finalAmount = p.amount;
+          if (p.currency && p.currency !== account.currency) {
+            finalAmount = convertCurrency(p.amount, p.currency, account.currency, state.rates);
           }
+
+          newTransactions.push({
+            id: uuidv4(),
+            type: p.type === 'income' ? 'income' : 'expense',
+            amount: finalAmount,
+            category: p.category,
+            date: occ.dateISO,
+            notes: `Регулярно: ${p.name}`,
+            accountId,
+            recurringRef: refFor(p.id, occ.periodKey),
+          });
         });
 
         if (newTransactions.length === 0) return state;
 
         return {
-          transactions: [...newTransactions, ...(state.transactions || [])]
+          transactions: [...newTransactions, ...transactions]
         };
+      }),
+
+      confirmRecurring: (ruleId, periodKey, accountId) => set((state) => {
+        const rule = (state.regularPayments || []).find(p => p.id === ruleId);
+        if (!rule) return state;
+        const ref = refFor(ruleId, periodKey);
+        if ((state.transactions || []).some(t => t.recurringRef === ref)) return state;
+
+        const targetAccountId = accountId
+          || (rule.accountId && state.accounts?.some(a => a.id === rule.accountId) ? rule.accountId : undefined)
+          || state.accounts?.[0]?.id;
+        const account = state.accounts?.find(a => a.id === targetAccountId);
+        if (!targetAccountId || !account) return state;
+
+        let finalAmount = rule.amount;
+        if (rule.currency && rule.currency !== account.currency) {
+          finalAmount = convertCurrency(rule.amount, rule.currency, account.currency, state.rates);
+        }
+
+        const occ = lastDueOccurrence(rule, new Date().toISOString().split('T')[0]);
+        const date = occ?.periodKey === periodKey ? occ.dateISO : new Date().toISOString().split('T')[0];
+
+        const transaction: Transaction = {
+          id: uuidv4(),
+          type: rule.type === 'income' ? 'income' : 'expense',
+          amount: finalAmount,
+          category: rule.category,
+          date,
+          notes: `Регулярно: ${rule.name}`,
+          accountId: targetAccountId,
+          recurringRef: ref,
+        };
+
+        return { transactions: [transaction, ...(state.transactions || [])] };
+      }),
+
+      skipRecurring: (ruleId, periodKey) => set((state) => {
+        const exists = (state.recurringSkips || []).some(s => s.ruleId === ruleId && s.periodKey === periodKey);
+        if (exists) return state;
+        return { recurringSkips: [...(state.recurringSkips || []), { ruleId, periodKey }] };
       }),
 
       addPriceHistory: (item) => set((state) => ({
@@ -1354,7 +1402,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'vibesight-storage',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => storage),
       partialize: (state) => {
         const { isLocked, ...rest } = state;
@@ -1371,6 +1419,9 @@ export const useStore = create<AppState>()(
         }
         if (fromVersion < 2) {
           if (!Array.isArray(next.monthlyBudgetPlans)) next.monthlyBudgetPlans = [];
+        }
+        if (fromVersion < 3) {
+          if (!Array.isArray(next.recurringSkips)) next.recurringSkips = [];
         }
         return next as AppState;
       },

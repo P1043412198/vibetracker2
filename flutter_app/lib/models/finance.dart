@@ -60,6 +60,7 @@ class Transaction {
     this.source,
     this.merchant,
     this.receiptPaths,
+    this.recurringRef,
   });
 
   final String id;
@@ -80,6 +81,8 @@ class Transaction {
   // Phase 11: relative paths (under app docs `receipts/`) of receipt
   // photos. Multiple per transaction supported (front + back of slip etc).
   final List<String>? receiptPaths;
+  // "<ruleId>:<periodKey>" — marks a posted recurring occurrence.
+  final String? recurringRef;
 
   Transaction copyWith({
     TransactionType? type,
@@ -93,6 +96,7 @@ class Transaction {
     String? source,
     String? merchant,
     List<String>? receiptPaths,
+    String? recurringRef,
   }) {
     return Transaction(
       id: id,
@@ -110,6 +114,7 @@ class Transaction {
       source: source ?? this.source,
       merchant: merchant ?? this.merchant,
       receiptPaths: receiptPaths ?? this.receiptPaths,
+      recurringRef: recurringRef ?? this.recurringRef,
     );
   }
 
@@ -130,6 +135,7 @@ class Transaction {
         if (merchant != null) 'merchant': merchant,
         if (receiptPaths != null && receiptPaths!.isNotEmpty)
           'receiptPaths': receiptPaths,
+        if (recurringRef != null) 'recurringRef': recurringRef,
       };
 
   factory Transaction.fromJson(Map<String, dynamic> json) => Transaction(
@@ -153,6 +159,7 @@ class Transaction {
         merchant: json['merchant'] as String?,
         receiptPaths:
             (json['receiptPaths'] as List?)?.whereType<String>().toList(),
+        recurringRef: json['recurringRef'] as String?,
       );
 }
 
@@ -185,6 +192,130 @@ class BudgetLimit {
         amount: (json['amount'] ?? 0) as num,
         currency: json['currency'] as String?,
         period: (json['period'] ?? 'month') as String,
+      );
+}
+
+enum RecurringFrequency { weekly, biweekly, monthly, yearly }
+
+/// A recurring income/expense rule. Its due occurrence surfaces in the review
+/// queue for one-tap confirmation (or posts silently when [autoConfirm]).
+class RegularPayment {
+  RegularPayment({
+    required this.id,
+    required this.name,
+    required this.amount,
+    required this.category,
+    required this.isActive,
+    this.type = TransactionType.expense,
+    this.currency,
+    this.dueDate = 1,
+    this.frequency = RecurringFrequency.monthly,
+    this.weekday,
+    this.month,
+    this.anchorDate,
+    this.accountId,
+    this.autoConfirm = false,
+  });
+
+  final String id;
+  final String name;
+  final TransactionType type;
+  final num amount;
+  final Currency? currency;
+  final int dueDate; // day of month 1..31 (monthly/yearly)
+  final RecurringFrequency frequency;
+  final int? weekday; // 0 (Sun) .. 6 (Sat) for weekly/biweekly
+  final int? month; // 1..12 for yearly
+  final String? anchorDate; // YYYY-MM-DD anchor for biweekly cadence
+  final String category;
+  final String? accountId;
+  final bool autoConfirm;
+  final bool isActive;
+
+  RegularPayment copyWith({
+    String? name,
+    TransactionType? type,
+    num? amount,
+    Currency? currency,
+    int? dueDate,
+    RecurringFrequency? frequency,
+    int? weekday,
+    int? month,
+    String? anchorDate,
+    String? category,
+    String? accountId,
+    bool? autoConfirm,
+    bool? isActive,
+  }) =>
+      RegularPayment(
+        id: id,
+        name: name ?? this.name,
+        type: type ?? this.type,
+        amount: amount ?? this.amount,
+        currency: currency ?? this.currency,
+        dueDate: dueDate ?? this.dueDate,
+        frequency: frequency ?? this.frequency,
+        weekday: weekday ?? this.weekday,
+        month: month ?? this.month,
+        anchorDate: anchorDate ?? this.anchorDate,
+        category: category ?? this.category,
+        accountId: accountId ?? this.accountId,
+        autoConfirm: autoConfirm ?? this.autoConfirm,
+        isActive: isActive ?? this.isActive,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'type': type.name,
+        'amount': amount,
+        if (currency != null) 'currency': currency,
+        'dueDate': dueDate,
+        'frequency': frequency.name,
+        if (weekday != null) 'weekday': weekday,
+        if (month != null) 'month': month,
+        if (anchorDate != null) 'anchorDate': anchorDate,
+        'category': category,
+        if (accountId != null) 'accountId': accountId,
+        'autoConfirm': autoConfirm,
+        'isActive': isActive,
+      };
+
+  factory RegularPayment.fromJson(Map<String, dynamic> json) => RegularPayment(
+        id: json['id'] as String,
+        name: (json['name'] ?? '') as String,
+        type: enumFromName(TransactionType.values, json['type'] as String?,
+            TransactionType.expense),
+        amount: (json['amount'] ?? 0) as num,
+        currency: json['currency'] as String?,
+        dueDate: (json['dueDate'] as num?)?.toInt() ?? 1,
+        frequency: enumFromName(RecurringFrequency.values,
+            json['frequency'] as String?, RecurringFrequency.monthly),
+        weekday: (json['weekday'] as num?)?.toInt(),
+        month: (json['month'] as num?)?.toInt(),
+        anchorDate: json['anchorDate'] as String?,
+        category: (json['category'] ?? '') as String,
+        accountId: json['accountId'] as String?,
+        autoConfirm: json['autoConfirm'] == true,
+        isActive: json['isActive'] != false,
+      );
+}
+
+/// Records a recurring occurrence the user explicitly skipped.
+class RecurringSkip {
+  RecurringSkip({required this.ruleId, required this.periodKey});
+
+  final String ruleId;
+  final String periodKey;
+
+  // Stored as a single string so it slots into the generic list controller.
+  String get id => '$ruleId:$periodKey';
+
+  Map<String, dynamic> toJson() => {'ruleId': ruleId, 'periodKey': periodKey};
+
+  factory RecurringSkip.fromJson(Map<String, dynamic> json) => RecurringSkip(
+        ruleId: (json['ruleId'] ?? '') as String,
+        periodKey: (json['periodKey'] ?? '') as String,
       );
 }
 

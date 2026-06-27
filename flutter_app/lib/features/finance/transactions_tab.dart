@@ -13,6 +13,8 @@ import '../../services/receipt_scanner.dart';
 import '../../services/receipt_service.dart';
 import '../../state/providers.dart';
 import 'finance_shared.dart';
+import 'recurring_review_card.dart';
+import 'recurring_payments_page.dart';
 
 /// "Операции" tab — chronological list of transactions with quick filters
 /// (account / period / type) and an FAB that opens the add-transaction sheet.
@@ -60,7 +62,12 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
               onAccount: (v) => setState(() => _accountFilter = v),
               onType: (v) => setState(() => _typeFilter = v),
               onPeriod: (v) => setState(() => _periodFilter = v),
+              onManageRecurring: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                    builder: (_) => const RecurringPaymentsPage()),
+              ),
             ),
+            const RecurringReviewCard(),
             Expanded(
               child: filtered.isEmpty
                   ? const _Empty()
@@ -111,6 +118,7 @@ class _FilterRow extends StatelessWidget {
     required this.onAccount,
     required this.onType,
     required this.onPeriod,
+    required this.onManageRecurring,
   });
 
   final List<Account> accounts;
@@ -120,6 +128,7 @@ class _FilterRow extends StatelessWidget {
   final ValueChanged<String?> onAccount;
   final ValueChanged<TransactionType?> onType;
   final ValueChanged<String> onPeriod;
+  final VoidCallback onManageRecurring;
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +143,13 @@ class _FilterRow extends StatelessWidget {
             selected: true,
             onTap: () => onPeriod(periodFilter == 'month' ? 'all' : 'month'),
             icon: Icons.calendar_month,
+          ),
+          const SizedBox(width: 8),
+          _Chip(
+            label: 'Регулярные',
+            selected: false,
+            onTap: onManageRecurring,
+            icon: Icons.event_repeat,
           ),
           const SizedBox(width: 8),
           _Chip(

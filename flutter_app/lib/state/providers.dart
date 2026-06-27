@@ -159,6 +159,38 @@ final budgetLimitsProvider =
   return BudgetLimitsController();
 });
 
+class RegularPaymentsController extends JsonListController<RegularPayment> {
+  RegularPaymentsController()
+      : super(
+          storageKey: 'regularPayments',
+          fromJson: RegularPayment.fromJson,
+          toJson: (p) => p.toJson(),
+        );
+
+  @override
+  String idOf(RegularPayment item) => item.id;
+}
+
+final regularPaymentsProvider =
+    StateNotifierProvider<RegularPaymentsController, List<RegularPayment>>(
+        (ref) => RegularPaymentsController());
+
+class RecurringSkipsController extends JsonListController<RecurringSkip> {
+  RecurringSkipsController()
+      : super(
+          storageKey: 'recurringSkips',
+          fromJson: RecurringSkip.fromJson,
+          toJson: (s) => s.toJson(),
+        );
+
+  @override
+  String idOf(RecurringSkip item) => item.id;
+}
+
+final recurringSkipsProvider =
+    StateNotifierProvider<RecurringSkipsController, List<RecurringSkip>>(
+        (ref) => RecurringSkipsController());
+
 class MonthlyBudgetPlansController extends JsonListController<MonthlyBudgetPlan> {
   MonthlyBudgetPlansController()
       : super(
