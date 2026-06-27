@@ -9,6 +9,7 @@ import '../../models/enums.dart';
 import '../../models/habit.dart';
 import '../../services/streak.dart';
 import '../../state/providers.dart';
+import '../../state/settings_state.dart';
 
 /// Counterpart of `src/pages/Habits.tsx`. Lists habits with the status log for
 /// the selected day (mark done / skip / failed-resisted). A date selector lets
@@ -56,6 +57,7 @@ class _HabitsPageState extends ConsumerState<HabitsPage> {
   Widget build(BuildContext context) {
     final habits = ref.watch(habitsProvider);
     final logs = ref.watch(habitLogsProvider);
+    final hideNames = ref.watch(hideHabitNamesProvider);
     final today = _iso(_selectedDate);
 
     HabitLog? logFor(String habitId) {
@@ -169,7 +171,19 @@ class _HabitsPageState extends ConsumerState<HabitsPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Привычки')),
+      appBar: AppBar(
+        title: const Text('Привычки'),
+        actions: [
+          IconButton(
+            tooltip: hideNames ? 'Показать названия' : 'Скрыть названия',
+            icon: Icon(hideNames
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined),
+            onPressed: () =>
+                ref.read(hideHabitNamesProvider.notifier).toggle(),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           _DateSelectorBar(
@@ -201,6 +215,7 @@ class _HabitsPageState extends ConsumerState<HabitsPage> {
                       final stats = computeStreakStats(habit: h, logs: logs);
                       return _HabitCard(
                         habit: h,
+                        hideName: hideNames,
                         todaysStatus: log?.status,
                         todaysNote: log?.notes ?? '',
                         todaysValue: log?.value,
@@ -369,6 +384,7 @@ class _HabitsPageState extends ConsumerState<HabitsPage> {
 class _HabitCard extends StatelessWidget {
   const _HabitCard({
     required this.habit,
+    required this.hideName,
     required this.todaysStatus,
     required this.todaysNote,
     this.todaysValue,
@@ -381,6 +397,7 @@ class _HabitCard extends StatelessWidget {
   });
 
   final Habit habit;
+  final bool hideName;
   final HabitLogStatus? todaysStatus;
   final String todaysNote;
   final num? todaysValue;
@@ -440,7 +457,7 @@ class _HabitCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          habit.title,
+                          hideName ? '••••••' : habit.title,
                           style: const TextStyle(
                               fontSize: 16, fontWeight: FontWeight.w600),
                         ),

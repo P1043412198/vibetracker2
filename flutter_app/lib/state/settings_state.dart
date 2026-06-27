@@ -310,6 +310,28 @@ final aiEnabledProvider =
   return AiEnabledController();
 });
 
+/// Privacy: hide habit names (replace titles/descriptions with mask).
+class HideHabitNamesController extends StateNotifier<bool> {
+  HideHabitNamesController() : super(false) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) state = stored == 'true';
+  }
+
+  static const _key = 'hideHabitNames';
+
+  Future<void> set(bool hidden) async {
+    state = hidden;
+    await AppStorage.writeString(_key, hidden.toString());
+  }
+
+  Future<void> toggle() => set(!state);
+}
+
+final hideHabitNamesProvider =
+    StateNotifierProvider<HideHabitNamesController, bool>((ref) {
+  return HideHabitNamesController();
+});
+
 /// Whether Claude can execute tools (write to user data: add/delete tasks,
 /// transactions, habits, etc.). Default: enabled — the user explicitly
 /// asked for full CRUD access via the chat.
