@@ -35,7 +35,6 @@ import '../features/sleep/sleep_page.dart';
 import '../features/tools/tools_page.dart';
 import '../features/water/water_page.dart';
 import '../features/work_schedule/work_schedule_page.dart';
-import '../features/workouts/workout_history_page.dart';
 import '../features/workouts/workouts_page.dart';
 import '../widgets/app_shell.dart';
 
@@ -159,12 +158,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'workouts',
             pageBuilder: (_, __) =>
                 const NoTransitionPage(child: WorkoutsPage()),
-          ),
-          GoRoute(
-            path: '/workouts-history',
-            name: 'workouts-history',
-            pageBuilder: (_, __) =>
-                const NoTransitionPage(child: WorkoutHistoryPage()),
           ),
           GoRoute(
             path: '/household',

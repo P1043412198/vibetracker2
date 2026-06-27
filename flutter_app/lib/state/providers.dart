@@ -379,6 +379,23 @@ final exerciseLogsProvider =
   return ExerciseLogsController();
 });
 
+class WorkoutSessionsController extends JsonListController<WorkoutSession> {
+  WorkoutSessionsController()
+      : super(
+          storageKey: 'workoutSessions',
+          fromJson: WorkoutSession.fromJson,
+          toJson: (s) => s.toJson(),
+        );
+
+  @override
+  String idOf(WorkoutSession item) => item.id;
+}
+
+final workoutSessionsProvider = StateNotifierProvider<
+    WorkoutSessionsController, List<WorkoutSession>>((ref) {
+  return WorkoutSessionsController();
+});
+
 class BodyMeasurementsController extends JsonListController<BodyMeasurement> {
   BodyMeasurementsController()
       : super(

@@ -32,7 +32,6 @@ class AppShell extends StatelessWidget {
     _MoreItem('/goals', 'Цели', Icons.flag_outlined),
     _MoreItem('/challenges', 'Челленджи', Icons.emoji_events_outlined),
     _MoreItem('/workouts', 'Тренировки', Icons.fitness_center_outlined),
-    _MoreItem('/workouts-history', 'История тренировок', Icons.history),
     _MoreItem('/household', 'Хозяйство', Icons.home_outlined),
     _MoreItem('/household-notes', 'Бытовые заметки', Icons.sticky_note_2_outlined),
     _MoreItem('/shopping-list', 'Список покупок', Icons.shopping_cart_outlined),

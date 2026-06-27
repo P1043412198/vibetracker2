@@ -459,6 +459,7 @@ class ExerciseLog {
     required this.metrics,
     this.notes,
     this.restTime,
+    this.sessionId,
   });
 
   final String id;
@@ -467,6 +468,7 @@ class ExerciseLog {
   final Map<WorkoutMetric, num> metrics;
   final String? notes;
   final int? restTime;
+  final String? sessionId; // links the set to a WorkoutSession (legacy logs none)
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -477,6 +479,7 @@ class ExerciseLog {
         },
         if (notes != null) 'notes': notes,
         if (restTime != null) 'restTime': restTime,
+        if (sessionId != null) 'sessionId': sessionId,
       };
 
   factory ExerciseLog.fromJson(Map<String, dynamic> json) {
@@ -496,6 +499,100 @@ class ExerciseLog {
       metrics: m,
       notes: json['notes'] as String?,
       restTime: (json['restTime'] as num?)?.toInt(),
+      sessionId: json['sessionId'] as String?,
+    );
+  }
+
+  ExerciseLog copyWith({
+    String? exerciseId,
+    String? date,
+    Map<WorkoutMetric, num>? metrics,
+    String? notes,
+    int? restTime,
+    String? sessionId,
+  }) {
+    return ExerciseLog(
+      id: id,
+      exerciseId: exerciseId ?? this.exerciseId,
+      date: date ?? this.date,
+      metrics: metrics ?? this.metrics,
+      notes: notes ?? this.notes,
+      restTime: restTime ?? this.restTime,
+      sessionId: sessionId ?? this.sessionId,
+    );
+  }
+}
+
+enum WorkoutSessionStatus { active, completed }
+
+class WorkoutSession {
+  WorkoutSession({
+    required this.id,
+    required this.date,
+    required this.startedAt,
+    required this.status,
+    this.endedAt,
+    this.durationSec,
+    this.programId,
+    this.label,
+    this.notes,
+  });
+
+  final String id;
+  final String date; // YYYY-MM-DD
+  final String startedAt; // ISO timestamp
+  final WorkoutSessionStatus status;
+  final String? endedAt; // ISO timestamp
+  final int? durationSec;
+  final String? programId;
+  final String? label;
+  final String? notes;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'date': date,
+        'startedAt': startedAt,
+        'status': status.name,
+        if (endedAt != null) 'endedAt': endedAt,
+        if (durationSec != null) 'durationSec': durationSec,
+        if (programId != null) 'programId': programId,
+        if (label != null) 'label': label,
+        if (notes != null) 'notes': notes,
+      };
+
+  factory WorkoutSession.fromJson(Map<String, dynamic> json) => WorkoutSession(
+        id: json['id'] as String,
+        date: json['date'] as String,
+        startedAt: (json['startedAt'] ?? json['date']) as String,
+        status: enumFromName(WorkoutSessionStatus.values,
+            json['status'] as String?, WorkoutSessionStatus.completed),
+        endedAt: json['endedAt'] as String?,
+        durationSec: (json['durationSec'] as num?)?.toInt(),
+        programId: json['programId'] as String?,
+        label: json['label'] as String?,
+        notes: json['notes'] as String?,
+      );
+
+  WorkoutSession copyWith({
+    String? date,
+    String? startedAt,
+    WorkoutSessionStatus? status,
+    String? endedAt,
+    int? durationSec,
+    String? programId,
+    String? label,
+    String? notes,
+  }) {
+    return WorkoutSession(
+      id: id,
+      date: date ?? this.date,
+      startedAt: startedAt ?? this.startedAt,
+      status: status ?? this.status,
+      endedAt: endedAt ?? this.endedAt,
+      durationSec: durationSec ?? this.durationSec,
+      programId: programId ?? this.programId,
+      label: label ?? this.label,
+      notes: notes ?? this.notes,
     );
   }
 }

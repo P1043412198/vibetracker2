@@ -186,6 +186,21 @@ export type ExerciseLog = {
   metrics: Partial<Record<WorkoutMetric, number>>;
   notes?: string;
   restTime?: number; // in seconds
+  sessionId?: string; // links the set to a WorkoutSession (legacy logs have none)
+};
+
+export type WorkoutSessionStatus = 'active' | 'completed';
+
+export type WorkoutSession = {
+  id: string;
+  date: string; // YYYY-MM-DD (local day the session started)
+  startedAt: string; // ISO timestamp
+  endedAt?: string; // ISO timestamp
+  durationSec?: number; // explicit elapsed seconds
+  programId?: string; // workout node (folder/program) used
+  label?: string; // e.g. "День ног"
+  notes?: string;
+  status: WorkoutSessionStatus;
 };
 
 export type BodyMeasurement = {
@@ -520,6 +535,7 @@ export type AppState = {
   habitLogs: HabitLog[];
   workoutNodes?: WorkoutNode[];
   exerciseLogs?: ExerciseLog[];
+  workoutSessions?: WorkoutSession[];
   bodyMeasurements?: BodyMeasurement[];
   plannedWorkouts?: PlannedWorkout[];
   passwords?: PasswordEntry[];

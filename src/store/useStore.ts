@@ -3,7 +3,7 @@ import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
 import { format, isSameMonth, parseISO } from 'date-fns';
-import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset, IncomeSource, PlannedExpense, ActualExpense } from '../types';
+import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, WorkoutSession, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset, IncomeSource, PlannedExpense, ActualExpense } from '../types';
 import { createMonthlyBudgetActions } from './slices/monthlyBudgetSlice';
 import { convertCurrency } from '../lib/utils';
 import type { CashflowRangeMode } from '../lib/finance/budgetPlanner';
@@ -38,6 +38,7 @@ interface AppState {
   habitLogs: HabitLog[];
   workoutNodes: WorkoutNode[];
   exerciseLogs: ExerciseLog[];
+  workoutSessions: WorkoutSession[];
   bodyMeasurements: BodyMeasurement[];
   plannedWorkouts: PlannedWorkout[];
   passwords: PasswordEntry[];
@@ -158,9 +159,14 @@ interface AppState {
   deleteWorkoutNode: (id: string) => void;
   moveWorkoutNode: (id: string, newParentId: string | null) => void;
 
-  logExercise: (log: Omit<ExerciseLog, 'id'>) => void;
+  logExercise: (log: Omit<ExerciseLog, 'id'>) => string;
   updateExerciseLog: (id: string, updates: Partial<ExerciseLog>) => void;
   deleteExerciseLog: (id: string) => void;
+
+  startWorkoutSession: (init?: { programId?: string; label?: string; date?: string }) => string;
+  finishWorkoutSession: (id: string, updates?: { durationSec?: number; notes?: string }) => void;
+  updateWorkoutSession: (id: string, updates: Partial<WorkoutSession>) => void;
+  deleteWorkoutSession: (id: string, opts?: { deleteLogs?: boolean }) => void;
 
   addBodyMeasurement: (measurement: Omit<BodyMeasurement, 'id'>) => void;
   updateBodyMeasurement: (id: string, updates: Partial<BodyMeasurement>) => void;
@@ -342,6 +348,7 @@ export const useStore = create<AppState>()(
       habitLogs: [],
       workoutNodes: [],
       exerciseLogs: [],
+      workoutSessions: [],
       bodyMeasurements: [],
       plannedWorkouts: [],
       passwords: [],
@@ -718,14 +725,66 @@ export const useStore = create<AppState>()(
         workoutNodes: state.workoutNodes.map(n => n.id === id ? { ...n, parentId: newParentId } : n)
       })),
 
-      logExercise: (log) => set((state) => ({
-        exerciseLogs: [...state.exerciseLogs, { ...log, id: uuidv4() }]
-      })),
+      logExercise: (log) => {
+        const id = uuidv4();
+        set((state) => ({
+          exerciseLogs: [...state.exerciseLogs, { ...log, id }]
+        }));
+        return id;
+      },
       updateExerciseLog: (id, updates) => set((state) => ({
         exerciseLogs: state.exerciseLogs.map(l => l.id === id ? { ...l, ...updates } : l)
       })),
       deleteExerciseLog: (id) => set((state) => ({
         exerciseLogs: state.exerciseLogs.filter(l => l.id !== id)
+      })),
+
+      startWorkoutSession: (init) => {
+        const id = uuidv4();
+        const now = new Date();
+        const date = init?.date ?? now.toISOString().split('T')[0];
+        set((state) => ({
+          workoutSessions: [
+            ...(state.workoutSessions || []),
+            {
+              id,
+              date,
+              startedAt: now.toISOString(),
+              status: 'active' as const,
+              programId: init?.programId,
+              label: init?.label,
+            },
+          ],
+        }));
+        return id;
+      },
+      finishWorkoutSession: (id, updates) => set((state) => {
+        const now = new Date();
+        return {
+          workoutSessions: (state.workoutSessions || []).map(s =>
+            s.id === id
+              ? {
+                  ...s,
+                  status: 'completed' as const,
+                  endedAt: now.toISOString(),
+                  durationSec:
+                    updates?.durationSec ??
+                    s.durationSec ??
+                    Math.max(0, Math.round((now.getTime() - new Date(s.startedAt).getTime()) / 1000)),
+                  notes: updates?.notes ?? s.notes,
+                }
+              : s
+          ),
+        };
+      }),
+      updateWorkoutSession: (id, updates) => set((state) => ({
+        workoutSessions: (state.workoutSessions || []).map(s => s.id === id ? { ...s, ...updates } : s)
+      })),
+      deleteWorkoutSession: (id, opts) => set((state) => ({
+        workoutSessions: (state.workoutSessions || []).filter(s => s.id !== id),
+        exerciseLogs: opts?.deleteLogs
+          ? state.exerciseLogs.filter(l => l.sessionId !== id)
+          : state.exerciseLogs.map(l => l.sessionId === id ? { ...l, sessionId: undefined } : l),
       })),
 
       addBodyMeasurement: (measurement) => set((state) => ({

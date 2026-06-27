@@ -59,6 +59,31 @@ num bestMetric(Iterable<ExerciseLog> logs, WorkoutMetric metric) {
   return best;
 }
 
+/// Public compact number formatter ("60", "62.5").
+String fmtNum(num v) => _fmt(v);
+
+/// Best (max) weight recorded for [exerciseId] across [logs].
+num bestWeightFor(Iterable<ExerciseLog> logs, String exerciseId) {
+  num best = 0;
+  for (final l in logs) {
+    if (l.exerciseId != exerciseId) continue;
+    final w = l.metrics[WorkoutMetric.weight];
+    if (w != null && w > best) best = w;
+  }
+  return best;
+}
+
+/// "1ч 05м" / "45м 10с" / "30с" style duration from seconds.
+String formatWorkoutDuration(int? sec) {
+  if (sec == null || sec <= 0) return '—';
+  final h = sec ~/ 3600;
+  final m = (sec % 3600) ~/ 60;
+  final s = sec % 60;
+  if (h > 0) return '$hч ${m.toString().padLeft(2, '0')}м';
+  if (m > 0) return '$mм ${s.toString().padLeft(2, '0')}с';
+  return '$sс';
+}
+
 String _fmt(num v) {
   if (v == v.roundToDouble()) return v.toInt().toString();
   return v.toStringAsFixed(1);
