@@ -8,6 +8,8 @@ import 'package:uuid/uuid.dart';
 import '../../models/enums.dart';
 import '../../models/misc.dart';
 import '../../state/providers.dart';
+import 'workout_exercise_detail_page.dart';
+import 'workout_format.dart';
 
 Future<void> _openUrl(BuildContext context, String raw) async {
   var s = raw.trim();
@@ -145,6 +147,12 @@ class _CompletedTab extends ConsumerWidget {
         final d = dates[i];
         final dayLogs = logsByDate[d] ?? const <ExerciseLog>[];
         final dayPlans = plansByDate[d] ?? const <PlannedWorkout>[];
+        // Group the day's sets by exercise so each exercise appears once with
+        // its set count and a per-set summary.
+        final byExercise = <String, List<ExerciseLog>>{};
+        for (final l in dayLogs) {
+          byExercise.putIfAbsent(l.exerciseId, () => []).add(l);
+        }
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
           child: Padding(
@@ -152,8 +160,19 @@ class _CompletedTab extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(_humanDate(d),
-                    style: Theme.of(context).textTheme.titleSmall),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(_humanDate(d),
+                          style: Theme.of(context).textTheme.titleSmall),
+                    ),
+                    if (dayLogs.isNotEmpty)
+                      Text(
+                        '${dayLogs.length} подх. · объём ${_fmtNum(totalVolume(dayLogs))}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 for (final p in dayPlans)
                   Padding(
@@ -177,20 +196,43 @@ class _CompletedTab extends ConsumerWidget {
                   ),
                 if (dayPlans.isNotEmpty && dayLogs.isNotEmpty)
                   const Divider(height: 12),
-                for (final l in dayLogs)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _exerciseName(l.exerciseId, nodes),
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w500),
+                for (final entry in byExercise.entries)
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => WorkoutExerciseDetailPage(
+                            exerciseId: entry.key),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _exerciseName(entry.key, nodes),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              Text('${entry.value.length} подх.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall),
+                              const Icon(Icons.chevron_right, size: 18),
+                            ],
                           ),
-                        ),
-                        Text(_metricsLabel(l.metrics)),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            entry.value.map(setSummary).join('   '),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 if (dayPlans.isNotEmpty && dayLogs.isEmpty)
@@ -218,7 +260,10 @@ class _CompletedTab extends ConsumerWidget {
 
   String _humanDate(String iso) {
     final dt = DateTime.tryParse(iso);
-    return dt == null ? iso : DateFormat.yMMMMd('ru').format(dt);
+    if (dt == null) return iso;
+    final wd = DateFormat.EEEE('ru').format(dt);
+    final cap = wd.isEmpty ? wd : wd[0].toUpperCase() + wd.substring(1);
+    return '$cap, ${DateFormat.yMMMMd('ru').format(dt)}';
   }
 
   String _exerciseName(String id, List<WorkoutNode> nodes) {
@@ -227,25 +272,10 @@ class _CompletedTab extends ConsumerWidget {
     return node?.name ?? '(удалено)';
   }
 
-  String _metricsLabel(Map<WorkoutMetric, num> m) {
-    final parts = <String>[];
-    if (m.containsKey(WorkoutMetric.weight) &&
-        m.containsKey(WorkoutMetric.reps)) {
-      parts.add('${m[WorkoutMetric.weight]} кг × ${m[WorkoutMetric.reps]}');
-    } else {
-      m.forEach((k, v) => parts.add('${_metricLabel(k)}: $v'));
-    }
-    return parts.join('  ·  ');
+  String _fmtNum(num v) {
+    if (v == v.roundToDouble()) return v.toInt().toString();
+    return v.toStringAsFixed(1);
   }
-
-  String _metricLabel(WorkoutMetric m) => switch (m) {
-        WorkoutMetric.weight => 'кг',
-        WorkoutMetric.reps => 'повт.',
-        WorkoutMetric.distance => 'км',
-        WorkoutMetric.time => 'мин',
-        WorkoutMetric.speed => 'км/ч',
-        WorkoutMetric.calories => 'ккал',
-      };
 }
 
 class _ProgressTab extends ConsumerWidget {
@@ -286,7 +316,16 @@ class _ProgressTab extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       itemCount: stats.length,
       separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (_, i) => _ExerciseProgressCard(stat: stats[i]),
+      itemBuilder: (_, i) => InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) =>
+                WorkoutExerciseDetailPage(exerciseId: stats[i].node.id),
+          ),
+        ),
+        child: _ExerciseProgressCard(stat: stats[i]),
+      ),
     );
   }
 }
