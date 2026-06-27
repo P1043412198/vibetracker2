@@ -14,6 +14,7 @@ import '../../models/habit.dart';
 import '../../models/misc.dart';
 import '../../services/budget_planner_calc.dart';
 import '../../services/finance_calc.dart';
+import '../finance/payment_reminders_card.dart';
 import '../../state/budget_planner_state.dart';
 import '../../state/currency_state.dart';
 import '../../state/providers.dart';
@@ -1415,6 +1416,7 @@ class _FinanceHeroWidgetState extends ConsumerState<FinanceHeroWidget>
     );
 
     final cycle = cycles.isNotEmpty ? cycles.first : null;
+    final dueReminders = ref.watch(upcomingRemindersProvider).length;
     final balance = facts.accountBalance.toDouble();
     final daysLeft = cycle?.daysLeft ?? 0;
     final daily = (cycle?.dailyBudget ?? 0).toDouble();
@@ -1486,6 +1488,10 @@ class _FinanceHeroWidgetState extends ConsumerState<FinanceHeroWidget>
                   _heroChip('До конца', '$daysLeft дн.'),
                   const SizedBox(height: 4),
                   _heroChip('Кредиты', '${loans.where((l) => l.balance > 0).length}'),
+                  if (dueReminders > 0) ...[
+                    const SizedBox(height: 4),
+                    _heroChip('Скоро оплата', '$dueReminders'),
+                  ],
                 ],
               ),
             ),

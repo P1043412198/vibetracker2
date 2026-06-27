@@ -1,9 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/finance.dart';
 import '../models/habit.dart';
 import '../models/task.dart';
 import '../services/notification_service.dart';
+import '../services/payment_reminders.dart';
 import 'providers.dart';
+
+/// Notify this many days before a payment is due.
+const _paymentLeadDays = 1;
 
 /// Bridge between the reactive state and the [NotificationService]: every
 /// time a habit / task list changes, recompute the desired schedule for any
@@ -49,7 +54,48 @@ final reminderSyncProvider = Provider<void>((ref) {
       }
     }
   }, fireImmediately: true);
+
+  // Payments — schedule a one-shot reminder before each due bill/loan payment.
+  // Recompute whenever rules or loans change.
+  ref.listen<List<RegularPayment>>(regularPaymentsProvider, (_, __) {
+    _syncPaymentReminders(ref);
+  }, fireImmediately: true);
+  ref.listen<List<Loan>>(loansProvider, (_, __) {
+    _syncPaymentReminders(ref);
+  }, fireImmediately: true);
 });
+
+Future<void> _syncPaymentReminders(Ref ref) async {
+  final svc = NotificationService.instance;
+  final rules = ref.read(regularPaymentsProvider);
+  final loans = ref.read(loansProvider);
+  final now = DateTime.now();
+  final todayISO = '${now.year.toString().padLeft(4, '0')}-'
+      '${now.month.toString().padLeft(2, '0')}-'
+      '${now.day.toString().padLeft(2, '0')}';
+
+  // Look ahead far enough to schedule alarms before they enter the visible
+  // window (lead days + the in-app 7-day window).
+  final reminders =
+      getUpcomingReminders(rules, loans, todayISO, windowDays: 30);
+
+  for (final r in reminders) {
+    final due = DateTime.parse(r.dueISO);
+    // Fire at 09:00 local, [_paymentLeadDays] before the due date.
+    var when = DateTime(due.year, due.month, due.day, 9)
+        .subtract(const Duration(days: _paymentLeadDays));
+    if (when.isBefore(now)) {
+      when = now.add(const Duration(minutes: 1));
+    }
+    final amount = r.amount.toStringAsFixed(2);
+    await svc.schedulePaymentReminder(
+      reminderKey: r.id,
+      title: 'Скоро оплата',
+      body: '${r.name} — $amount ${r.currency}',
+      when: when,
+    );
+  }
+}
 
 bool _habitReminderEqual(Habit a, Habit b) {
   if (a.title != b.title) return false;

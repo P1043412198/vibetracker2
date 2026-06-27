@@ -81,6 +81,64 @@ export function lastDueOccurrence(
   return { dateISO: toISO(occ), periodKey: toISO(occ) };
 }
 
+/**
+ * Earliest occurrence on or after `today` for a recurring rule — the next
+ * time the rule will come due. Returns null only when the cadence cannot be
+ * resolved (it never does for the supported frequencies).
+ */
+export function nextDueOccurrence(
+  rule: RegularPayment,
+  todayISO: string,
+): { dateISO: string; periodKey: string } | null {
+  const today = parseISO(todayISO);
+  const freq = frequencyOf(rule);
+
+  if (freq === 'monthly') {
+    const y = today.getUTCFullYear();
+    const m = today.getUTCMonth() + 1;
+    const day = Math.min(Math.max(rule.dueDate || 1, 1), daysInMonth(y, m));
+    let occ = new Date(Date.UTC(y, m - 1, day));
+    if (occ.getTime() < today.getTime()) {
+      const ny = m === 12 ? y + 1 : y;
+      const nm = m === 12 ? 1 : m + 1;
+      const nday = Math.min(Math.max(rule.dueDate || 1, 1), daysInMonth(ny, nm));
+      occ = new Date(Date.UTC(ny, nm - 1, nday));
+    }
+    return { dateISO: toISO(occ), periodKey: `${occ.getUTCFullYear()}-${pad(occ.getUTCMonth() + 1)}` };
+  }
+
+  if (freq === 'yearly') {
+    const month1 = Math.min(Math.max(rule.month || 1, 1), 12);
+    const y = today.getUTCFullYear();
+    const day = Math.min(Math.max(rule.dueDate || 1, 1), daysInMonth(y, month1));
+    let occ = new Date(Date.UTC(y, month1 - 1, day));
+    if (occ.getTime() < today.getTime()) {
+      const ny = y + 1;
+      const nday = Math.min(Math.max(rule.dueDate || 1, 1), daysInMonth(ny, month1));
+      occ = new Date(Date.UTC(ny, month1 - 1, nday));
+    }
+    return { dateISO: toISO(occ), periodKey: `${occ.getUTCFullYear()}` };
+  }
+
+  if (freq === 'weekly') {
+    const target = ((rule.weekday ?? today.getUTCDay()) % 7 + 7) % 7;
+    const diff = (target - today.getUTCDay() + 7) % 7; // days until next target weekday
+    const occ = new Date(today.getTime() + diff * 86400000);
+    return { dateISO: toISO(occ), periodKey: toISO(occ) };
+  }
+
+  // biweekly: every 14 days anchored on anchorDate
+  const anchorISO = rule.anchorDate;
+  if (!anchorISO) return null;
+  const anchor = parseISO(anchorISO);
+  if (anchor.getTime() >= today.getTime()) {
+    return { dateISO: toISO(anchor), periodKey: toISO(anchor) };
+  }
+  const periods = Math.ceil((today.getTime() - anchor.getTime()) / (14 * 86400000));
+  const occ = new Date(anchor.getTime() + periods * 14 * 86400000);
+  return { dateISO: toISO(occ), periodKey: toISO(occ) };
+}
+
 export function refFor(ruleId: string, periodKey: string): string {
   return `${ruleId}:${periodKey}`;
 }

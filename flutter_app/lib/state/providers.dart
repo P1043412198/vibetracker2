@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/finance.dart';
@@ -190,6 +192,31 @@ class RecurringSkipsController extends JsonListController<RecurringSkip> {
 final recurringSkipsProvider =
     StateNotifierProvider<RecurringSkipsController, List<RecurringSkip>>(
         (ref) => RecurringSkipsController());
+
+/// Reminder ids the user has acknowledged ("Понятно"), so they aren't shown
+/// again. Persisted as a JSON string array under `paymentRemindersAcked`.
+class PaymentRemindersAckController extends StateNotifier<List<String>> {
+  PaymentRemindersAckController() : super(_load());
+
+  static const _key = 'paymentRemindersAcked';
+
+  static List<String> _load() {
+    final raw = AppStorage.readString(_key);
+    if (raw == null || raw.isEmpty) return const [];
+    final decoded = jsonDecode(raw);
+    return decoded is List ? decoded.cast<String>() : const [];
+  }
+
+  void ack(String id) {
+    if (state.contains(id)) return;
+    state = [...state, id];
+    AppStorage.writeString(_key, jsonEncode(state));
+  }
+}
+
+final paymentRemindersAckProvider =
+    StateNotifierProvider<PaymentRemindersAckController, List<String>>(
+        (ref) => PaymentRemindersAckController());
 
 class MonthlyBudgetPlansController extends JsonListController<MonthlyBudgetPlan> {
   MonthlyBudgetPlansController()

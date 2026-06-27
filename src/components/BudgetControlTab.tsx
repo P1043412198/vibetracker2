@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
 import { RecurringReviewCard } from './RecurringReviewCard';
+import { PaymentRemindersCard } from './PaymentRemindersCard';
 import { lastDueOccurrence, isOccurrencePosted } from '../lib/finance/recurring';
 import type { RecurringFrequency, TransactionType } from '../types';
 
@@ -454,6 +455,8 @@ export function BudgetControlTab() {
               <p className="text-xl font-bold text-zinc-900">{totalUpcoming.toFixed(2)} {baseCurrency}</p>
             </div>
           </div>
+
+          <PaymentRemindersCard />
 
           <RecurringReviewCard />
 

@@ -216,6 +216,62 @@ class NotificationService {
     await _plugin.cancel(_idFor('task:$taskId'));
   }
 
+  /// One-shot reminder for an upcoming payment. [reminderKey] is the stable
+  /// reminder id; [when] is local time (skipped if in the past).
+  Future<void> schedulePaymentReminder({
+    required String reminderKey,
+    required String title,
+    required String body,
+    required DateTime when,
+  }) async {
+    await init();
+    final id = _idFor('payment:$reminderKey');
+    await _plugin.cancel(id);
+    final tzWhen = tz.TZDateTime.from(when, tz.local);
+    if (tzWhen.isBefore(tz.TZDateTime.now(tz.local))) return;
+
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'payments_channel',
+        'Платежи',
+        channelDescription: 'Напоминания об оплате счетов и кредитов',
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+    );
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        tzWhen,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'payment:$reminderKey',
+      );
+    } catch (e) {
+      debugPrint('NotificationService: exact payment alarm failed → inexact: $e');
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        tzWhen,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        payload: 'payment:$reminderKey',
+      );
+    }
+  }
+
+  Future<void> cancelPaymentReminder(String reminderKey) async {
+    await init();
+    await _plugin.cancel(_idFor('payment:$reminderKey'));
+  }
+
   Future<void> cancelAll() async {
     await init();
     await _plugin.cancelAll();

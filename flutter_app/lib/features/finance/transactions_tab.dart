@@ -15,6 +15,7 @@ import '../../state/providers.dart';
 import 'finance_shared.dart';
 import 'recurring_review_card.dart';
 import 'recurring_payments_page.dart';
+import 'payment_reminders_card.dart';
 
 /// "Операции" tab — chronological list of transactions with quick filters
 /// (account / period / type) and an FAB that opens the add-transaction sheet.
@@ -67,6 +68,7 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
                     builder: (_) => const RecurringPaymentsPage()),
               ),
             ),
+            const PaymentRemindersCard(),
             const RecurringReviewCard(),
             Expanded(
               child: filtered.isEmpty

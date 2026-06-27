@@ -50,6 +50,8 @@ interface AppState {
   budgetLimits: BudgetLimit[];
   regularPayments: RegularPayment[];
   recurringSkips: RecurringSkip[];
+  /** Reminder ids the user has acknowledged so they aren't surfaced again. */
+  paymentRemindersAcked: string[];
   envelopes: Envelope[];
   goals: Goal[];
   goalLogs: GoalLog[];
@@ -230,6 +232,7 @@ interface AppState {
   checkRegularPayments: () => void;
   confirmRecurring: (ruleId: string, periodKey: string, accountId?: string) => void;
   skipRecurring: (ruleId: string, periodKey: string) => void;
+  ackPaymentReminder: (id: string) => void;
 
   // Price History
   addPriceHistory: (item: Omit<ShoppingItemPrice, 'id'>) => void;
@@ -363,6 +366,7 @@ export const useStore = create<AppState>()(
       budgetLimits: [],
       regularPayments: [],
       recurringSkips: [],
+      paymentRemindersAcked: [],
       envelopes: [],
       goals: [],
       goalLogs: [],
@@ -1061,6 +1065,11 @@ export const useStore = create<AppState>()(
         return { recurringSkips: [...(state.recurringSkips || []), { ruleId, periodKey }] };
       }),
 
+      ackPaymentReminder: (id) => set((state) => {
+        if ((state.paymentRemindersAcked || []).includes(id)) return state;
+        return { paymentRemindersAcked: [...(state.paymentRemindersAcked || []), id] };
+      }),
+
       addPriceHistory: (item) => set((state) => ({
         priceHistory: [...(state.priceHistory || []), { ...item, id: uuidv4() }]
       })),
@@ -1422,6 +1431,7 @@ export const useStore = create<AppState>()(
         }
         if (fromVersion < 3) {
           if (!Array.isArray(next.recurringSkips)) next.recurringSkips = [];
+          if (!Array.isArray(next.paymentRemindersAcked)) next.paymentRemindersAcked = [];
         }
         return next as AppState;
       },

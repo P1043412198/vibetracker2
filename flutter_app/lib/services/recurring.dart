@@ -75,6 +75,59 @@ RecurringOccurrence? lastDueOccurrence(RegularPayment rule, String todayISO) {
   }
 }
 
+/// Earliest occurrence on or after [todayISO] for a rule — the next time it
+/// comes due. Null only when the cadence can't be resolved (biweekly w/o
+/// anchor, which never happens for valid rules).
+RecurringOccurrence? nextDueOccurrence(RegularPayment rule, String todayISO) {
+  final today = _parseIso(todayISO);
+
+  switch (rule.frequency) {
+    case RecurringFrequency.monthly:
+      final y = today.year;
+      final m = today.month;
+      final day = rule.dueDate.clamp(1, _daysInMonth(y, m));
+      var occ = DateTime.utc(y, m, day);
+      if (occ.isBefore(today)) {
+        final ny = m == 12 ? y + 1 : y;
+        final nm = m == 12 ? 1 : m + 1;
+        final nday = rule.dueDate.clamp(1, _daysInMonth(ny, nm));
+        occ = DateTime.utc(ny, nm, nday);
+      }
+      return RecurringOccurrence(_toIso(occ),
+          '${occ.year.toString().padLeft(4, '0')}-${_pad(occ.month)}');
+
+    case RecurringFrequency.yearly:
+      final month1 = (rule.month ?? 1).clamp(1, 12);
+      final y = today.year;
+      final day = rule.dueDate.clamp(1, _daysInMonth(y, month1));
+      var occ = DateTime.utc(y, month1, day);
+      if (occ.isBefore(today)) {
+        final ny = y + 1;
+        final nday = rule.dueDate.clamp(1, _daysInMonth(ny, month1));
+        occ = DateTime.utc(ny, month1, nday);
+      }
+      return RecurringOccurrence(_toIso(occ), occ.year.toString().padLeft(4, '0'));
+
+    case RecurringFrequency.weekly:
+      final todayDow = today.weekday % 7;
+      final target = ((rule.weekday ?? todayDow) % 7 + 7) % 7;
+      final diff = (target - todayDow + 7) % 7;
+      final occ = today.add(Duration(days: diff));
+      return RecurringOccurrence(_toIso(occ), _toIso(occ));
+
+    case RecurringFrequency.biweekly:
+      final anchorISO = rule.anchorDate;
+      if (anchorISO == null) return null;
+      final anchor = _parseIso(anchorISO);
+      if (!anchor.isBefore(today)) {
+        return RecurringOccurrence(_toIso(anchor), _toIso(anchor));
+      }
+      final periods = (today.difference(anchor).inDays / 14).ceil();
+      final occ = anchor.add(Duration(days: periods * 14));
+      return RecurringOccurrence(_toIso(occ), _toIso(occ));
+  }
+}
+
 String refFor(String ruleId, String periodKey) => '$ruleId:$periodKey';
 
 bool isOccurrencePosted(
