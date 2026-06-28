@@ -42,6 +42,32 @@ bool plannedExpensePaidByTransaction({
   return false;
 }
 
+/// Whether a planned expense should generate an obligation in [monthKey]
+/// (YYYY-MM). [ExpenseRecurrence.once] expenses apply only in their
+/// [PlannedExpense.startMonth] (falling back to [currentMonthKey] when unset);
+/// monthly expenses repeat every month but are suppressed before startMonth.
+/// Legacy expenses (monthly, no startMonth) apply every month. Mirrors the
+/// React `plannedExpenseAppliesToMonth`.
+bool plannedExpenseAppliesToMonth(
+  PlannedExpense exp,
+  String monthKey,
+  String currentMonthKey,
+) {
+  if (exp.recurrence == ExpenseRecurrence.once) {
+    final anchor =
+        (exp.startMonth != null && exp.startMonth!.isNotEmpty)
+            ? exp.startMonth!
+            : currentMonthKey;
+    return monthKey == anchor;
+  }
+  if (exp.startMonth != null &&
+      exp.startMonth!.isNotEmpty &&
+      monthKey.compareTo(exp.startMonth!) < 0) {
+    return false;
+  }
+  return true;
+}
+
 /// Returns the last working day on or before [dayOfMonth] in [year]/[month].
 DateTime adjustedPayDate(int year, int month, int dayOfMonth) {
   final daysInMonth = DateTime(year, month + 1, 0).day;
@@ -742,6 +768,11 @@ CashflowForecast computeCashflowForecast({
     for (var k = 0; k <= 6; k++) {
       final ym = _addMonth(now.year, now.month, k);
       if (k == 0 && autoPaidThisMonth) continue;
+      final occMonthKey =
+          '${ym.year}-${ym.month.toString().padLeft(2, '0')}';
+      if (!plannedExpenseAppliesToMonth(exp, occMonthKey, currentMonthKey)) {
+        continue;
+      }
       final dim = DateTime(ym.year, ym.month + 1, 0).day;
       final dayCandidate =
           exp.dayTo != 0 ? exp.dayTo : (exp.dayFrom != 0 ? exp.dayFrom : dim);

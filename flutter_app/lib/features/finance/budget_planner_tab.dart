@@ -1128,6 +1128,8 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
   bool _showForm = false;
   bool _showActualForm = false;
   String? _editingId;
+  ExpenseRecurrence _recurrence = ExpenseRecurrence.monthly;
+  String? _startMonth; // YYYY-MM
   final _nameCtl = TextEditingController();
   final _amountCtl = TextEditingController();
   final _dayFromCtl = TextEditingController();
@@ -1135,11 +1137,18 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
   final _actNameCtl = TextEditingController();
   final _actAmountCtl = TextEditingController();
 
+  String get _thisMonthKey {
+    final n = DateTime.now();
+    return '${n.year}-${n.month.toString().padLeft(2, '0')}';
+  }
+
   void _resetForm() {
     _nameCtl.clear();
     _amountCtl.clear();
     _dayFromCtl.clear();
     _dayToCtl.clear();
+    _recurrence = ExpenseRecurrence.monthly;
+    _startMonth = null;
     _editingId = null;
     _showForm = false;
   }
@@ -1149,6 +1158,8 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
     _amountCtl.text = e.amount.toStringAsFixed(0);
     _dayFromCtl.text = e.dayFrom.toString();
     _dayToCtl.text = e.dayTo.toString();
+    _recurrence = e.recurrence;
+    _startMonth = e.startMonth;
     _editingId = e.id;
     setState(() => _showForm = true);
   }
@@ -1159,6 +1170,10 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
     if (name.isEmpty || amount <= 0) return;
     final dayFrom = int.tryParse(_dayFromCtl.text) ?? 1;
     final dayTo = int.tryParse(_dayToCtl.text) ?? 31;
+    // 'once' must be anchored to a month; default to the current one.
+    final startMonth = _recurrence == ExpenseRecurrence.once
+        ? (_startMonth ?? _thisMonthKey)
+        : _startMonth;
     final ctrl = ref.read(budgetPlannerProvider.notifier);
 
     if (_editingId != null) {
@@ -1169,6 +1184,9 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
                 amount: amount,
                 dayFrom: dayFrom,
                 dayTo: dayTo,
+                recurrence: _recurrence,
+                startMonth: startMonth,
+                clearStartMonth: startMonth == null,
               ));
     } else {
       ctrl.addPlannedExpense(PlannedExpense(
@@ -1177,6 +1195,8 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
         amount: amount,
         dayFrom: dayFrom,
         dayTo: dayTo,
+        recurrence: _recurrence,
+        startMonth: startMonth,
         createdAt: DateTime.now().toIso8601String(),
       ));
     }
@@ -1470,6 +1490,57 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
               ],
             ),
             const SizedBox(height: 12),
+            const Text('Повторение',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7280))),
+            const SizedBox(height: 6),
+            SegmentedButton<ExpenseRecurrence>(
+              segments: const [
+                ButtonSegment(
+                    value: ExpenseRecurrence.monthly,
+                    label: Text('Каждый месяц')),
+                ButtonSegment(
+                    value: ExpenseRecurrence.once, label: Text('Разовый')),
+              ],
+              selected: {_recurrence},
+              onSelectionChanged: (s) => setState(() {
+                _recurrence = s.first;
+                if (_recurrence == ExpenseRecurrence.once) {
+                  _startMonth ??= _thisMonthKey;
+                }
+              }),
+            ),
+            const SizedBox(height: 8),
+            InkWell(
+              onTap: _pickStartMonth,
+              borderRadius: BorderRadius.circular(8),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: _recurrence == ExpenseRecurrence.once
+                      ? 'Месяц платежа'
+                      : 'С какого месяца (необязательно)',
+                  isDense: true,
+                  suffixIcon: _startMonth != null
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: _recurrence == ExpenseRecurrence.once
+                              ? null
+                              : () => setState(() => _startMonth = null),
+                        )
+                      : const Icon(Icons.calendar_month, size: 18),
+                ),
+                child: Text(
+                  _startMonth != null
+                      ? _monthKeyLabel(_startMonth!)
+                      : (_recurrence == ExpenseRecurrence.monthly
+                          ? 'С текущего месяца'
+                          : 'Выбрать'),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -1490,6 +1561,40 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
         ),
       ),
     );
+  }
+
+  static const _monthNames = [
+    'янв', 'фев', 'мар', 'апр', 'май', 'июн',
+    'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
+  ];
+
+  String _monthKeyLabel(String key) {
+    final parts = key.split('-');
+    if (parts.length < 2) return key;
+    final m = int.tryParse(parts[1]) ?? 1;
+    return '${_monthNames[(m - 1).clamp(0, 11)]} ${parts[0].substring(2)}';
+  }
+
+  Future<void> _pickStartMonth() async {
+    final now = DateTime.now();
+    final initial = _startMonth != null
+        ? DateTime(
+            int.parse(_startMonth!.split('-')[0]),
+            int.parse(_startMonth!.split('-')[1]),
+          )
+        : now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 5, 12),
+      initialDatePickerMode: DatePickerMode.year,
+      helpText: 'Выберите месяц (день не важен)',
+    );
+    if (picked != null) {
+      setState(() =>
+          _startMonth = '${picked.year}-${picked.month.toString().padLeft(2, '0')}');
+    }
   }
 
   Widget _buildActualForm() {
@@ -1553,10 +1658,35 @@ class _ExpenseCard extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onTogglePaid;
 
+  static const _monthNames = [
+    'янв', 'фев', 'мар', 'апр', 'май', 'июн',
+    'июл', 'авг', 'сен', 'окт', 'ноя', 'дек',
+  ];
+
+  String _monthKeyLabel(String key) {
+    final parts = key.split('-');
+    if (parts.length < 2) return key;
+    final m = int.tryParse(parts[1]) ?? 1;
+    return '${_monthNames[(m - 1).clamp(0, 11)]} ${parts[0].substring(2)}';
+  }
+
+  String? _recurrenceSuffix() {
+    if (expense.recurrence == ExpenseRecurrence.once) {
+      return expense.startMonth != null
+          ? 'разовый · ${_monthKeyLabel(expense.startMonth!)}'
+          : 'разовый';
+    }
+    if (expense.startMonth != null) {
+      return 'с ${_monthKeyLabel(expense.startMonth!)}';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final paid = expense.isPaid || autoPaid;
+    final recurrenceSuffix = _recurrenceSuffix();
     return Dismissible(
       key: ValueKey('planned-expense-${expense.id}'),
       direction: DismissDirection.endToStart,
@@ -1593,7 +1723,8 @@ class _ExpenseCard extends StatelessWidget {
         subtitle: Text(
           autoPaid && !expense.isPaid
               ? '${expense.dayFrom}–${expense.dayTo} числа · оплачено по транзакции'
-              : '${expense.dayFrom}–${expense.dayTo} числа',
+              : '${expense.dayFrom}–${expense.dayTo} числа'
+                  '${recurrenceSuffix != null ? ' · $recurrenceSuffix' : ''}',
           style: TextStyle(
               fontSize: 12,
               color: autoPaid && !expense.isPaid

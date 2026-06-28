@@ -9,6 +9,9 @@ const _uuid = Uuid();
 
 enum IncomeSourceType { salary, advance, additional }
 
+/// How a planned expense repeats across months.
+enum ExpenseRecurrence { monthly, once }
+
 class IncomeSource {
   IncomeSource({
     required this.id,
@@ -104,6 +107,8 @@ class PlannedExpense {
     required this.dayFrom,
     required this.dayTo,
     this.category,
+    this.recurrence = ExpenseRecurrence.monthly,
+    this.startMonth,
     this.isPaid = false,
     this.paidDate,
     this.paidAmount,
@@ -118,6 +123,16 @@ class PlannedExpense {
   final int dayFrom;
   final int dayTo;
   final String? category;
+
+  /// How often the expense recurs. [ExpenseRecurrence.monthly] (default)
+  /// repeats every month on the [dayFrom..dayTo] window;
+  /// [ExpenseRecurrence.once] applies only in [startMonth].
+  final ExpenseRecurrence recurrence;
+
+  /// First month the expense applies, as `YYYY-MM`. For monthly it suppresses
+  /// occurrences before this month; for once it is the only month. Null means
+  /// "from now / every month" (legacy behaviour).
+  final String? startMonth;
   final bool isPaid;
   final String? paidDate;
   final double? paidAmount;
@@ -131,6 +146,9 @@ class PlannedExpense {
     int? dayFrom,
     int? dayTo,
     String? category,
+    ExpenseRecurrence? recurrence,
+    String? startMonth,
+    bool clearStartMonth = false,
     bool? isPaid,
     String? paidDate,
     double? paidAmount,
@@ -145,6 +163,8 @@ class PlannedExpense {
       dayFrom: dayFrom ?? this.dayFrom,
       dayTo: dayTo ?? this.dayTo,
       category: category ?? this.category,
+      recurrence: recurrence ?? this.recurrence,
+      startMonth: clearStartMonth ? null : (startMonth ?? this.startMonth),
       isPaid: clearPaid ? false : (isPaid ?? this.isPaid),
       paidDate: clearPaid ? null : (paidDate ?? this.paidDate),
       paidAmount: clearPaid ? null : (paidAmount ?? this.paidAmount),
@@ -161,6 +181,8 @@ class PlannedExpense {
         'dayFrom': dayFrom,
         'dayTo': dayTo,
         if (category != null) 'category': category,
+        'recurrence': recurrence.name,
+        if (startMonth != null) 'startMonth': startMonth,
         'isPaid': isPaid,
         if (paidDate != null) 'paidDate': paidDate,
         if (paidAmount != null) 'paidAmount': paidAmount,
@@ -176,6 +198,11 @@ class PlannedExpense {
         dayFrom: (j['dayFrom'] as num).toInt(),
         dayTo: (j['dayTo'] as num).toInt(),
         category: j['category'] as String?,
+        recurrence: ExpenseRecurrence.values.firstWhere(
+          (e) => e.name == j['recurrence'],
+          orElse: () => ExpenseRecurrence.monthly,
+        ),
+        startMonth: j['startMonth'] as String?,
         isPaid: (j['isPaid'] ?? false) as bool,
         paidDate: j['paidDate'] as String?,
         paidAmount: j['paidAmount'] != null
@@ -309,6 +336,10 @@ class BudgetPlanConfig {
                 dayFrom: e.dayFrom,
                 dayTo: e.dayTo,
                 category: e.category,
+                recurrence: e.recurrence,
+                startMonth: e.recurrence == ExpenseRecurrence.once
+                    ? newMonthKey
+                    : e.startMonth,
                 isActive: e.isActive,
                 createdAt: DateTime.now().toIso8601String(),
               ))

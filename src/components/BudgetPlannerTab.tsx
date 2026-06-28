@@ -311,12 +311,18 @@ function ExpensePlanSection() {
   const { plannedExpenses, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, markExpensePaid, markExpenseUnpaid, transactions, accounts, rates, baseCurrency } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const thisMonthKey = useMemo(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
   const [form, setForm] = useState({
     name: '',
     amount: '',
     dayFrom: '1',
     dayTo: '5',
     category: '',
+    recurrence: 'monthly' as 'monthly' | 'once',
+    startMonth: '',
   });
 
   const expenses = plannedExpenses || [];
@@ -338,7 +344,7 @@ function ExpensePlanSection() {
   const totalPaid = expenses.filter(e => e.isPaid || autoPaidIds.has(e.id)).reduce((sum, e) => sum + (e.paidAmount || e.amount), 0);
 
   const resetForm = () => {
-    setForm({ name: '', amount: '', dayFrom: '1', dayTo: '5', category: '' });
+    setForm({ name: '', amount: '', dayFrom: '1', dayTo: '5', category: '', recurrence: 'monthly', startMonth: '' });
     setShowForm(false);
     setEditId(null);
   };
@@ -346,12 +352,19 @@ function ExpensePlanSection() {
   const handleSave = () => {
     const amount = parseFloat(form.amount);
     if (!form.name || isNaN(amount)) return;
+    // 'once' must be anchored to a month; default to the current one.
+    const startMonth =
+      form.recurrence === 'once'
+        ? form.startMonth || thisMonthKey
+        : form.startMonth || undefined;
     const data = {
       name: form.name,
       amount,
       dayFrom: parseInt(form.dayFrom) || 1,
       dayTo: parseInt(form.dayTo) || 5,
       category: form.category || undefined,
+      recurrence: form.recurrence,
+      startMonth,
       isPaid: false,
       isActive: true,
     };
@@ -370,6 +383,8 @@ function ExpensePlanSection() {
       dayFrom: String(expense.dayFrom),
       dayTo: String(expense.dayTo),
       category: expense.category || '',
+      recurrence: expense.recurrence ?? 'monthly',
+      startMonth: expense.startMonth || '',
     });
     setEditId(expense.id);
     setShowForm(true);
@@ -439,6 +454,13 @@ function ExpensePlanSection() {
                   {expense.category && (
                     <span className="text-zinc-400">{expense.category}</span>
                   )}
+                  {expense.recurrence === 'once' ? (
+                    <span className="text-amber-600 font-semibold">
+                      разовый{expense.startMonth ? ` · ${monthKeyLabel(expense.startMonth)}` : ''}
+                    </span>
+                  ) : expense.startMonth ? (
+                    <span className="text-zinc-400">с {monthKeyLabel(expense.startMonth)}</span>
+                  ) : null}
                 </div>
                 {expense.isPaid && expense.paidDate && (
                   <p className="text-[10px] text-emerald-500 mt-1">
@@ -529,6 +551,49 @@ function ExpensePlanSection() {
               placeholder="Категория (необязательно)"
               className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm"
             />
+            <div>
+              <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block">Повторение</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, recurrence: 'monthly' })}
+                  className={cn(
+                    "py-2 rounded-xl text-xs font-bold border transition-colors",
+                    form.recurrence === 'monthly'
+                      ? "bg-rose-500 text-white border-rose-500"
+                      : "bg-stone-50 text-zinc-500 border-stone-200"
+                  )}
+                >
+                  Каждый месяц
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, recurrence: 'once', startMonth: form.startMonth || thisMonthKey })}
+                  className={cn(
+                    "py-2 rounded-xl text-xs font-bold border transition-colors",
+                    form.recurrence === 'once'
+                      ? "bg-rose-500 text-white border-rose-500"
+                      : "bg-stone-50 text-zinc-500 border-stone-200"
+                  )}
+                >
+                  Разовый
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block">
+                {form.recurrence === 'once' ? 'Месяц платежа' : 'С какого месяца (необязательно)'}
+              </label>
+              <input
+                type="month"
+                value={form.startMonth}
+                onChange={e => setForm({ ...form, startMonth: e.target.value })}
+                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm"
+              />
+              {form.recurrence === 'monthly' && (
+                <p className="text-[10px] text-zinc-400 mt-1">Пусто = считается с текущего месяца и далее.</p>
+              )}
+            </div>
             <div className="flex gap-2">
               <button onClick={resetForm} className="flex-1 py-2 text-xs font-bold text-zinc-500">Отмена</button>
               <button

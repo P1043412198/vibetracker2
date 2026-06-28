@@ -54,6 +54,26 @@ export function isPlannedExpensePaidByTx(opts: {
 }
 
 /**
+ * Whether a planned expense should generate an obligation in `monthKey`
+ * (YYYY-MM). 'once' expenses apply only in their `startMonth` (falling back to
+ * `currentMonthKey` when unset); 'monthly' expenses repeat every month but are
+ * suppressed before `startMonth`. Legacy expenses (no recurrence/startMonth)
+ * apply every month.
+ */
+export function plannedExpenseAppliesToMonth(
+  exp: Pick<PlannedExpense, 'recurrence' | 'startMonth'>,
+  monthKey: string,
+  currentMonthKey: string,
+): boolean {
+  if (exp.recurrence === 'once') {
+    const anchor = exp.startMonth || currentMonthKey;
+    return monthKey === anchor;
+  }
+  if (exp.startMonth && monthKey < exp.startMonth) return false;
+  return true;
+}
+
+/**
  * Remaining balance still owed on a loan: total scheduled payment minus the
  * net of payments and withdrawals already recorded.
  */
@@ -554,6 +574,8 @@ export function computeCashflowForecast(opts: {
     for (let k = 0; k <= 6; k++) {
       const { year, month } = addMonth(today.getFullYear(), today.getMonth(), k);
       if (k === 0 && autoPaidThisMonth) continue;
+      const occMonthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+      if (!plannedExpenseAppliesToMonth(exp, occMonthKey, currentMonthKey)) continue;
       const dim = getDaysInMonth(new Date(year, month));
       const day = Math.min(exp.dayTo || exp.dayFrom || dim, dim);
       const date = new Date(year, month, day);

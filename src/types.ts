@@ -518,6 +518,17 @@ export type PlannedExpense = {
   /** End day of payment window (1-31). */
   dayTo: number;
   category?: string;
+  /**
+   * How often the expense recurs. 'monthly' (default) repeats every month on
+   * the [dayFrom..dayTo] window; 'once' applies only in [startMonth].
+   */
+  recurrence?: 'monthly' | 'once';
+  /**
+   * First month the expense applies, as `YYYY-MM`. For 'monthly' it suppresses
+   * occurrences before this month; for 'once' it is the only month. Undefined
+   * means "from now / every month" (legacy behaviour).
+   */
+  startMonth?: string;
   /** Whether this expense has been paid in the current cycle. */
   isPaid: boolean;
   /** Date when it was actually paid (ISO string). */

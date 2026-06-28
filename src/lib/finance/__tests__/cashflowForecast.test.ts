@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeCashflowForecast, computeCurrentBalance, isPlannedExpensePaidByTx } from '../budgetPlanner';
+import { computeCashflowForecast, computeCurrentBalance, isPlannedExpensePaidByTx, plannedExpenseAppliesToMonth } from '../budgetPlanner';
 import type { Account, IncomeSource, PlannedExpense, Transaction } from '../../../types';
 
 function income(
@@ -305,6 +305,52 @@ describe('computeCashflowForecast — auto-detect paid planned expense', () => {
       reserve: 0,
       today: todayJun28,
       rangeMode: 'next',
+    });
+    expect(f.range?.totalObligations).toBeCloseTo(0, 6);
+  });
+});
+
+describe('plannedExpenseAppliesToMonth / recurrence', () => {
+  const todayJun28 = new Date(2026, 5, 28);
+  const advance30 = [income({ type: 'advance', name: 'Аванс', amount: 500, dayOfMonth: 30 })];
+
+  it('once: applies only in its startMonth', () => {
+    const e = expense({ name: 'Квартира', amount: 1000, dayFrom: 20, dayTo: 29 });
+    const once = { ...e, recurrence: 'once' as const, startMonth: '2026-07' };
+    expect(plannedExpenseAppliesToMonth(once, '2026-07', '2026-06')).toBe(true);
+    expect(plannedExpenseAppliesToMonth(once, '2026-06', '2026-06')).toBe(false);
+    expect(plannedExpenseAppliesToMonth(once, '2026-08', '2026-06')).toBe(false);
+  });
+
+  it('monthly with startMonth: suppressed before startMonth', () => {
+    const e = expense({ name: 'Квартира', amount: 1000, dayFrom: 20, dayTo: 29 });
+    const fromJuly = { ...e, startMonth: '2026-07' };
+    expect(plannedExpenseAppliesToMonth(fromJuly, '2026-06', '2026-06')).toBe(false);
+    expect(plannedExpenseAppliesToMonth(fromJuly, '2026-07', '2026-06')).toBe(true);
+    expect(plannedExpenseAppliesToMonth(fromJuly, '2026-09', '2026-06')).toBe(true);
+  });
+
+  it('legacy (no recurrence/startMonth): applies every month', () => {
+    const e = expense({ name: 'Квартира', amount: 1000, dayFrom: 20, dayTo: 29 });
+    expect(plannedExpenseAppliesToMonth(e, '2026-06', '2026-06')).toBe(true);
+    expect(plannedExpenseAppliesToMonth(e, '2027-01', '2026-06')).toBe(true);
+  });
+
+  it('a one-time July rent creates no obligation in a 28 Jun–1 Jul window', () => {
+    const e = expense({ name: 'Квартира', amount: 1000, dayFrom: 20, dayTo: 29 });
+    const julyRent: PlannedExpense = { ...e, recurrence: 'once', startMonth: '2026-07' };
+    const f = computeCashflowForecast({
+      accounts: balance360,
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: advance30,
+      plannedExpenses: [julyRent],
+      reserve: 0,
+      today: todayJun28,
+      rangeMode: 'custom',
+      customStart: new Date(2026, 5, 28),
+      customEnd: new Date(2026, 6, 1),
     });
     expect(f.range?.totalObligations).toBeCloseTo(0, 6);
   });
