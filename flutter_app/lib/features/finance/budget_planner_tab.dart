@@ -159,6 +159,10 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
           _ExpenseSection(
             config: config,
             facts: facts,
+            transactions: transactions,
+            accounts: accounts,
+            baseCurrency: baseCurrency,
+            convert: convert,
           ),
       ],
     );
@@ -1041,7 +1045,14 @@ class _IncomeCard extends StatelessWidget {
       IncomeSourceType.additional => const Color(0xFF8B5CF6),
     };
 
-    return Card(
+    return Dismissible(
+      key: ValueKey('income-source-${source.id}'),
+      direction: DismissDirection.endToStart,
+      background: _deleteSwipeBackground(),
+      confirmDismiss: (_) =>
+          _confirmDelete(context, 'Удалить источник дохода «${source.name}»?'),
+      onDismissed: (_) => onDelete(),
+      child: Card(
       margin: EdgeInsets.zero,
       child: ListTile(
         leading: CircleAvatar(
@@ -1078,6 +1089,7 @@ class _IncomeCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -1093,9 +1105,20 @@ class _IncomeCard extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 
 class _ExpenseSection extends ConsumerStatefulWidget {
-  const _ExpenseSection({required this.config, required this.facts});
+  const _ExpenseSection({
+    required this.config,
+    required this.facts,
+    required this.transactions,
+    required this.accounts,
+    required this.baseCurrency,
+    required this.convert,
+  });
   final BudgetPlanConfig config;
   final BudgetFacts facts;
+  final List<Transaction> transactions;
+  final List<Account> accounts;
+  final String baseCurrency;
+  final num Function(num, String, String) convert;
 
   @override
   ConsumerState<_ExpenseSection> createState() => _ExpenseSectionState();
@@ -1194,13 +1217,33 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
     final total = expenses
         .where((e) => e.isActive)
         .fold<double>(0, (s, e) => s + e.amount);
-    final paidTotal = expenses
-        .where((e) => e.isPaid)
-        .fold<double>(0, (s, e) => s + (e.paidAmount ?? e.amount));
     final scheme = Theme.of(context).colorScheme;
     final manualActual =
         widget.config.actualExpenses.fold<double>(0, (s, e) => s + e.amount);
     final allActual = widget.facts.monthExpense + manualActual;
+
+    // Auto-detect which planned expenses are already settled by a real
+    // transaction this month, so they show as paid without a manual tick.
+    final now = DateTime.now();
+    final currentMonthKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final accountCurrency = {for (final a in widget.accounts) a.id: a.currency};
+    final autoPaidIds = <String>{
+      for (final e in expenses)
+        if (!e.isPaid &&
+            plannedExpensePaidByTransaction(
+              exp: e,
+              transactions: widget.transactions,
+              monthKey: currentMonthKey,
+              accountCurrency: accountCurrency,
+              convert: widget.convert,
+              baseCurrency: widget.baseCurrency,
+            ))
+          e.id,
+    };
+    final paidTotal = expenses
+        .where((e) => e.isPaid || autoPaidIds.contains(e.id))
+        .fold<double>(0, (s, e) => s + (e.paidAmount ?? e.amount));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1243,6 +1286,7 @@ class _ExpenseSectionState extends ConsumerState<_ExpenseSection> {
         for (final e in expenses) ...[
           _ExpenseCard(
             expense: e,
+            autoPaid: autoPaidIds.contains(e.id),
             onEdit: () => _editExpense(e),
             onDelete: () => ref
                 .read(budgetPlannerProvider.notifier)
@@ -1501,8 +1545,10 @@ class _ExpenseCard extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     required this.onTogglePaid,
+    this.autoPaid = false,
   });
   final PlannedExpense expense;
+  final bool autoPaid;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onTogglePaid;
@@ -1510,18 +1556,26 @@ class _ExpenseCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Card(
+    final paid = expense.isPaid || autoPaid;
+    return Dismissible(
+      key: ValueKey('planned-expense-${expense.id}'),
+      direction: DismissDirection.endToStart,
+      background: _deleteSwipeBackground(),
+      confirmDismiss: (_) => _confirmDelete(
+          context, 'Удалить плановый расход «${expense.name}»?'),
+      onDismissed: (_) => onDelete(),
+      child: Card(
       margin: EdgeInsets.zero,
       child: ListTile(
         leading: GestureDetector(
           onTap: onTogglePaid,
           child: CircleAvatar(
-            backgroundColor: expense.isPaid
+            backgroundColor: paid
                 ? const Color(0xFF10B981).withAlpha(30)
                 : scheme.surfaceContainerHighest,
             child: Icon(
-              expense.isPaid ? Icons.check_circle : Icons.circle_outlined,
-              color: expense.isPaid
+              paid ? Icons.check_circle : Icons.circle_outlined,
+              color: paid
                   ? const Color(0xFF10B981)
                   : scheme.onSurfaceVariant,
               size: 24,
@@ -1533,12 +1587,18 @@ class _ExpenseCard extends StatelessWidget {
           style: TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 14,
-            decoration: expense.isPaid ? TextDecoration.lineThrough : null,
+            decoration: paid ? TextDecoration.lineThrough : null,
           ),
         ),
         subtitle: Text(
-          '${expense.dayFrom}–${expense.dayTo} числа',
-          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+          autoPaid && !expense.isPaid
+              ? '${expense.dayFrom}–${expense.dayTo} числа · оплачено по транзакции'
+              : '${expense.dayFrom}–${expense.dayTo} числа',
+          style: TextStyle(
+              fontSize: 12,
+              color: autoPaid && !expense.isPaid
+                  ? const Color(0xFF10B981)
+                  : scheme.onSurfaceVariant),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1564,8 +1624,42 @@ class _ExpenseCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
+}
+
+/// Red "delete" panel revealed when swiping a budget card from right to left.
+Widget _deleteSwipeBackground() => Container(
+      margin: EdgeInsets.zero,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEF4444),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(Icons.delete_outline, color: Colors.white),
+    );
+
+Future<bool> _confirmDelete(BuildContext context, String message) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Удалить?'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Отмена'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Удалить'),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

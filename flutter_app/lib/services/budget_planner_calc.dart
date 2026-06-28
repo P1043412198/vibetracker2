@@ -6,6 +6,42 @@ import '../models/enums.dart';
 import '../models/finance.dart';
 import 'finance_calc.dart';
 
+/// Heuristic: has [exp] already been settled by a real expense transaction in
+/// [monthKey] (YYYY-MM)? Matches by category or name plus a comparable amount
+/// (≥ half the planned sum), so the cashflow engine can auto-treat the current
+/// month's obligation as paid without a manual tick. Mirrors the React
+/// `isPlannedExpensePaidByTx`.
+bool plannedExpensePaidByTransaction({
+  required PlannedExpense exp,
+  required List<Transaction> transactions,
+  required String monthKey,
+  required Map<String, String> accountCurrency,
+  required num Function(num, String, String) convert,
+  required String baseCurrency,
+}) {
+  final plannedBase = convert(exp.amount, exp.currency, baseCurrency);
+  if (plannedBase <= 0) return false;
+  final expName = exp.name.trim().toLowerCase();
+  final expCat = exp.category?.trim().toLowerCase();
+  for (final t in transactions) {
+    if (t.type != TransactionType.expense) continue;
+    if (!t.date.startsWith(monthKey)) continue;
+    final txCat = t.category.trim().toLowerCase();
+    final catMatch = expCat != null && expCat.isNotEmpty && txCat == expCat;
+    final nameMatch = expName.isNotEmpty &&
+        (txCat.contains(expName) ||
+            expName.contains(txCat) ||
+            (t.notes?.toLowerCase().contains(expName) ?? false));
+    if (!catMatch && !nameMatch) continue;
+    final cur = t.accountId != null
+        ? (accountCurrency[t.accountId] ?? baseCurrency)
+        : baseCurrency;
+    final amtBase = convert(t.amount, cur, baseCurrency);
+    if (amtBase >= plannedBase * 0.5) return true;
+  }
+  return false;
+}
+
 /// Returns the last working day on or before [dayOfMonth] in [year]/[month].
 DateTime adjustedPayDate(int year, int month, int dayOfMonth) {
   final daysInMonth = DateTime(year, month + 1, 0).day;
@@ -687,11 +723,25 @@ CashflowForecast computeCashflowForecast({
   final horizonEndFinal = horizonEnd;
 
   // Build obligation occurrences (unpaid planned expenses) at their deadline.
+  final accountCurrency = {for (final a in accounts) a.id: a.currency};
+  final currentMonthKey =
+      '${now.year}-${now.month.toString().padLeft(2, '0')}';
   final obligations = <_CashEvent>[];
   for (final exp in plannedExpenses) {
     if (!exp.isActive || exp.isPaid) continue;
+    // Auto-detect: if a matching real transaction already settled this expense
+    // this month, drop the current month's obligation (manual tick optional).
+    final autoPaidThisMonth = plannedExpensePaidByTransaction(
+      exp: exp,
+      transactions: transactions,
+      monthKey: currentMonthKey,
+      accountCurrency: accountCurrency,
+      convert: conv,
+      baseCurrency: baseCurrency,
+    );
     for (var k = 0; k <= 6; k++) {
       final ym = _addMonth(now.year, now.month, k);
+      if (k == 0 && autoPaidThisMonth) continue;
       final dim = DateTime(ym.year, ym.month + 1, 0).day;
       final dayCandidate =
           exp.dayTo != 0 ? exp.dayTo : (exp.dayFrom != 0 ? exp.dayFrom : dim);

@@ -10,6 +10,50 @@ import { convertCurrency } from '../utils';
 import type { Account, IncomeSource, Loan, PlannedExpense, Transaction } from '../../types';
 
 /**
+ * Heuristic: has `expense` already been settled by a real expense transaction
+ * in `monthKey` (YYYY-MM)? Matches by category or name plus a comparable amount
+ * (>= half the planned sum), so the cashflow engine can auto-treat the current
+ * month's obligation as paid without a manual tick. Mirrors the Flutter
+ * `plannedExpensePaidByTransaction`.
+ */
+export function isPlannedExpensePaidByTx(opts: {
+  expense: PlannedExpense;
+  transactions: Transaction[];
+  monthKey: string;
+  accounts: Account[];
+  rates: Record<string, number>;
+  baseCurrency: string;
+}): boolean {
+  const { expense, transactions, monthKey, accounts, rates, baseCurrency } = opts;
+  const plannedBase = convertCurrency(
+    expense.amount,
+    expense.currency || baseCurrency,
+    baseCurrency,
+    rates,
+  );
+  if (plannedBase <= 0) return false;
+  const expName = expense.name.trim().toLowerCase();
+  const expCat = expense.category?.trim().toLowerCase();
+  const currencyById: Record<string, string> = {};
+  for (const a of accounts) currencyById[a.id] = a.currency;
+  return transactions.some(t => {
+    if (t.type !== 'expense') return false;
+    if (!t.date.startsWith(monthKey)) return false;
+    const txCat = t.category.trim().toLowerCase();
+    const catMatch = !!expCat && expCat.length > 0 && txCat === expCat;
+    const nameMatch =
+      expName.length > 0 &&
+      (txCat.includes(expName) ||
+        expName.includes(txCat) ||
+        (t.notes?.toLowerCase().includes(expName) ?? false));
+    if (!catMatch && !nameMatch) return false;
+    const cur = (t.accountId && currencyById[t.accountId]) || baseCurrency;
+    const amtBase = convertCurrency(t.amount, cur, baseCurrency, rates);
+    return amtBase >= plannedBase * 0.5;
+  });
+}
+
+/**
  * Remaining balance still owed on a loan: total scheduled payment minus the
  * net of payments and withdrawals already recorded.
  */
@@ -493,11 +537,23 @@ export function computeCashflowForecast(opts: {
   if (!isAfter(horizonEnd, rangeStart)) return empty;
 
   // Build obligation occurrences (unpaid planned expenses) at their deadline day.
+  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   const obligations: CashEvent[] = [];
   for (const exp of plannedExpenses) {
     if (!exp.isActive || exp.isPaid) continue;
+    // Auto-detect: if a matching real transaction already settled this expense
+    // this month, drop the current month's obligation (manual tick optional).
+    const autoPaidThisMonth = isPlannedExpensePaidByTx({
+      expense: exp,
+      transactions,
+      monthKey: currentMonthKey,
+      accounts: allAccounts,
+      rates,
+      baseCurrency,
+    });
     for (let k = 0; k <= 6; k++) {
       const { year, month } = addMonth(today.getFullYear(), today.getMonth(), k);
+      if (k === 0 && autoPaidThisMonth) continue;
       const dim = getDaysInMonth(new Date(year, month));
       const day = Math.min(exp.dayTo || exp.dayFrom || dim, dim);
       const date = new Date(year, month, day);

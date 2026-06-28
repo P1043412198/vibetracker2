@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeCashflowForecast, computeCurrentBalance } from '../budgetPlanner';
+import { computeCashflowForecast, computeCurrentBalance, isPlannedExpensePaidByTx } from '../budgetPlanner';
 import type { Account, IncomeSource, PlannedExpense, Transaction } from '../../../types';
 
 function income(
@@ -41,6 +41,7 @@ function expense(
     currency: partial.currency,
     dayFrom: partial.dayFrom ?? partial.dayTo,
     dayTo: partial.dayTo,
+    category: partial.category,
     isPaid: partial.isPaid ?? false,
     isActive: partial.isActive ?? true,
     createdAt: '2025-01-01',
@@ -266,5 +267,81 @@ describe('computeCurrentBalance', () => {
 
     // a: 1000 + 200 − 50 − 300 = 850; b: 0 + 300 = 300; total = 1150.
     expect(computeCurrentBalance(accounts, transactions, {}, 'BYN')).toBeCloseTo(1150, 6);
+  });
+});
+
+describe('computeCashflowForecast — auto-detect paid planned expense', () => {
+  // Rent due 20–29, today 28 June: unpaid → demands 1000; a matching expense
+  // transaction this month should auto-clear the current-month obligation.
+  const todayJun28 = new Date(2026, 5, 28);
+  const advance30 = [income({ type: 'advance', name: 'Аванс', amount: 500, dayOfMonth: 30 })];
+  const rent = expense({ name: 'Квартира', amount: 1000, dayFrom: 20, dayTo: 29, category: 'Жильё' });
+
+  it('counts the obligation when no matching transaction exists', () => {
+    const f = computeCashflowForecast({
+      accounts: balance360,
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: advance30,
+      plannedExpenses: [rent],
+      reserve: 0,
+      today: todayJun28,
+      rangeMode: 'next',
+    });
+    expect(f.range?.totalObligations).toBeCloseTo(1000, 6);
+  });
+
+  it('drops the current-month obligation when a matching transaction is found', () => {
+    const f = computeCashflowForecast({
+      accounts: balance360,
+      transactions: [
+        { id: 't1', type: 'expense', amount: 1000, category: 'Жильё', date: '2026-06-22', accountId: 'card' },
+      ],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: advance30,
+      plannedExpenses: [rent],
+      reserve: 0,
+      today: todayJun28,
+      rangeMode: 'next',
+    });
+    expect(f.range?.totalObligations).toBeCloseTo(0, 6);
+  });
+});
+
+describe('isPlannedExpensePaidByTx', () => {
+  const acc = [account({ id: 'card', initialBalance: 0, currency: 'BYN' })];
+  const rent = expense({ name: 'Квартира', amount: 1000, dayFrom: 20, dayTo: 29, category: 'Жильё' });
+
+  it('matches by category and a comparable amount', () => {
+    expect(
+      isPlannedExpensePaidByTx({
+        expense: rent,
+        transactions: [
+          { id: 't', type: 'expense', amount: 1000, category: 'Жильё', date: '2026-06-22', accountId: 'card' },
+        ],
+        monthKey: '2026-06',
+        accounts: acc,
+        rates: {},
+        baseCurrency: 'BYN',
+      }),
+    ).toBe(true);
+  });
+
+  it('does not match a different month or a too-small amount', () => {
+    expect(
+      isPlannedExpensePaidByTx({
+        expense: rent,
+        transactions: [
+          { id: 't1', type: 'expense', amount: 1000, category: 'Жильё', date: '2026-05-22', accountId: 'card' },
+          { id: 't2', type: 'expense', amount: 100, category: 'Жильё', date: '2026-06-22', accountId: 'card' },
+        ],
+        monthKey: '2026-06',
+        accounts: acc,
+        rates: {},
+        baseCurrency: 'BYN',
+      }),
+    ).toBe(false);
   });
 });

@@ -10,7 +10,7 @@ import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import { cn } from '../lib/utils';
-import { computeBudgetCycles, computeCashflowForecast, computeMonthlyComparison, computeScenarioProjection, computeSpendingAverages, getPayDate, loansAsPlannedExpenses, scenarioLabels } from '../lib/finance/budgetPlanner';
+import { computeBudgetCycles, computeCashflowForecast, computeMonthlyComparison, computeScenarioProjection, computeSpendingAverages, getPayDate, isPlannedExpensePaidByTx, loansAsPlannedExpenses, scenarioLabels } from '../lib/finance/budgetPlanner';
 import type { CashflowForecast, CashflowRangeMode, MonthComparisonSide, SafeToSpendScenario, SpendingAverages } from '../lib/finance/budgetPlanner';
 import type { Account, IncomeSource, IncomeSourceType, PlannedExpense, Transaction } from '../types';
 import {
@@ -308,7 +308,7 @@ function IncomePlanSection() {
 // ═══════════════ EXPENSE PLAN ═══════════════
 
 function ExpensePlanSection() {
-  const { plannedExpenses, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, markExpensePaid, markExpenseUnpaid } = useStore();
+  const { plannedExpenses, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, markExpensePaid, markExpenseUnpaid, transactions, accounts, rates, baseCurrency } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -320,8 +320,22 @@ function ExpensePlanSection() {
   });
 
   const expenses = plannedExpenses || [];
+  // Auto-detect which planned expenses are already settled by a real
+  // transaction this month, so they show as paid without a manual tick.
+  const autoPaidIds = useMemo(() => {
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const ids = new Set<string>();
+    for (const e of expenses) {
+      if (e.isPaid) continue;
+      if (isPlannedExpensePaidByTx({ expense: e, transactions: transactions || [], monthKey, accounts: accounts || [], rates, baseCurrency })) {
+        ids.add(e.id);
+      }
+    }
+    return ids;
+  }, [expenses, transactions, accounts, rates, baseCurrency]);
   const totalPlanned = expenses.filter(e => e.isActive).reduce((sum, e) => sum + e.amount, 0);
-  const totalPaid = expenses.filter(e => e.isPaid).reduce((sum, e) => sum + (e.paidAmount || e.amount), 0);
+  const totalPaid = expenses.filter(e => e.isPaid || autoPaidIds.has(e.id)).reduce((sum, e) => sum + (e.paidAmount || e.amount), 0);
 
   const resetForm = () => {
     setForm({ name: '', amount: '', dayFrom: '1', dayTo: '5', category: '' });
@@ -383,13 +397,16 @@ function ExpensePlanSection() {
 
       {/* Expense list */}
       <div className="space-y-2">
-        {expenses.map(expense => (
+        {expenses.map(expense => {
+          const autoPaid = autoPaidIds.has(expense.id);
+          const paid = expense.isPaid || autoPaid;
+          return (
           <motion.div
             key={expense.id}
             layout
             className={cn(
               "bg-white p-4 rounded-2xl border transition-all",
-              expense.isPaid ? "border-emerald-200 bg-emerald-50/30" : "border-stone-200",
+              paid ? "border-emerald-200 bg-emerald-50/30" : "border-stone-200",
               !expense.isActive && "opacity-50"
             )}
           >
@@ -398,13 +415,18 @@ function ExpensePlanSection() {
                 <div className="flex items-center gap-2 mb-1">
                   <p className={cn(
                     "text-sm font-bold",
-                    expense.isPaid ? "text-emerald-700 line-through" : "text-zinc-900"
+                    paid ? "text-emerald-700 line-through" : "text-zinc-900"
                   )}>
                     {expense.name}
                   </p>
                   {expense.isPaid && (
                     <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">
                       Оплачено
+                    </span>
+                  )}
+                  {autoPaid && !expense.isPaid && (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">
+                      Оплачено по транзакции
                     </span>
                   )}
                 </div>
@@ -430,11 +452,11 @@ function ExpensePlanSection() {
                   onClick={() => expense.isPaid ? markExpenseUnpaid(expense.id) : markExpensePaid(expense.id)}
                   className={cn(
                     "p-1.5 rounded-lg transition-colors",
-                    expense.isPaid ? "text-emerald-500 hover:bg-emerald-100" : "text-zinc-300 hover:bg-stone-50"
+                    paid ? "text-emerald-500 hover:bg-emerald-100" : "text-zinc-300 hover:bg-stone-50"
                   )}
                   title={expense.isPaid ? 'Отменить оплату' : 'Отметить как оплачено'}
                 >
-                  {expense.isPaid ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                  {paid ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                 </button>
                 <button onClick={() => startEdit(expense)} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-stone-50 rounded-lg">
                   <Edit3 className="w-4 h-4" />
@@ -445,7 +467,8 @@ function ExpensePlanSection() {
               </div>
             </div>
           </motion.div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Add / Edit form */}
