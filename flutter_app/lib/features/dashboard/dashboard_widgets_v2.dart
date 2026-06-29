@@ -1134,7 +1134,6 @@ class RollingDailyBudgetWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final store = ref.watch(budgetPlannerProvider);
-    final config = store.currentMonth;
     final txs = ref.watch(transactionsProvider);
     final accounts = ref.watch(accountsProvider);
     final loans = ref.watch(loansProvider);
@@ -1145,26 +1144,16 @@ class RollingDailyBudgetWidget extends ConsumerWidget {
     num convert(num amount, String from, String to) =>
         convertCurrency(amount: amount, from: from, to: to, rates: rates);
 
-    final facts = computeBudgetFacts(
-      monthKey: store.selectedMonthKey,
-      transactions: txs,
-      accounts: accounts,
-      convert: convert,
-      baseCurrency: baseCurrency,
-      linkedAccountIds: config.linkedAccountIds,
-    );
-
-    final cycles = computeBudgetCycles(
-      incomeSources: config.incomeSources,
-      plannedExpenses: config.plannedExpenses,
-      actualExpenses: config.actualExpenses,
+    // Dashboard is global: span every month's plan instead of the selected
+    // tab, so a future month's "once" expense never lands in the current cycle.
+    final cycles = computeGlobalBudgetCycles(
+      months: store.months,
       transactions: txs,
       accounts: accounts,
       loans: loans,
       loanPayments: loanPayments,
       convert: convert,
       baseCurrency: baseCurrency,
-      accountBalance: facts.accountBalance,
     );
 
     if (cycles.isEmpty) {
@@ -1402,17 +1391,15 @@ class _FinanceHeroWidgetState extends ConsumerState<FinanceHeroWidget>
       baseCurrency: baseCurrency,
       linkedAccountIds: config.linkedAccountIds,
     );
-    final cycles = computeBudgetCycles(
-      incomeSources: config.incomeSources,
-      plannedExpenses: config.plannedExpenses,
-      actualExpenses: config.actualExpenses,
+    // Global dashboard: span every month's plan, not just the selected tab.
+    final cycles = computeGlobalBudgetCycles(
+      months: store.months,
       transactions: txs,
       accounts: accounts,
       loans: loans,
       loanPayments: loanPayments,
       convert: convert,
       baseCurrency: baseCurrency,
-      accountBalance: facts.accountBalance,
     );
 
     final cycle = cycles.isNotEmpty ? cycles.first : null;

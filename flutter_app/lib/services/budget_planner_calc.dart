@@ -423,6 +423,149 @@ List<BudgetCycle> computeBudgetCycles({
   return cycles;
 }
 
+/// Global, month-agnostic budget cycles for the dashboard. Unlike
+/// [computeBudgetCycles] (which is bound to a single month's config), this spans
+/// every monthly budget config in [months] so the dashboard is independent of
+/// the tab the user has open: each projected month uses its own plan, falling
+/// back to the *current* month's config as a recurring template. "Monthly"
+/// items carry forward into unconfigured months; "once" items only land in their
+/// own month (see [plannedExpenseAppliesToMonth]). Loans recur every month.
+List<BudgetCycle> computeGlobalBudgetCycles({
+  required List<BudgetPlanConfig> months,
+  List<Transaction> transactions = const [],
+  List<Account> accounts = const [],
+  List<Loan> loans = const [],
+  List<LoanPayment> loanPayments = const [],
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  double reserve = 0,
+  DateTime? today,
+  List<String> accountIds = const [],
+}) {
+  final now = today ?? DateTime.now();
+  final currentKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  BudgetPlanConfig? byKey(String key) {
+    for (final m in months) {
+      if (m.monthKey == key) return m;
+    }
+    return null;
+  }
+
+  final template = byKey(currentKey);
+
+  // Income presence is taken from the union across every month so cycles still
+  // appear when only a future month carries an advance/salary.
+  final allIncome = [for (final m in months) ...m.incomeSources]
+      .where((s) => s.isActive)
+      .toList();
+  final hasAdvance = allIncome.any((s) => s.type == IncomeSourceType.advance);
+  final hasSalary = allIncome.any((s) => s.type == IncomeSourceType.salary);
+  if (!hasAdvance && !hasSalary) return const <BudgetCycle>[];
+
+  final loanExpenses = loansAsPlannedExpenses(
+    loans: loans,
+    convert: convert,
+    baseCurrency: baseCurrency,
+    monthKey: currentKey,
+    loanPayments: loanPayments,
+  );
+
+  List<IncomeSource> incomeForMonth(int year, int month) {
+    final key = '$year-${month.toString().padLeft(2, '0')}';
+    final cfg = byKey(key) ?? template;
+    return cfg?.incomeSources ?? const [];
+  }
+
+  List<PlannedExpense> expensesForMonth(int year, int month) {
+    final key = '$year-${month.toString().padLeft(2, '0')}';
+    final cfg = byKey(key) ?? template;
+    final base = (cfg?.plannedExpenses ?? const <PlannedExpense>[])
+        .where((e) => e.isActive);
+    return [...base, ...loanExpenses];
+  }
+
+  double spentInWindow(DateTime start, DateTime end) {
+    final conv = convert ?? (num amount, String from, String to) => amount;
+    final from = DateTime(start.year, start.month, start.day);
+    final to = _isBefore(now, end) ? now : end;
+    final toDay = DateTime(to.year, to.month, to.day);
+    double total = 0;
+    for (final t in transactions) {
+      if (t.type != TransactionType.expense) continue;
+      final d = DateTime.tryParse(t.date);
+      if (d == null) continue;
+      final day = DateTime(d.year, d.month, d.day);
+      if (_isBefore(day, from)) continue;
+      if (_isAfter(day, toDay)) continue;
+      total += conv(t.amount, _txCurrency(t, accounts, baseCurrency), baseCurrency)
+          .toDouble();
+    }
+    return total;
+  }
+
+  final wanted = <CashflowRangeMode>[CashflowRangeMode.next];
+  if (hasAdvance) wanted.add(CashflowRangeMode.advanceToAdvance);
+  if (hasSalary) wanted.add(CashflowRangeMode.salaryToSalary);
+
+  final cycles = <BudgetCycle>[];
+  final seen = <String>{};
+
+  for (final mode in wanted) {
+    final forecast = computeCashflowForecast(
+      accounts: accounts,
+      transactions: transactions,
+      incomeSources: template?.incomeSources ?? const [],
+      plannedExpenses: [
+        ...(template?.plannedExpenses ?? const <PlannedExpense>[]),
+        ...loanExpenses,
+      ],
+      convert: convert,
+      baseCurrency: baseCurrency,
+      reserve: reserve,
+      today: now,
+      rangeMode: mode,
+      accountIds: accountIds,
+      incomeForMonth: incomeForMonth,
+      expensesForMonth: expensesForMonth,
+    );
+    final range = forecast.range;
+    if (!forecast.ok || range == null) continue;
+
+    final key =
+        '${range.startDate.millisecondsSinceEpoch}-${range.endDate.millisecondsSinceEpoch}-${range.label}';
+    if (seen.contains(key)) continue;
+    seen.add(key);
+
+    final available = range.startBalance + range.totalIncome;
+    final remainingBudget = range.smoothedDaily * range.daysLeft;
+    final fullWeeks = range.daysLeft ~/ 7;
+    final extraDays = range.daysLeft % 7;
+
+    cycles.add(BudgetCycle(
+      label: range.label,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      totalDays: range.days,
+      daysLeft: range.daysLeft,
+      totalIncome: available,
+      totalPlannedExpenses: range.totalObligations,
+      remainingAfterExpenses: available - range.totalObligations,
+      actualSpent: spentInWindow(range.startDate, range.endDate),
+      remainingBudget: remainingBudget,
+      dailyBudget: range.smoothedDaily,
+      weeklyBudget: range.smoothedDaily * 7,
+      fullWeeks: fullWeeks,
+      extraDays: extraDays,
+      accountBalance: range.startBalance,
+      receivedIncome: 0,
+      pendingIncome: range.totalIncome,
+      useAccountBase: true,
+    ));
+  }
+
+  return cycles;
+}
+
 // ── Cashflow forecast / "safe-to-spend" engine ──
 //
 // Unlike [computeBudgetCycles] (which is anchored to calendar pay dates and uses
@@ -639,6 +782,13 @@ CashflowForecast computeCashflowForecast({
   DateTime? customStart,
   DateTime? customEnd,
   List<String> accountIds = const [],
+  // Optional per-month plan resolvers for a *global* forecast that spans every
+  // monthly budget config. When provided, each projected month uses the plan
+  // returned for that month instead of recurring the flat [incomeSources] /
+  // [plannedExpenses] template. [incomeSources]/[plannedExpenses] are still
+  // used as the fallback template (and for the empty-income guard).
+  List<IncomeSource> Function(int year, int month)? incomeForMonth,
+  List<PlannedExpense> Function(int year, int month)? expensesForMonth,
 }) {
   final conv = convert ?? (num amount, String from, String to) => amount;
   final now = today ?? DateTime.now();
@@ -682,7 +832,10 @@ CashflowForecast computeCashflowForecast({
   DateTime? firstSalary;
   for (var k = 0; k <= 6; k++) {
     final ym = _addMonth(now.year, now.month, k);
-    for (final src in active) {
+    final monthSources = incomeForMonth != null
+        ? incomeForMonth(ym.year, ym.month).where((s) => s.isActive).toList()
+        : active;
+    for (final src in monthSources) {
       final date = getPayDate(src, ym.year, ym.month);
       if (date == null) continue;
       if (!_isAfter(date, startOfToday)) continue;
@@ -753,25 +906,29 @@ CashflowForecast computeCashflowForecast({
   final currentMonthKey =
       '${now.year}-${now.month.toString().padLeft(2, '0')}';
   final obligations = <_CashEvent>[];
-  for (final exp in plannedExpenses) {
-    if (!exp.isActive || exp.isPaid) continue;
-    // Auto-detect: if a matching real transaction already settled this expense
-    // this month, drop the current month's obligation (manual tick optional).
-    final autoPaidThisMonth = plannedExpensePaidByTransaction(
-      exp: exp,
-      transactions: transactions,
-      monthKey: currentMonthKey,
-      accountCurrency: accountCurrency,
-      convert: conv,
-      baseCurrency: baseCurrency,
-    );
-    for (var k = 0; k <= 6; k++) {
-      final ym = _addMonth(now.year, now.month, k);
-      if (k == 0 && autoPaidThisMonth) continue;
-      final occMonthKey =
-          '${ym.year}-${ym.month.toString().padLeft(2, '0')}';
+  for (var k = 0; k <= 6; k++) {
+    final ym = _addMonth(now.year, now.month, k);
+    final occMonthKey = '${ym.year}-${ym.month.toString().padLeft(2, '0')}';
+    final monthExpenses =
+        expensesForMonth != null ? expensesForMonth(ym.year, ym.month) : plannedExpenses;
+    for (final exp in monthExpenses) {
+      if (!exp.isActive || exp.isPaid) continue;
       if (!plannedExpenseAppliesToMonth(exp, occMonthKey, currentMonthKey)) {
         continue;
+      }
+      // Auto-detect: if a matching real transaction already settled this
+      // expense this month, drop the current month's obligation (the manual
+      // tick stays optional). Only applies to the live month.
+      if (k == 0) {
+        final autoPaidThisMonth = plannedExpensePaidByTransaction(
+          exp: exp,
+          transactions: transactions,
+          monthKey: currentMonthKey,
+          accountCurrency: accountCurrency,
+          convert: conv,
+          baseCurrency: baseCurrency,
+        );
+        if (autoPaidThisMonth) continue;
       }
       final dim = DateTime(ym.year, ym.month + 1, 0).day;
       final dayCandidate =
@@ -936,6 +1093,78 @@ CashflowForecast computeCashflowForecast({
     ),
     hasCashGap: rangeWalk.hasCashGap,
     ok: true,
+  );
+}
+
+/// Global, month-agnostic cashflow forecast spanning every monthly budget
+/// config in [months]. The dashboard uses this so it no longer depends on the
+/// tab the user happens to have open: each projected month draws its plan from
+/// its own config when one exists, and falls back to the *current* month's
+/// config as a recurring template otherwise. Combined with
+/// [plannedExpenseAppliesToMonth], "monthly" items carry forward into
+/// unconfigured months while "once" items only land in their own month.
+///
+/// [extraMonthlyExpenses] (e.g. loan instalments) recur in every month.
+CashflowForecast computeGlobalCashflowForecast({
+  required List<BudgetPlanConfig> months,
+  required List<Account> accounts,
+  required List<Transaction> transactions,
+  List<PlannedExpense> extraMonthlyExpenses = const [],
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  double reserve = 0,
+  DateTime? today,
+  int horizonDays = 45,
+  CashflowRangeMode rangeMode = CashflowRangeMode.auto,
+  DateTime? customStart,
+  DateTime? customEnd,
+  List<String> accountIds = const [],
+}) {
+  final now = today ?? DateTime.now();
+  final currentKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  BudgetPlanConfig? byKey(String key) {
+    for (final m in months) {
+      if (m.monthKey == key) return m;
+    }
+    return null;
+  }
+
+  final template = byKey(currentKey);
+
+  List<IncomeSource> incomeForMonth(int year, int month) {
+    final key = '$year-${month.toString().padLeft(2, '0')}';
+    final cfg = byKey(key) ?? template;
+    return cfg?.incomeSources ?? const [];
+  }
+
+  List<PlannedExpense> expensesForMonth(int year, int month) {
+    final key = '$year-${month.toString().padLeft(2, '0')}';
+    final cfg = byKey(key) ?? template;
+    final base = cfg?.plannedExpenses ?? const <PlannedExpense>[];
+    return extraMonthlyExpenses.isEmpty
+        ? base
+        : [...base, ...extraMonthlyExpenses];
+  }
+
+  return computeCashflowForecast(
+    accounts: accounts,
+    transactions: transactions,
+    incomeSources: template?.incomeSources ?? const [],
+    plannedExpenses: [
+      ...(template?.plannedExpenses ?? const <PlannedExpense>[]),
+      ...extraMonthlyExpenses,
+    ],
+    convert: convert,
+    baseCurrency: baseCurrency,
+    reserve: reserve,
+    today: today,
+    horizonDays: horizonDays,
+    rangeMode: rangeMode,
+    customStart: customStart,
+    customEnd: customEnd,
+    accountIds: accountIds,
+    incomeForMonth: incomeForMonth,
+    expensesForMonth: expensesForMonth,
   );
 }
 

@@ -69,38 +69,42 @@ class _BudgetPlannerTabState extends ConsumerState<BudgetPlannerTab> {
     );
 
     // Loans synthesised as planned expenses so the budget plan reflects them
-    // automatically (unified ecosystem — see budget_planner_calc.dart).
+    // automatically (unified ecosystem — see budget_planner_calc.dart). The
+    // dashboard/forecast are global, so loans are anchored to the *real*
+    // current month for the paid-this-month check.
+    final nowKey = () {
+      final n = DateTime.now();
+      return '${n.year}-${n.month.toString().padLeft(2, '0')}';
+    }();
     final loanExpenses = loansAsPlannedExpenses(
       loans: loans,
       convert: convert,
       baseCurrency: baseCurrency,
-      monthKey: store.selectedMonthKey,
+      monthKey: nowKey,
       loanPayments: loanPayments,
     );
 
-    final cycles = computeBudgetCycles(
-      incomeSources: config.incomeSources,
-      plannedExpenses: config.plannedExpenses,
-      actualExpenses: config.actualExpenses,
+    // Dashboard cycles + safe-to-spend forecast are *global*: they span every
+    // month's plan, not the selected tab, so a future month's "once" expense
+    // never falls into the current cycle. Each month uses its own plan, with
+    // the current month as the recurring template for unconfigured months.
+    final cycles = computeGlobalBudgetCycles(
+      months: store.months,
       transactions: transactions,
       accounts: accounts,
       loans: loans,
       loanPayments: loanPayments,
       convert: convert,
       baseCurrency: baseCurrency,
-      accountBalance: facts.accountBalance,
       reserve: reserve.toDouble(),
       accountIds: selectedAccountIds,
     );
 
-    // Safe-to-spend forecast: how much can be spent per day from the real
-    // account balance over the user-selected window, honouring the reserve.
-    // Loans are folded into obligations so the runway reflects them.
-    final forecast = computeCashflowForecast(
+    final forecast = computeGlobalCashflowForecast(
+      months: store.months,
       accounts: accounts,
       transactions: transactions,
-      incomeSources: config.incomeSources,
-      plannedExpenses: [...config.plannedExpenses, ...loanExpenses],
+      extraMonthlyExpenses: loanExpenses,
       convert: convert,
       baseCurrency: baseCurrency,
       reserve: reserve.toDouble(),
