@@ -391,3 +391,89 @@ describe('isPlannedExpensePaidByTx', () => {
     ).toBe(false);
   });
 });
+
+describe('computeCashflowForecast — PR review regressions', () => {
+  it('counts an unpaid obligation whose deadline is today', () => {
+    // Rent due on the 28th, today is the 28th, advance on the 30th.
+    const todayJun28 = new Date(2026, 5, 28);
+    const advance30 = [income({ type: 'advance', name: 'Аванс', amount: 500, dayOfMonth: 30 })];
+    const rentToday = expense({ name: 'Квартира', amount: 1000, dayFrom: 28, dayTo: 28, category: 'Жильё' });
+    const f = computeCashflowForecast({
+      accounts: balance360,
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: advance30,
+      plannedExpenses: [rentToday],
+      reserve: 0,
+      today: todayJun28,
+      rangeMode: 'next',
+    });
+    expect(f.range?.totalObligations).toBeCloseTo(1000, 6);
+  });
+
+  it('keeps future monthly occurrences when isPaid clears only the current cycle', () => {
+    // Monthly rent marked paid in June must still be owed in July.
+    const todayJun26 = new Date(2026, 5, 26);
+    const salary5 = [income({ type: 'salary', name: 'Зарплата', amount: 2000, dayOfMonth: 5 })];
+    const paidRent: PlannedExpense = {
+      ...expense({ name: 'Квартира', amount: 1000, dayFrom: 10, dayTo: 10, category: 'Жильё' }),
+      isPaid: true,
+    };
+    const f = computeCashflowForecast({
+      accounts: [account({ id: 'card', initialBalance: 5000 })],
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: salary5,
+      plannedExpenses: [paidRent],
+      reserve: 0,
+      today: todayJun26,
+      rangeMode: 'salaryToSalary', // today → the salary after next (spans into July)
+    });
+    // June occurrence suppressed by isPaid; the July occurrence still counts.
+    expect(f.range?.totalObligations).toBeCloseTo(1000, 6);
+  });
+
+  it('coalesces two income sources on the same day into one boundary', () => {
+    // Salary and extra income both land on the 30th — must not create a
+    // phantom 1-day segment nor double-count obligations that day.
+    const todayJun26 = new Date(2026, 5, 26);
+    const sameDay = [
+      income({ id: 's', type: 'salary', name: 'Зарплата', amount: 1000, dayOfMonth: 30 }),
+      income({ id: 'x', type: 'additional', name: 'Подработка', amount: 500, dayOfMonth: 30 }),
+    ];
+    const f = computeCashflowForecast({
+      accounts: [account({ id: 'card', initialBalance: 400 })],
+      transactions: [],
+      rates: {},
+      baseCurrency: 'BYN',
+      incomeSources: sameDay,
+      plannedExpenses: [],
+      reserve: 0,
+      today: todayJun26,
+      rangeMode: 'next',
+    });
+    // One window today→30th (4 days), income at end summed to 1500.
+    expect(f.segments).toHaveLength(1);
+    expect(f.segments[0].days).toBe(4);
+    expect(f.segments[0].incomeAtEnd).toBeCloseTo(1500, 6);
+    expect(f.dailyUntilNextIncome).toBeCloseTo(100, 6);
+  });
+
+  it('preserves transfer FX metadata when summing only selected accounts', () => {
+    // USD account transfers into a selected BYN account; the USD amount must be
+    // converted, not credited raw, even though the USD account is excluded.
+    const accounts = [
+      account({ id: 'usd', initialBalance: 100, currency: 'USD' }),
+      account({ id: 'byn', initialBalance: 0, currency: 'BYN' }),
+    ];
+    const transactions: Transaction[] = [
+      { id: 't', type: 'transfer', amount: 100, category: 'x', date: '2026-06-03', accountId: 'usd', toAccountId: 'byn' },
+    ];
+    const rates = { BYN: 1, USD: 3 }; // 1 USD = 3 BYN
+    // Only the BYN account is summed. It received a 100 USD transfer → 300 BYN.
+    const only = computeCurrentBalance(accounts, transactions, rates, 'BYN', ['byn']);
+    expect(only).toBeCloseTo(300, 6);
+  });
+});

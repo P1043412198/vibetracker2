@@ -230,4 +230,140 @@ void main() {
       expect(total, closeTo(1150, 1e-6));
     });
   });
+
+  group('PR review regressions', () {
+    test('counts an unpaid obligation whose deadline is today', () {
+      final todayJun28 = DateTime(2026, 6, 28);
+      final advance30 = [
+        income(type: IncomeSourceType.advance, name: 'Аванс', amount: 500, dayOfMonth: 30),
+      ];
+      final rentToday = PlannedExpense(
+        id: 'rent',
+        name: 'Квартира',
+        amount: 1000,
+        dayFrom: 28,
+        dayTo: 28,
+        category: 'Жильё',
+        isPaid: false,
+        isActive: true,
+        createdAt: '2025-01-01',
+      );
+      final f = computeCashflowForecast(
+        accounts: balance360,
+        transactions: const [],
+        incomeSources: advance30,
+        plannedExpenses: [rentToday],
+        baseCurrency: 'BYN',
+        reserve: 0,
+        today: todayJun28,
+        rangeMode: CashflowRangeMode.next,
+      );
+      expect(f.range?.totalObligations, closeTo(1000, 1e-6));
+    });
+
+    test('keeps future monthly occurrences when isPaid clears only the current cycle', () {
+      final todayJun26 = DateTime(2026, 6, 26);
+      final salary5 = [
+        income(type: IncomeSourceType.salary, name: 'Зарплата', amount: 2000, dayOfMonth: 5),
+      ];
+      final paidRent = PlannedExpense(
+        id: 'rent',
+        name: 'Квартира',
+        amount: 1000,
+        dayFrom: 10,
+        dayTo: 10,
+        category: 'Жильё',
+        isPaid: true,
+        isActive: true,
+        createdAt: '2025-01-01',
+      );
+      final f = computeCashflowForecast(
+        accounts: [account(id: 'card', initialBalance: 5000)],
+        transactions: const [],
+        incomeSources: salary5,
+        plannedExpenses: [paidRent],
+        baseCurrency: 'BYN',
+        reserve: 0,
+        today: todayJun26,
+        rangeMode: CashflowRangeMode.salaryToSalary,
+      );
+      // June suppressed by isPaid; the July occurrence still counts.
+      expect(f.range?.totalObligations, closeTo(1000, 1e-6));
+    });
+
+    test('coalesces two income sources on the same day into one boundary', () {
+      final todayJun26 = DateTime(2026, 6, 26);
+      final sameDay = [
+        IncomeSource(
+          id: 'salary-1',
+          name: 'Зарплата',
+          type: IncomeSourceType.salary,
+          amount: 1000,
+          currency: 'BYN',
+          dayOfMonth: 30,
+          adjustForHolidays: false,
+          isActive: true,
+          createdAt: '2025-01-01',
+        ),
+        IncomeSource(
+          id: 'extra-1',
+          name: 'Подработка',
+          type: IncomeSourceType.additional,
+          amount: 500,
+          currency: 'BYN',
+          dayOfMonth: 30,
+          adjustForHolidays: false,
+          isActive: true,
+          createdAt: '2025-01-01',
+        ),
+      ];
+      final f = computeCashflowForecast(
+        accounts: [account(id: 'card', initialBalance: 400)],
+        transactions: const [],
+        incomeSources: sameDay,
+        plannedExpenses: const [],
+        baseCurrency: 'BYN',
+        reserve: 0,
+        today: todayJun26,
+        rangeMode: CashflowRangeMode.next,
+      );
+      expect(f.segments.length, 1);
+      expect(f.segments[0].days, 4);
+      expect(f.segments[0].incomeAtEnd, closeTo(1500, 1e-6));
+      expect(f.dailyUntilNextIncome, closeTo(100, 1e-6));
+    });
+
+    test('preserves transfer FX metadata when summing only selected accounts', () {
+      const rates = {'BYN': 1.0, 'USD': 3.0};
+      num convert(num amount, String from, String to) {
+        if (from == to) return amount;
+        return amount * (rates[from]! / rates[to]!);
+      }
+
+      final accounts = [
+        account(id: 'usd', initialBalance: 100, currency: 'USD'),
+        account(id: 'byn', initialBalance: 0, currency: 'BYN'),
+      ];
+      final transactions = [
+        Transaction(
+          id: 't',
+          type: TransactionType.transfer,
+          amount: 100,
+          category: 'x',
+          date: '2026-06-03',
+          accountId: 'usd',
+          toAccountId: 'byn',
+        ),
+      ];
+      // Only the BYN account is summed; it received a 100 USD transfer → 300 BYN.
+      final total = computeCurrentBalance(
+        accounts: accounts,
+        transactions: transactions,
+        convert: convert,
+        baseCurrency: 'BYN',
+        includeAccountIds: const ['byn'],
+      );
+      expect(total, closeTo(300, 1e-6));
+    });
+  });
 }

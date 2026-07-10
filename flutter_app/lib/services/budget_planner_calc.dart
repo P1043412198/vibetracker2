@@ -731,15 +731,22 @@ class _CashEvent {
 
 /// Current balance per account = initialBalance + income − expense ± transfers,
 /// each account's running total converted into [baseCurrency].
+/// [includeAccountIds] restricts which balances are summed (empty = all), but
+/// every account in [accounts] is still used to resolve transfer source/
+/// destination currencies — so a transfer from an unselected account keeps its
+/// FX metadata instead of being credited raw.
 double computeCurrentBalance({
   required List<Account> accounts,
   required List<Transaction> transactions,
   CurrencyConvert? convert,
   String baseCurrency = 'BYN',
+  List<String> includeAccountIds = const [],
 }) {
   final conv = convert ?? (num amount, String from, String to) => amount;
+  final include = includeAccountIds.toSet();
   double total = 0;
   for (final a in accounts) {
+    if (include.isNotEmpty && !include.contains(a.id)) continue;
     final b = accountBalance(
       account: a,
       transactions: transactions,
@@ -794,14 +801,14 @@ CashflowForecast computeCashflowForecast({
   final now = today ?? DateTime.now();
   DateTime startOf(DateTime d) => DateTime(d.year, d.month, d.day);
   final startOfToday = startOf(now);
-  final selectedAccounts = accountIds.isEmpty
-      ? accounts
-      : accounts.where((a) => accountIds.contains(a.id)).toList();
+  // Sum only the selected accounts, but keep every account available for
+  // transfer currency resolution (see computeCurrentBalance docs).
   final currentBalance = computeCurrentBalance(
-    accounts: selectedAccounts,
+    accounts: accounts,
     transactions: transactions,
     convert: conv,
     baseCurrency: baseCurrency,
+    includeAccountIds: accountIds,
   );
 
   CashflowForecast empty() => CashflowForecast(
@@ -912,30 +919,34 @@ CashflowForecast computeCashflowForecast({
     final monthExpenses =
         expensesForMonth != null ? expensesForMonth(ym.year, ym.month) : plannedExpenses;
     for (final exp in monthExpenses) {
-      if (!exp.isActive || exp.isPaid) continue;
+      if (!exp.isActive) continue;
       if (!plannedExpenseAppliesToMonth(exp, occMonthKey, currentMonthKey)) {
         continue;
       }
-      // Auto-detect: if a matching real transaction already settled this
-      // expense this month, drop the current month's obligation (the manual
-      // tick stays optional). Only applies to the live month.
+      // `isPaid` means "paid in the current cycle" — it (like the auto-detected
+      // transaction match) must only suppress the current-month occurrence, not
+      // every future monthly occurrence.
       if (k == 0) {
-        final autoPaidThisMonth = plannedExpensePaidByTransaction(
-          exp: exp,
-          transactions: transactions,
-          monthKey: currentMonthKey,
-          accountCurrency: accountCurrency,
-          convert: conv,
-          baseCurrency: baseCurrency,
-        );
-        if (autoPaidThisMonth) continue;
+        final paidThisMonth = exp.isPaid ||
+            plannedExpensePaidByTransaction(
+              exp: exp,
+              transactions: transactions,
+              monthKey: currentMonthKey,
+              accountCurrency: accountCurrency,
+              convert: conv,
+              baseCurrency: baseCurrency,
+            );
+        if (paidThisMonth) continue;
       }
       final dim = DateTime(ym.year, ym.month + 1, 0).day;
       final dayCandidate =
           exp.dayTo != 0 ? exp.dayTo : (exp.dayFrom != 0 ? exp.dayFrom : dim);
       final day = dayCandidate.clamp(1, dim);
       final date = DateTime(ym.year, ym.month, day);
-      if (_isAfter(date, startOfToday) && !_isAfter(date, horizonEndFinal)) {
+      // Lower bound is inclusive so a bill due *today* is still counted (walk()
+      // already includes obligations at the segment cursor).
+      if ((_isAfter(date, startOfToday) || _isSameDayD(date, startOfToday)) &&
+          !_isAfter(date, horizonEndFinal)) {
         obligations.add(_CashEvent(
           date: date,
           amount: toBase(exp.amount, exp.currency),
@@ -950,9 +961,22 @@ CashflowForecast computeCashflowForecast({
     final incs = incomeEvents
         .where((e) => _isAfter(e.date, from) && !_isAfter(e.date, to))
         .toList();
-    final boundaries = <({DateTime date, double income, String? name})>[
-      for (final e in incs) (date: e.date, income: e.amount, name: e.name),
-    ];
+    // Coalesce income events that fall on the same calendar day, otherwise two
+    // sources on one date create a phantom 1-day segment and double-count the
+    // obligations due that day. incomeEvents is already sorted ascending.
+    final boundaries = <({DateTime date, double income, String? name})>[];
+    for (final e in incs) {
+      if (boundaries.isNotEmpty && _isSameDayD(boundaries.last.date, e.date)) {
+        final prev = boundaries.removeLast();
+        boundaries.add((
+          date: prev.date,
+          income: prev.income + e.amount,
+          name: prev.name != null ? '${prev.name}, ${e.name}' : e.name,
+        ));
+      } else {
+        boundaries.add((date: e.date, income: e.amount, name: e.name));
+      }
+    }
     final last = boundaries.isNotEmpty ? boundaries.last : null;
     if ((last == null || _isBefore(last.date, to)) && _isAfter(to, from)) {
       boundaries.add((date: to, income: 0.0, name: null));

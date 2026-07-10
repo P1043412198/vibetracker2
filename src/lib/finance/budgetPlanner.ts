@@ -110,8 +110,12 @@ export function loansAsPlannedExpenses(opts: {
     if (loan.monthlyPayment <= 0) continue;
     const remaining = loanRemaining(loan);
     if (remaining <= 0) continue;
-    const monthly = convertCurrency(loan.monthlyPayment, loan.currency || baseCurrency, baseCurrency, rates);
-    const amount = Math.min(monthly, remaining);
+    // Cap the instalment while both values are in the loan's own currency, then
+    // convert the result — comparing a base-currency monthly against a
+    // loan-currency remaining would clamp to the wrong figure.
+    const loanCurrency = loan.currency || baseCurrency;
+    const cappedInLoanCurrency = Math.min(loan.monthlyPayment, remaining);
+    const amount = convertCurrency(cappedInLoanCurrency, loanCurrency, baseCurrency, rates);
     const day = Math.min(31, Math.max(1, loan.paymentDay ?? 5));
     const paidEntry = (loan.payments || []).find(
       p => p.type === 'payment' && p.date.startsWith(monthKey)
@@ -126,7 +130,9 @@ export function loansAsPlannedExpenses(opts: {
       category: 'Кредиты',
       isPaid: !!paidEntry,
       paidDate: paidEntry?.date,
-      paidAmount: paidEntry ? paidEntry.amount : undefined,
+      paidAmount: paidEntry
+        ? convertCurrency(paidEntry.amount, loanCurrency, baseCurrency, rates)
+        : undefined,
       isActive: true,
       createdAt: loan.createdAt,
     });
@@ -377,7 +383,13 @@ export function computeCurrentBalance(
   accounts: Account[],
   transactions: Transaction[],
   rates: Record<string, number>,
-  baseCurrency: string
+  baseCurrency: string,
+  /**
+   * Restrict the summed balance to these account IDs (empty/undefined = all).
+   * All accounts are still used to resolve transfer source/destination
+   * currencies, so a transfer from an unselected account keeps its FX metadata.
+   */
+  includeAccountIds?: string[]
 ): number {
   const byAccount: Record<string, number> = {};
   for (const a of accounts) byAccount[a.id] = a.initialBalance;
@@ -401,8 +413,12 @@ export function computeCurrentBalance(
     }
   }
 
+  const include = includeAccountIds && includeAccountIds.length > 0
+    ? new Set(includeAccountIds)
+    : null;
   let total = 0;
   for (const a of accounts) {
+    if (include && !include.has(a.id)) continue;
     total += convertCurrency(byAccount[a.id] || 0, a.currency, baseCurrency, rates);
   }
   return total;
@@ -466,14 +482,17 @@ export function computeCashflowForecast(opts: {
     accountIds,
   } = opts;
 
-  const accounts =
-    accountIds && accountIds.length > 0
-      ? allAccounts.filter(a => accountIds.includes(a.id))
-      : allAccounts;
-
   const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const startOfToday = startOf(today);
-  const currentBalance = computeCurrentBalance(accounts, transactions, rates, baseCurrency);
+  // Sum only the selected accounts, but keep every account available for
+  // transfer currency resolution (see computeCurrentBalance docs).
+  const currentBalance = computeCurrentBalance(
+    allAccounts,
+    transactions,
+    rates,
+    baseCurrency,
+    accountIds,
+  );
 
   const empty: CashflowForecast = {
     currentBalance,
@@ -560,26 +579,30 @@ export function computeCashflowForecast(opts: {
   const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
   const obligations: CashEvent[] = [];
   for (const exp of plannedExpenses) {
-    if (!exp.isActive || exp.isPaid) continue;
-    // Auto-detect: if a matching real transaction already settled this expense
-    // this month, drop the current month's obligation (manual tick optional).
-    const autoPaidThisMonth = isPlannedExpensePaidByTx({
-      expense: exp,
-      transactions,
-      monthKey: currentMonthKey,
-      accounts: allAccounts,
-      rates,
-      baseCurrency,
-    });
+    if (!exp.isActive) continue;
+    // `isPaid` means "paid in the current cycle" — it must only suppress the
+    // current-month occurrence, not every future monthly occurrence.
+    const paidThisMonth =
+      exp.isPaid ||
+      isPlannedExpensePaidByTx({
+        expense: exp,
+        transactions,
+        monthKey: currentMonthKey,
+        accounts: allAccounts,
+        rates,
+        baseCurrency,
+      });
     for (let k = 0; k <= 6; k++) {
       const { year, month } = addMonth(today.getFullYear(), today.getMonth(), k);
-      if (k === 0 && autoPaidThisMonth) continue;
+      if (k === 0 && paidThisMonth) continue;
       const occMonthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
       if (!plannedExpenseAppliesToMonth(exp, occMonthKey, currentMonthKey)) continue;
       const dim = getDaysInMonth(new Date(year, month));
       const day = Math.min(exp.dayTo || exp.dayFrom || dim, dim);
       const date = new Date(year, month, day);
-      if (isAfter(date, startOfToday) && !isAfter(date, horizonEnd)) {
+      // Lower bound is inclusive so a bill due *today* is still counted (walk()
+      // already includes obligations at the segment cursor).
+      if ((isAfter(date, startOfToday) || isSameDay(date, startOfToday)) && !isAfter(date, horizonEnd)) {
         obligations.push({ date, amount: -toBase(exp.amount, exp.currency), name: exp.name, kind: 'obligation' });
       }
     }
@@ -591,11 +614,19 @@ export function computeCashflowForecast(opts: {
    */
   function walk(from: Date, startBalance: number, to: Date) {
     const incs = incomeEvents.filter(e => isAfter(e.date, from) && !isAfter(e.date, to));
-    const boundaries: { date: Date; income: number; name: string | null }[] = incs.map(e => ({
-      date: e.date,
-      income: e.amount,
-      name: e.name,
-    }));
+    // Coalesce income events that fall on the same calendar day, otherwise two
+    // sources on one date create a phantom 1-day segment and double-count the
+    // obligations due that day. incomeEvents is already sorted ascending.
+    const boundaries: { date: Date; income: number; name: string | null }[] = [];
+    for (const e of incs) {
+      const prev = boundaries[boundaries.length - 1];
+      if (prev && isSameDay(prev.date, e.date)) {
+        prev.income += e.amount;
+        prev.name = prev.name ? `${prev.name}, ${e.name}` : e.name;
+      } else {
+        boundaries.push({ date: e.date, income: e.amount, name: e.name });
+      }
+    }
     const last = boundaries[boundaries.length - 1];
     if ((!last || isBefore(last.date, to)) && isAfter(to, from)) {
       boundaries.push({ date: to, income: 0, name: null });
