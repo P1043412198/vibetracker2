@@ -87,6 +87,8 @@ class SphereNote {
     required this.id,
     required this.content,
     required this.createdAt,
+    this.title,
+    this.updatedAt,
     this.youtubeUrl,
     this.photoUrl,
     this.isCheckbox,
@@ -104,6 +106,12 @@ class SphereNote {
   final String id;
   final String content;
   final String createdAt;
+
+  /// Optional heading shown above the body — turns a note into a proper page.
+  final String? title;
+
+  /// ISO timestamp of the last edit (independent of [createdAt]).
+  final String? updatedAt;
   final String? youtubeUrl;
   final String? photoUrl;
   final bool? isCheckbox;
@@ -132,6 +140,9 @@ class SphereNote {
   final List<String>? documentPaths;
 
   SphereNote copyWith({
+    String? title,
+    String? updatedAt,
+    bool clearTitle = false,
     String? content,
     String? youtubeUrl,
     String? photoUrl,
@@ -150,6 +161,8 @@ class SphereNote {
     return SphereNote(
       id: id,
       createdAt: createdAt,
+      title: clearTitle ? null : (title ?? this.title),
+      updatedAt: updatedAt ?? this.updatedAt,
       content: content ?? this.content,
       youtubeUrl: youtubeUrl ?? this.youtubeUrl,
       photoUrl: photoUrl ?? this.photoUrl,
@@ -171,6 +184,8 @@ class SphereNote {
         'id': id,
         'content': content,
         'createdAt': createdAt,
+        if (title != null) 'title': title,
+        if (updatedAt != null) 'updatedAt': updatedAt,
         if (youtubeUrl != null) 'youtubeUrl': youtubeUrl,
         if (photoUrl != null) 'photoUrl': photoUrl,
         if (isCheckbox != null) 'isCheckbox': isCheckbox,
@@ -194,6 +209,8 @@ class SphereNote {
         id: json['id'] as String,
         content: json['content'] as String,
         createdAt: json['createdAt'] as String,
+        title: json['title'] as String?,
+        updatedAt: json['updatedAt'] as String?,
         youtubeUrl: json['youtubeUrl'] as String?,
         photoUrl: json['photoUrl'] as String?,
         isCheckbox: json['isCheckbox'] as bool?,

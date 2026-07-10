@@ -587,7 +587,7 @@ export const useStore = create<AppState>()(
           if (s.id === sphereId) {
             return {
               ...s,
-              notesList: (s.notesList || []).map(n => n.id === noteId ? { ...n, ...updates } : n)
+              notesList: (s.notesList || []).map(n => n.id === noteId ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n)
             };
           }
           return s;

@@ -62,7 +62,9 @@ export type NoteComment = {
 
 export type SphereNote = {
   id: string;
+  title?: string;
   content: string;
+  updatedAt?: string;
   youtubeUrl?: string;
   photoUrl?: string;
   isCheckbox?: boolean;

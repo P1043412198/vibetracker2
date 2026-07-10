@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/enums.dart';
@@ -14,6 +15,7 @@ import '../../services/photo_storage.dart';
 import '../../state/providers.dart';
 import '../../state/settings_state.dart';
 import '../../widgets/ai_response_sheet.dart';
+import 'sphere_note_page.dart';
 
 const kSpherePalette = [
   Color(0xFF6D5CFF),
@@ -766,6 +768,11 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
                   icon: const Icon(Icons.add_photo_alternate_outlined),
                   onPressed: () => _addPhoto(fromCamera: false),
                 ),
+                IconButton.filledTonal(
+                  tooltip: 'Новая страница-заметка',
+                  icon: const Icon(Icons.note_add_outlined),
+                  onPressed: _addPage,
+                ),
               ],
             ),
             if (cats.isNotEmpty) ...[
@@ -894,6 +901,27 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
     _newNote.clear();
   }
 
+  Future<void> _addPage() async {
+    final note = SphereNote(
+      id: const Uuid().v4(),
+      content: '',
+      createdAt: DateTime.now().toIso8601String(),
+      categoryId: _newNoteCategoryId ?? _filterCategoryId,
+    );
+    final next = [...?widget.sphere.notesList, note];
+    await ref.read(spheresProvider.notifier).update(
+          widget.sphere.id,
+          (s) => s.copyWith(notesList: next),
+        );
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            SphereNotePage(sphereId: widget.sphere.id, noteId: note.id),
+      ),
+    );
+  }
+
   Future<void> _addPhoto({required bool fromCamera}) async {
     final path = fromCamera
         ? await PhotoStorage.instance.captureAndStore(
@@ -921,92 +949,171 @@ class SphereNoteTile extends ConsumerWidget {
   final Sphere sphere;
   final SphereNote note;
 
+  String? _firstPhoto() {
+    if (note.photoUrl != null && note.photoUrl!.isNotEmpty) return note.photoUrl;
+    for (final p in note.photoUrls ?? const <String>[]) {
+      if (p.isNotEmpty) return p;
+    }
+    return null;
+  }
+
+  int _photoCount() {
+    final set = <String>{};
+    if (note.photoUrl != null && note.photoUrl!.isNotEmpty) set.add(note.photoUrl!);
+    for (final p in note.photoUrls ?? const <String>[]) {
+      if (p.isNotEmpty) set.add(p);
+    }
+    return set.length;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hasPhoto = note.photoUrl != null && note.photoUrl!.isNotEmpty;
+    final scheme = Theme.of(context).colorScheme;
+    final accent = _parseHex(sphere.color) ?? scheme.primary;
+    final checked = note.isChecked == true;
+    final photo = _firstPhoto();
+    final photoCount = _photoCount();
+
+    final rawTitle = note.title?.trim();
+    final body = note.content.trim();
+    final displayTitle = (rawTitle != null && rawTitle.isNotEmpty)
+        ? rawTitle
+        : (body.isNotEmpty ? body.split('\n').first : '(без названия)');
+    final snippet = (rawTitle != null && rawTitle.isNotEmpty)
+        ? body
+        : body.split('\n').skip(1).join(' ').trim();
+
+    final when = DateTime.tryParse(note.updatedAt ?? note.createdAt);
+    final whenLabel = when == null ? '' : DateFormat('d MMM, HH:mm', 'ru').format(when);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color:
-              Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Material(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _open(context),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (note.isCheckbox == true)
-                  Checkbox(
-                    value: note.isChecked ?? false,
-                    onChanged: (v) => _replace(ref,
-                        note.copyWith(isChecked: v ?? false)),
+                  SizedBox(
+                    width: 26,
+                    child: Checkbox(
+                      value: checked,
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onChanged: (v) =>
+                          _replace(ref, note.copyWith(isChecked: v ?? false)),
+                    ),
                   )
                 else
-                  const Padding(
-                    padding: EdgeInsets.only(right: 8, top: 2),
-                    child: Icon(Icons.note_outlined, size: 18),
-                  ),
-                Expanded(
-                  child: note.content.isEmpty
-                      ? const SizedBox.shrink()
-                      : Text(
-                          note.content,
-                          style: TextStyle(
-                            decoration: note.isChecked == true
-                                ? TextDecoration.lineThrough
-                                : null,
-                            color: note.isChecked == true
-                                ? Theme.of(context).disabledColor
-                                : null,
-                          ),
-                        ),
-                ),
-                IconButton(
-                  iconSize: 18,
-                  visualDensity: VisualDensity.compact,
-                  tooltip:
-                      note.isPinned == true ? 'Открепить' : 'Закрепить',
-                  icon: Icon(note.isPinned == true
-                      ? Icons.push_pin
-                      : Icons.push_pin_outlined),
-                  onPressed: () => _replace(
-                      ref, note.copyWith(isPinned: !(note.isPinned ?? false))),
-                ),
-                IconButton(
-                  iconSize: 18,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _delete(ref),
-                ),
-              ],
-            ),
-            if (hasPhoto) ...[
-              const SizedBox(height: 6),
-              GestureDetector(
-                onTap: () => _showPhoto(context, note.photoUrl!),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.file(
-                    File(note.photoUrl!),
-                    height: 160,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      color: Theme.of(context).colorScheme.surface,
-                      height: 80,
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.broken_image_outlined),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    margin: const EdgeInsets.only(top: 6, right: 12, left: 4),
+                    decoration: BoxDecoration(
+                      color: accent,
+                      shape: BoxShape.circle,
                     ),
                   ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              displayTitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                decoration: checked
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                                color: checked ? scheme.outline : null,
+                              ),
+                            ),
+                          ),
+                          if (note.isPinned == true)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 6),
+                              child: Icon(Icons.push_pin,
+                                  size: 15, color: accent),
+                            ),
+                        ],
+                      ),
+                      if (snippet.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          snippet,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 13, color: scheme.onSurfaceVariant),
+                        ),
+                      ],
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.schedule, size: 12, color: scheme.outline),
+                          const SizedBox(width: 4),
+                          Text(whenLabel,
+                              style: TextStyle(
+                                  fontSize: 11, color: scheme.outline)),
+                          if (photoCount > 0) ...[
+                            const SizedBox(width: 10),
+                            Icon(Icons.photo_outlined,
+                                size: 12, color: scheme.outline),
+                            const SizedBox(width: 3),
+                            Text('$photoCount',
+                                style: TextStyle(
+                                    fontSize: 11, color: scheme.outline)),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ],
+                if (photo != null) ...[
+                  const SizedBox(width: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.file(
+                      File(photo),
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 56,
+                        height: 56,
+                        color: scheme.surface,
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.broken_image_outlined, size: 18),
+                      ),
+                    ),
+                  ),
+                ],
+                Icon(Icons.chevron_right, color: scheme.outline),
+              ],
+            ),
+          ),
         ),
+      ),
+    );
+  }
+
+  void _open(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) =>
+            SphereNotePage(sphereId: sphere.id, noteId: note.id),
       ),
     );
   }
@@ -1020,30 +1127,6 @@ class SphereNoteTile extends ConsumerWidget {
           sphere.id,
           (s) => s.copyWith(notesList: list),
         );
-  }
-
-  Future<void> _delete(WidgetRef ref) async {
-    final list = [...?sphere.notesList]..removeWhere((n) => n.id == note.id);
-    if (note.photoUrl != null && note.photoUrl!.isNotEmpty) {
-      await PhotoStorage.instance.delete(note.photoUrl!);
-    }
-    await ref.read(spheresProvider.notifier).update(
-          sphere.id,
-          (s) => s.copyWith(notesList: list),
-        );
-  }
-
-  void _showPhoto(BuildContext context, String path) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.all(8),
-        child: GestureDetector(
-          onTap: () => Navigator.pop(ctx),
-          child: InteractiveViewer(child: Image.file(File(path))),
-        ),
-      ),
-    );
   }
 }
 
