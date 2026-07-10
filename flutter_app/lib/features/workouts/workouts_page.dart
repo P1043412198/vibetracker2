@@ -14,6 +14,7 @@ import '../../state/providers.dart';
 import 'body_photos_tab.dart';
 import 'workout_exercise_detail_page.dart';
 import 'workout_format.dart';
+import 'workout_viz.dart';
 
 Future<void> _openUrl(BuildContext context, String raw) async {
   var s = raw.trim();
@@ -1097,9 +1098,57 @@ class _AnalyticsTab extends ConsumerWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
     final top5 = top.take(5).toList();
 
+    // Weekly training volume for the last 8 weeks (Mon-anchored).
+    MuscleGroup? muscleOf(String id) => exercises
+        .cast<WorkoutNode?>()
+        .firstWhere((n) => n?.id == id, orElse: () => null)
+        ?.muscleGroup;
+    final weekStart = today.subtract(Duration(days: today.weekday - 1));
+    final weekVolumes = <double>[];
+    final weekLabels = <String>[];
+    for (var w = 7; w >= 0; w--) {
+      final ws = weekStart.subtract(Duration(days: 7 * w));
+      final we = ws.add(const Duration(days: 7));
+      final wsIso = DateFormat('y-MM-dd').format(ws);
+      final weIso = DateFormat('y-MM-dd').format(we);
+      final vol = logs
+          .where((l) => l.date.compareTo(wsIso) >= 0 && l.date.compareTo(weIso) < 0)
+          .fold<num>(0, (s, l) => s + totalVolume([l]));
+      weekVolumes.add(vol.toDouble());
+      weekLabels.add(DateFormat('d.MM').format(ws));
+    }
+    final hasWeeklyVolume = weekVolumes.any((v) => v > 0);
+
+    // Volume distribution by muscle group across all history.
+    final byMuscle = <MuscleGroup, num>{};
+    for (final l in logs) {
+      final mg = muscleOf(l.exerciseId);
+      if (mg == null) continue;
+      byMuscle[mg] = (byMuscle[mg] ?? 0) + totalVolume([l]);
+    }
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (hasWeeklyVolume) ...[
+          Text('Объём по неделям — последние 8 недель',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          VolumeBars(
+            values: weekVolumes,
+            labels: weekLabels,
+            color: Colors.orange,
+            height: 150,
+          ),
+          const SizedBox(height: 24),
+        ],
+        if (byMuscle.length >= 2) ...[
+          Text('Распределение по группам мышц',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          MuscleSplitBar(byMuscle: byMuscle),
+          const SizedBox(height: 24),
+        ],
         Text('Подходов в день — последние 30 дней',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
@@ -1984,10 +2033,11 @@ class _WorkoutJournalView extends ConsumerWidget {
     final nodes = ref.watch(workoutNodesProvider);
     final sessions = ref.watch(workoutSessionsProvider);
 
-    String nameOf(String id) =>
-        nodes.cast<WorkoutNode?>().firstWhere((n) => n?.id == id,
-            orElse: () => null)?.name ??
-        '(удалено)';
+    WorkoutNode? nodeOf(String id) => nodes
+        .cast<WorkoutNode?>()
+        .firstWhere((n) => n?.id == id, orElse: () => null);
+    String nameOf(String id) => nodeOf(id)?.name ?? '(удалено)';
+    MuscleGroup? muscleOf(String id) => nodeOf(id)?.muscleGroup;
 
     final groups = <_JournalGroup>[];
     final used = <String>{};
@@ -2056,119 +2106,258 @@ class _WorkoutJournalView extends ConsumerWidget {
           byEx.putIfAbsent(l.exerciseId, () => []).add(l);
         }
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
+        // Volume split by muscle group drives the card accent + mini-bar.
+        final byMuscle = <MuscleGroup, num>{};
+        for (final exId in order) {
+          final mg = muscleOf(exId);
+          if (mg == null) continue;
+          byMuscle[mg] = (byMuscle[mg] ?? 0) + totalVolume(byEx[exId]!);
+        }
+        MuscleGroup? dominant;
+        num domVal = -1;
+        byMuscle.forEach((k, v) {
+          if (v > domVal) {
+            domVal = v;
+            dominant = k;
+          }
+        });
+        final accent = muscleColor(dominant);
+        final vol = totalVolume(g.logs);
+        final rm = best1RM(g.logs);
+        final scheme = Theme.of(context).colorScheme;
+
+        return TweenAnimationBuilder<double>(
+          key: ValueKey(g.key),
+          tween: Tween(begin: 0, end: 1),
+          duration: Duration(milliseconds: 300 + i.clamp(0, 6) * 55),
+          curve: Curves.easeOut,
+          builder: (context, t, child) => Opacity(
+            opacity: t.clamp(0, 1),
+            child: Transform.translate(
+              offset: Offset(0, (1 - t) * 16),
+              child: child,
+            ),
+          ),
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 14),
+            clipBehavior: Clip.antiAlias,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(_formatGroupDate(g.date),
-                              style: Theme.of(context).textTheme.titleSmall),
-                          const SizedBox(height: 2),
-                          Text(
-                            [
-                              g.title,
-                              if (g.durationSec != null)
-                                formatWorkoutDuration(g.durationSec),
-                              '${g.logs.length} подх.',
-                            ].join(' · '),
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: Theme.of(context).hintColor),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (g.active)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text('идёт',
-                            style: TextStyle(
-                                color: Colors.green,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                    if (g.sessionId != null && !g.active)
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 20),
-                        tooltip: 'Удалить тренировку',
-                        onPressed: () async {
-                          final yes = await showDialog<bool>(
-                            context: context,
-                            builder: (ctx) => AlertDialog(
-                              title: const Text('Удалить тренировку?'),
-                              content: const Text(
-                                  'Записанные подходы этой тренировки тоже будут удалены.'),
-                              actions: [
-                                TextButton(
-                                    onPressed: () => Navigator.pop(ctx, false),
-                                    child: const Text('Отмена')),
-                                FilledButton(
-                                    onPressed: () => Navigator.pop(ctx, true),
-                                    child: const Text('Удалить')),
-                              ],
-                            ),
-                          );
-                          if (yes == true) {
-                            for (final l in g.logs) {
-                              await ref
-                                  .read(exerciseLogsProvider.notifier)
-                                  .remove(l.id);
-                            }
-                            await ref
-                                .read(workoutSessionsProvider.notifier)
-                                .remove(g.sessionId!);
-                          }
-                        },
-                      ),
-                  ],
-                ),
-                const Divider(height: 18),
-                for (final exId in order)
-                  InkWell(
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) =>
-                            WorkoutExerciseDetailPage(exerciseId: exId))),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.fitness_center, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(nameOf(exId),
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600)),
-                                const SizedBox(height: 2),
-                                Text(
-                                  byEx[exId]!.map(setSummary).join('  ·  '),
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.chevron_right, size: 18),
-                        ],
-                      ),
+                // Header strip tinted by the session's dominant muscle group.
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        accent.withValues(alpha: 0.22),
+                        accent.withValues(alpha: 0.04),
+                      ],
                     ),
                   ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.fitness_center,
+                            color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_formatGroupDate(g.date),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 1),
+                            Text(g.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                        color: Theme.of(context).hintColor)),
+                          ],
+                        ),
+                      ),
+                      if (g.active)
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text('идёт',
+                              style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      if (g.sessionId != null && !g.active)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          tooltip: 'Удалить тренировку',
+                          onPressed: () async {
+                            final yes = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Удалить тренировку?'),
+                                content: const Text(
+                                    'Записанные подходы этой тренировки тоже будут удалены.'),
+                                actions: [
+                                  TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('Отмена')),
+                                  FilledButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Удалить')),
+                                ],
+                              ),
+                            );
+                            if (yes == true) {
+                              for (final l in g.logs) {
+                                await ref
+                                    .read(exerciseLogsProvider.notifier)
+                                    .remove(l.id);
+                              }
+                              await ref
+                                  .read(workoutSessionsProvider.notifier)
+                                  .remove(g.sessionId!);
+                            }
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (g.durationSec != null)
+                            WorkoutStatChip(
+                                icon: Icons.timer_outlined,
+                                label: formatWorkoutDuration(g.durationSec),
+                                color: scheme.primary),
+                          WorkoutStatChip(
+                              icon: Icons.layers_outlined,
+                              label: '${g.logs.length} подх.',
+                              color: scheme.tertiary),
+                          WorkoutStatChip(
+                              icon: Icons.fitness_center,
+                              label: '${order.length} упр.',
+                              color: accent),
+                          if (vol > 0)
+                            WorkoutStatChip(
+                                icon: Icons.bolt_outlined,
+                                label: 'объём ${fmtNum(vol)}',
+                                color: Colors.orange),
+                          if (rm > 0)
+                            WorkoutStatChip(
+                                icon: Icons.emoji_events_outlined,
+                                label: '1ПМ ${fmtNum(rm)}',
+                                color: Colors.amber.shade700),
+                        ],
+                      ),
+                      if (byMuscle.length >= 2) ...[
+                        const SizedBox(height: 12),
+                        MuscleSplitBar(byMuscle: byMuscle),
+                      ],
+                      const Divider(height: 22),
+                      for (final exId in order)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) => WorkoutExerciseDetailPage(
+                                      exerciseId: exId))),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: muscleColor(muscleOf(exId))
+                                        .withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(9),
+                                  ),
+                                  child: Icon(Icons.fitness_center,
+                                      size: 16,
+                                      color: muscleColor(muscleOf(exId))),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(nameOf(exId),
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w600)),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 7,
+                                                    vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: scheme.surfaceContainerHighest,
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: Text(
+                                                '${byEx[exId]!.length}×',
+                                                style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight:
+                                                        FontWeight.w700)),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        byEx[exId]!
+                                            .map(setSummary)
+                                            .join('  ·  '),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right, size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

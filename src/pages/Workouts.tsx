@@ -4,7 +4,7 @@ import { Dumbbell, LineChart, User, Plus, Folder, Play, ChevronRight, ChevronLef
 import { useStore } from '../store/useStore';
 import { cn } from '../lib/utils';
 import { WorkoutNode, WorkoutMetric, BodyMeasurement, PlannedWorkoutStatus, MuscleGroup, ExerciseLog } from '../types';
-import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
 import { WorkoutTimer } from '../components/WorkoutTimer';
 import { MuscleHeatmap } from '../components/MuscleHeatmap';
 import { generateWorkout } from '../services/aiService';
@@ -1317,6 +1317,51 @@ function GeneralAnalytics() {
     cardio: maxMuscleVolume > 0 ? muscleVolume.cardio / maxMuscleVolume : 0,
   };
 
+  // Weekly training volume for the last 8 weeks (Mon-anchored).
+  const weekAnchor = new Date(today);
+  const dow = (weekAnchor.getDay() + 6) % 7; // 0 = Monday
+  weekAnchor.setDate(weekAnchor.getDate() - dow);
+  weekAnchor.setHours(0, 0, 0, 0);
+  const weeklyVolume = Array.from({ length: 8 }).map((_, i) => {
+    const ws = new Date(weekAnchor);
+    ws.setDate(ws.getDate() - 7 * (7 - i));
+    const we = new Date(ws);
+    we.setDate(we.getDate() + 7);
+    const vol = exerciseLogs.reduce((sum, log) => {
+      const d = new Date(log.date);
+      if (d >= ws && d < we && log.metrics.weight && log.metrics.reps) {
+        return sum + log.metrics.weight * log.metrics.reps;
+      }
+      return sum;
+    }, 0);
+    return { label: `${ws.getDate()}.${ws.getMonth() + 1}`, volume: Math.round(vol) };
+  });
+  const hasWeeklyVolume = weeklyVolume.some(w => w.volume > 0);
+
+  // All-time volume distribution by muscle group.
+  const MUSCLE_COLORS: Record<MuscleGroup, string> = {
+    chest: '#6366f1', back: '#0ea5e9', legs: '#f97316', shoulders: '#a855f7',
+    arms: '#ec4899', core: '#f59e0b', cardio: '#10b981',
+  };
+  const MUSCLE_LABELS: Record<MuscleGroup, string> = {
+    chest: 'Грудь', back: 'Спина', legs: 'Ноги', shoulders: 'Плечи',
+    arms: 'Руки', core: 'Кор', cardio: 'Кардио',
+  };
+  const muscleAllTime: Record<MuscleGroup, number> = {
+    chest: 0, back: 0, legs: 0, shoulders: 0, arms: 0, core: 0, cardio: 0,
+  };
+  exerciseLogs.forEach(log => {
+    const ex = workoutNodes.find(n => n.id === log.exerciseId);
+    if (!ex?.muscleGroup) return;
+    const w = log.metrics.weight || 0;
+    const r = log.metrics.reps || 0;
+    muscleAllTime[ex.muscleGroup] += w > 0 && r > 0 ? w * r : (log.metrics.time || 10);
+  });
+  const muscleSplit = (Object.entries(muscleAllTime) as [MuscleGroup, number][])
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const muscleTotal = muscleSplit.reduce((s, [, v]) => s + v, 0);
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
@@ -1376,6 +1421,59 @@ function GeneralAnalytics() {
           })}
         </div>
       </div>
+
+      {hasWeeklyVolume && (
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+          <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-orange-400" />
+            Объём по неделям (8 недель)
+          </h2>
+          <div className="h-[200px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyVolume} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="wkVol" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f97316" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#f97316" stopOpacity={0.45} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" vertical={false} />
+                <XAxis dataKey="label" stroke="#a8a29e" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#a8a29e" fontSize={10} tickLine={false} axisLine={false} width={40} />
+                <Tooltip cursor={{ fill: 'rgba(249,115,22,0.08)' }} contentStyle={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: '8px', fontSize: '12px' }} />
+                <Bar dataKey="volume" name="Объём (кг)" fill="url(#wkVol)" radius={[6, 6, 0, 0]} animationDuration={800} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {muscleSplit.length >= 2 && (
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+          <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-indigo-400" />
+            Распределение по группам мышц
+          </h2>
+          <div className="flex w-full h-3.5 rounded-full overflow-hidden">
+            {muscleSplit.map(([m, v]) => (
+              <div
+                key={m}
+                className="h-full transition-all"
+                style={{ width: `${(v / muscleTotal) * 100}%`, backgroundColor: MUSCLE_COLORS[m] }}
+                title={`${MUSCLE_LABELS[m]}: ${Math.round((v / muscleTotal) * 100)}%`}
+              />
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {muscleSplit.map(([m, v]) => (
+              <div key={m} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: MUSCLE_COLORS[m] }} />
+                <span className="text-xs text-zinc-500">{MUSCLE_LABELS[m]} · {Math.round((v / muscleTotal) * 100)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
         <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
