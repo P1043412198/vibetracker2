@@ -370,6 +370,8 @@ class WorkoutNode {
     this.restTime,
     this.muscleGroup,
     this.isTemplate,
+    this.targetWeight,
+    this.targetReps,
   });
 
   final String id;
@@ -384,6 +386,11 @@ class WorkoutNode {
   final MuscleGroup? muscleGroup;
   final bool? isTemplate;
 
+  /// Optional per-exercise goal: target working weight (kg) and/or reps. Used
+  /// by the exercise detail page to show progress toward a personal record.
+  final num? targetWeight;
+  final int? targetReps;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'parentId': parentId,
@@ -397,6 +404,8 @@ class WorkoutNode {
         if (restTime != null) 'restTime': restTime,
         if (muscleGroup != null) 'muscleGroup': muscleGroup!.name,
         if (isTemplate != null) 'isTemplate': isTemplate,
+        if (targetWeight != null) 'targetWeight': targetWeight,
+        if (targetReps != null) 'targetReps': targetReps,
       };
 
   factory WorkoutNode.fromJson(Map<String, dynamic> json) => WorkoutNode(
@@ -421,6 +430,8 @@ class WorkoutNode {
                 json['muscleGroup'] as String?, MuscleGroup.chest)
             : null,
         isTemplate: json['isTemplate'] as bool?,
+        targetWeight: json['targetWeight'] as num?,
+        targetReps: (json['targetReps'] as num?)?.toInt(),
       );
 
   WorkoutNode copyWith({
@@ -434,6 +445,9 @@ class WorkoutNode {
     int? restTime,
     MuscleGroup? muscleGroup,
     bool? isTemplate,
+    num? targetWeight,
+    int? targetReps,
+    bool clearGoal = false,
   }) {
     return WorkoutNode(
       id: id,
@@ -447,6 +461,8 @@ class WorkoutNode {
       restTime: restTime ?? this.restTime,
       muscleGroup: muscleGroup ?? this.muscleGroup,
       isTemplate: isTemplate ?? this.isTemplate,
+      targetWeight: clearGoal ? null : (targetWeight ?? this.targetWeight),
+      targetReps: clearGoal ? null : (targetReps ?? this.targetReps),
     );
   }
 }

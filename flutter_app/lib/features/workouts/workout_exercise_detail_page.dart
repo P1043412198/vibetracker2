@@ -38,22 +38,49 @@ class WorkoutExerciseDetailPage extends ConsumerWidget {
     final metrics = (node?.metrics?.toSet() ?? <WorkoutMetric>{})
       ..addAll(logs.expand((l) => l.metrics.keys));
 
+    final hasGoal = node?.targetWeight != null || node?.targetReps != null;
+
     return Scaffold(
       appBar: AppBar(
         leading: const AppBackButton(),
         title: Text(node?.name ?? 'Упражнение'),
+        actions: [
+          if (node != null)
+            IconButton(
+              tooltip: hasGoal ? 'Изменить цель' : 'Задать цель',
+              icon: Icon(hasGoal ? Icons.flag : Icons.flag_outlined),
+              onPressed: () => _editGoal(context, ref, node),
+            ),
+        ],
       ),
       body: logs.isEmpty
-          ? const Center(
+          ? Center(
               child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Text('Нет записей по этому упражнению.'),
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Нет записей по этому упражнению.'),
+                    if (node != null) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () => _editGoal(context, ref, node),
+                        icon: const Icon(Icons.flag_outlined),
+                        label: Text(hasGoal ? 'Изменить цель' : 'Задать цель'),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             )
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
               children: [
                 _SummaryGrid(logs: logs, sessions: dates.length),
+                if (node != null && hasGoal) ...[
+                  const SizedBox(height: 16),
+                  _GoalCard(node: node, logs: logs),
+                ],
                 const SizedBox(height: 16),
                 _Charts(byDate: byDate, dates: dates, metrics: metrics),
                 const SizedBox(height: 16),
@@ -64,6 +91,227 @@ class WorkoutExerciseDetailPage extends ConsumerWidget {
                   _DaySetsCard(date: d, sets: byDate[d]!),
               ],
             ),
+    );
+  }
+
+  Future<void> _editGoal(
+      BuildContext context, WidgetRef ref, WorkoutNode node) async {
+    final weightCtrl = TextEditingController(
+        text: node.targetWeight == null ? '' : fmtNum(node.targetWeight!));
+    final repsCtrl = TextEditingController(
+        text: node.targetReps == null ? '' : '${node.targetReps}');
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Цель по упражнению'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Задайте целевой рабочий вес и/или повторы. На странице '
+              'появится индикатор приближения к рекорду.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: weightCtrl,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Целевой вес, кг',
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: repsCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Целевые повторы',
+                isDense: true,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          if (node.targetWeight != null || node.targetReps != null)
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'clear'),
+              child: const Text('Убрать цель'),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, 'save'),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+
+    if (action == null || action == 'cancel') return;
+    final notifier = ref.read(workoutNodesProvider.notifier);
+    if (action == 'clear') {
+      await notifier.update(node.id, (n) => n.copyWith(clearGoal: true));
+      return;
+    }
+    final w = double.tryParse(weightCtrl.text.trim().replaceAll(',', '.'));
+    final r = int.tryParse(repsCtrl.text.trim());
+    if (w == null && r == null) {
+      await notifier.update(node.id, (n) => n.copyWith(clearGoal: true));
+      return;
+    }
+    await notifier.update(
+      node.id,
+      (n) => n.copyWith(clearGoal: true).copyWith(
+            targetWeight: w,
+            targetReps: r,
+          ),
+    );
+  }
+}
+
+class _GoalCard extends StatelessWidget {
+  const _GoalCard({required this.node, required this.logs});
+  final WorkoutNode node;
+  final List<ExerciseLog> logs;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final tw = node.targetWeight;
+    final tr = node.targetReps;
+    final bestW = bestMetric(logs, WorkoutMetric.weight);
+    final bestEst = bestE1RM(logs);
+
+    // Progress toward the target working weight.
+    final weightPct = (tw != null && tw > 0)
+        ? (bestW / tw).clamp(0.0, 1.0).toDouble()
+        : null;
+
+    // Progress toward the target estimated 1RM (needs both weight & reps).
+    final targetE1RM = (tw != null && tr != null)
+        ? estimatedOneRepMax(tw, tr)
+        : null;
+    final e1rmPct = (targetE1RM != null && targetE1RM > 0)
+        ? (bestEst / targetE1RM).clamp(0.0, 1.0).toDouble()
+        : null;
+
+    final goalLabel = [
+      if (tw != null) '${fmtNum(tw)} кг',
+      if (tr != null) '× $tr',
+    ].join(' ');
+
+    final reached = (weightPct != null && weightPct >= 1.0) ||
+        (e1rmPct != null && e1rmPct >= 1.0);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(reached ? Icons.emoji_events : Icons.flag,
+                    size: 20,
+                    color: reached ? const Color(0xFFF59E0B) : scheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Цель: $goalLabel',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 16)),
+                ),
+                if (reached)
+                  Text('Достигнута! 🎉',
+                      style: TextStyle(
+                          color: const Color(0xFFF59E0B),
+                          fontWeight: FontWeight.w700)),
+              ],
+            ),
+            if (weightPct != null) ...[
+              const SizedBox(height: 12),
+              _GoalBar(
+                label: 'Рабочий вес',
+                value: '${fmtNum(bestW)} / ${fmtNum(tw!)} кг',
+                pct: weightPct,
+                color: scheme.primary,
+              ),
+              if (weightPct < 1.0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('Осталось ${fmtNum(tw - bestW)} кг',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ),
+            ],
+            if (e1rmPct != null) ...[
+              const SizedBox(height: 12),
+              _GoalBar(
+                label: '1ПМ (оценка, Epley)',
+                value: '${fmtNum(bestEst)} / ${fmtNum(targetE1RM!)} кг',
+                pct: e1rmPct,
+                color: const Color(0xFF22C55E),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  e1rmPct < 1.0
+                      ? 'До рекорда ${fmtNum(targetE1RM - bestEst)} кг '
+                          '(${(e1rmPct * 100).round()}%)'
+                      : 'Расчётный рекорд взят!',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GoalBar extends StatelessWidget {
+  const _GoalBar({
+    required this.label,
+    required this.value,
+    required this.pct,
+    required this.color,
+  });
+  final String label;
+  final String value;
+  final double pct;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
+            Text(value,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 13)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: LinearProgressIndicator(
+            value: pct,
+            minHeight: 8,
+            backgroundColor: color.withValues(alpha: 0.12),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
     );
   }
 }

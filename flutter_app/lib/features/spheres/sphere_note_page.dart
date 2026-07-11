@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/sphere.dart';
 import '../../services/photo_storage.dart';
@@ -30,6 +32,7 @@ class _SphereNotePageState extends ConsumerState<SphereNotePage> {
   late final TextEditingController _body;
   Timer? _debounce;
   bool _dirty = false;
+  bool _preview = false;
 
   @override
   void initState() {
@@ -74,6 +77,60 @@ class _SphereNotePageState extends ConsumerState<SphereNotePage> {
           content: _body.text,
           updatedAt: DateTime.now().toIso8601String(),
         ));
+  }
+
+  /// Insert [snippet] at the caret, placing the caret at the end of it. When
+  /// [atLineStart] the snippet is pushed to the beginning of the current line
+  /// (used for block prefixes like headings / list bullets).
+  void _insert(String snippet, {bool atLineStart = false}) {
+    final text = _body.text;
+    final sel = _body.selection;
+    var start = sel.start < 0 ? text.length : sel.start;
+    var end = sel.end < 0 ? text.length : sel.end;
+    if (atLineStart) {
+      final lineStart = text.lastIndexOf('\n', start - 1) + 1;
+      start = lineStart;
+      end = lineStart;
+    }
+    final next = text.replaceRange(start, end, snippet);
+    _body.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(offset: start + snippet.length),
+    );
+  }
+
+  /// Wrap the current selection (or caret word) with [marker] on both sides.
+  void _wrap(String marker) {
+    final text = _body.text;
+    final sel = _body.selection;
+    if (sel.start < 0 || sel.end < 0 || sel.start == sel.end) {
+      _insert('$marker$marker');
+      // Park the caret between the markers.
+      final pos = _body.selection.start - marker.length;
+      _body.selection = TextSelection.collapsed(offset: pos);
+      return;
+    }
+    final selected = text.substring(sel.start, sel.end);
+    final next = text.replaceRange(sel.start, sel.end, '$marker$selected$marker');
+    _body.value = TextEditingValue(
+      text: next,
+      selection: TextSelection.collapsed(
+          offset: sel.end + marker.length * 2),
+    );
+  }
+
+  /// Toggle the checkbox on the source line at [lineIndex] (`- [ ]`↔`- [x]`)
+  /// and persist immediately so preview taps stick.
+  void _toggleTaskLine(int lineIndex) {
+    final lines = _body.text.split('\n');
+    if (lineIndex < 0 || lineIndex >= lines.length) return;
+    final m = _taskLine.firstMatch(lines[lineIndex]);
+    if (m == null) return;
+    final done = m.group(2)!.toLowerCase() == 'x';
+    lines[lineIndex] = '${m.group(1)}- [${done ? ' ' : 'x'}] ${m.group(3)}';
+    _body.text = lines.join('\n');
+    _flushText();
+    setState(() {});
   }
 
   void _update(SphereNote Function(SphereNote) transform) {
@@ -215,6 +272,16 @@ class _SphereNotePageState extends ConsumerState<SphereNotePage> {
           title: Text(sphere.title, style: const TextStyle(fontSize: 16)),
           actions: [
             IconButton(
+              tooltip: _preview ? 'Редактировать' : 'Просмотр',
+              icon: Icon(_preview
+                  ? Icons.edit_outlined
+                  : Icons.visibility_outlined),
+              onPressed: () {
+                if (!_preview) _flushText();
+                setState(() => _preview = !_preview);
+              },
+            ),
+            IconButton(
               tooltip: note.isPinned == true ? 'Открепить' : 'Закрепить',
               icon: Icon(note.isPinned == true
                   ? Icons.push_pin
@@ -261,18 +328,35 @@ class _SphereNotePageState extends ConsumerState<SphereNotePage> {
               ],
             ),
             const Divider(height: 24),
-            TextField(
-              controller: _body,
-              textCapitalization: TextCapitalization.sentences,
-              style: const TextStyle(fontSize: 16, height: 1.5),
-              maxLines: null,
-              minLines: 6,
-              keyboardType: TextInputType.multiline,
-              decoration: const InputDecoration(
-                hintText: 'Начните писать…',
-                border: InputBorder.none,
+            if (_preview)
+              _MarkdownNote(
+                text: _body.text,
+                accent: accent,
+                onToggleTask: _toggleTaskLine,
+              )
+            else ...[
+              _MarkdownToolbar(
+                onHeading: () => _insert('## ', atLineStart: true),
+                onBullet: () => _insert('- ', atLineStart: true),
+                onCheckbox: () => _insert('- [ ] ', atLineStart: true),
+                onBold: () => _wrap('**'),
+                onItalic: () => _wrap('*'),
               ),
-            ),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _body,
+                textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(fontSize: 16, height: 1.5),
+                maxLines: null,
+                minLines: 6,
+                keyboardType: TextInputType.multiline,
+                decoration: const InputDecoration(
+                  hintText: 'Начните писать… поддерживается Markdown: '
+                      '## заголовок, **жирный**, - список, - [ ] чек-пункт',
+                  border: InputBorder.none,
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
 
             // Attributes row: checkbox + category.
@@ -473,6 +557,157 @@ class _PhotoThumb extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Matches a GitHub-style task list line: optional indent, `- [ ]`/`- [x]`,
+/// then the label. Group 1 = indent, group 2 = the check char, group 3 = label.
+final RegExp _taskLine = RegExp(r'^(\s*)[-*]\s\[([ xX])\]\s?(.*)$');
+
+/// A compact formatting toolbar for the note body.
+class _MarkdownToolbar extends StatelessWidget {
+  const _MarkdownToolbar({
+    required this.onHeading,
+    required this.onBullet,
+    required this.onCheckbox,
+    required this.onBold,
+    required this.onItalic,
+  });
+
+  final VoidCallback onHeading;
+  final VoidCallback onBullet;
+  final VoidCallback onCheckbox;
+  final VoidCallback onBold;
+  final VoidCallback onItalic;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget btn(IconData icon, String tip, VoidCallback onTap) => IconButton(
+          visualDensity: VisualDensity.compact,
+          tooltip: tip,
+          icon: Icon(icon, size: 20),
+          onPressed: onTap,
+        );
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            btn(Icons.title, 'Заголовок', onHeading),
+            btn(Icons.format_bold, 'Жирный', onBold),
+            btn(Icons.format_italic, 'Курсив', onItalic),
+            btn(Icons.format_list_bulleted, 'Список', onBullet),
+            btn(Icons.checklist, 'Чек-пункт', onCheckbox),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Renders the note body as Markdown, with GitHub-style task items shown as
+/// tappable checkboxes that toggle the underlying source line.
+class _MarkdownNote extends StatelessWidget {
+  const _MarkdownNote({
+    required this.text,
+    required this.accent,
+    required this.onToggleTask,
+  });
+
+  final String text;
+  final Color accent;
+  final void Function(int lineIndex) onToggleTask;
+
+  @override
+  Widget build(BuildContext context) {
+    if (text.trim().isEmpty) {
+      return Text('Пусто — нажмите «Редактировать», чтобы начать писать.',
+          style: TextStyle(color: Theme.of(context).colorScheme.outline));
+    }
+
+    final styleSheet = MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+      p: const TextStyle(fontSize: 16, height: 1.5),
+    );
+    void openLink(String? href) {
+      if (href == null) return;
+      final uri = Uri.tryParse(href);
+      if (uri != null) launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+
+    final lines = text.split('\n');
+    final children = <Widget>[];
+    final buffer = <String>[];
+
+    void flushBuffer() {
+      if (buffer.isEmpty) return;
+      children.add(MarkdownBody(
+        data: buffer.join('\n'),
+        selectable: true,
+        styleSheet: styleSheet,
+        onTapLink: (_, href, __) => openLink(href),
+      ));
+      buffer.clear();
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+      final m = _taskLine.firstMatch(lines[i]);
+      if (m == null) {
+        buffer.add(lines[i]);
+        continue;
+      }
+      flushBuffer();
+      final done = m.group(2)!.toLowerCase() == 'x';
+      final label = m.group(3) ?? '';
+      final idx = i;
+      children.add(
+        InkWell(
+          onTap: () => onToggleTask(idx),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  done ? Icons.check_box : Icons.check_box_outline_blank,
+                  size: 22,
+                  color: done ? accent : Theme.of(context).colorScheme.outline,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: MarkdownBody(
+                      data: label.isEmpty ? '\u200b' : label,
+                      selectable: false,
+                      styleSheet: styleSheet.copyWith(
+                        p: TextStyle(
+                          fontSize: 16,
+                          height: 1.4,
+                          decoration:
+                              done ? TextDecoration.lineThrough : null,
+                          color: done
+                              ? Theme.of(context).colorScheme.outline
+                              : null,
+                        ),
+                      ),
+                      onTapLink: (_, href, __) => openLink(href),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    flushBuffer();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
     );
   }
 }

@@ -73,6 +73,27 @@ num bestWeightFor(Iterable<ExerciseLog> logs, String exerciseId) {
   return best;
 }
 
+/// Estimated one-rep max via the Epley formula: `w · (1 + reps/30)`.
+/// Returns [weight] unchanged for a single rep and 0 when weight is 0.
+double estimatedOneRepMax(num weight, num reps) {
+  if (weight <= 0 || reps <= 0) return 0;
+  if (reps == 1) return weight.toDouble();
+  return weight * (1 + reps / 30);
+}
+
+/// Best estimated 1RM across [logs] (max Epley over every weight×reps set).
+double bestE1RM(Iterable<ExerciseLog> logs) {
+  double best = 0;
+  for (final l in logs) {
+    final w = l.metrics[WorkoutMetric.weight];
+    final r = l.metrics[WorkoutMetric.reps];
+    if (w == null) continue;
+    final e = estimatedOneRepMax(w, r ?? 1);
+    if (e > best) best = e;
+  }
+  return best;
+}
+
 /// "1ч 05м" / "45м 10с" / "30с" style duration from seconds.
 String formatWorkoutDuration(int? sec) {
   if (sec == null || sec <= 0) return '—';

@@ -723,16 +723,7 @@ class _NotesCard extends ConsumerStatefulWidget {
 }
 
 class _NotesCardState extends ConsumerState<_NotesCard> {
-  final _newNote = TextEditingController();
-  bool _asCheckbox = false;
   String? _filterCategoryId;
-  String? _newNoteCategoryId;
-
-  @override
-  void dispose() {
-    _newNote.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -802,77 +793,26 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
                 ),
               ),
             ],
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _newNote,
-                    minLines: 1,
-                    maxLines: 4,
-                    decoration: InputDecoration(
-                      labelText:
-                          _asCheckbox ? 'Новый чек-пункт' : 'Новая заметка',
-                      isDense: true,
-                    ),
-                    onSubmitted: (_) => _addText(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip:
-                      _asCheckbox ? 'Сделать обычной' : 'Сделать чек-пунктом',
-                  icon: Icon(_asCheckbox
-                      ? Icons.check_box_outlined
-                      : Icons.check_box_outline_blank),
-                  onPressed: () => setState(() => _asCheckbox = !_asCheckbox),
-                ),
-                IconButton.filledTonal(
-                  icon: const Icon(Icons.add),
-                  onPressed: _addText,
-                ),
-              ],
-            ),
-            if (cats.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  const Icon(Icons.folder_outlined, size: 16),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: DropdownButton<String?>(
-                      isExpanded: true,
-                      value: _newNoteCategoryId ?? _filterCategoryId,
-                      hint: const Text('Без категории'),
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('Без категории'),
-                        ),
-                        for (final c in cats)
-                          DropdownMenuItem<String?>(
-                            value: c.id,
-                            child: Text(
-                              c.icon == null
-                                  ? c.title
-                                  : '${c.icon} ${c.title}',
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                      onChanged: (v) =>
-                          setState(() => _newNoteCategoryId = v),
-                    ),
-                  ),
-                ],
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonalIcon(
+                onPressed: _addPage,
+                icon: const Icon(Icons.note_add_outlined),
+                label: const Text('Новая заметка-страница'),
               ),
-            ],
+            ),
             const SizedBox(height: 8),
             if (notes.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
-                    'Тут будут идеи, фото и чек-листы по этой сфере жизни.'),
+                  'Тут будут идеи, фото и чек-листы по этой сфере жизни. '
+                  'Нажмите «Новая заметка-страница» — откроется полноценный '
+                  'редактор с Markdown и чек-листами.',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.outline),
+                ),
               )
             else
               for (final note in notes) SphereNoteTile(sphere: widget.sphere, note: note),
@@ -882,31 +822,12 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
     );
   }
 
-  void _addText() {
-    final text = _newNote.text.trim();
-    if (text.isEmpty) return;
-    final note = SphereNote(
-      id: const Uuid().v4(),
-      content: text,
-      createdAt: DateTime.now().toIso8601String(),
-      isCheckbox: _asCheckbox ? true : null,
-      isChecked: _asCheckbox ? false : null,
-      categoryId: _newNoteCategoryId ?? _filterCategoryId,
-    );
-    final next = [...?widget.sphere.notesList, note];
-    ref.read(spheresProvider.notifier).update(
-          widget.sphere.id,
-          (s) => s.copyWith(notesList: next),
-        );
-    _newNote.clear();
-  }
-
   Future<void> _addPage() async {
     final note = SphereNote(
       id: const Uuid().v4(),
       content: '',
       createdAt: DateTime.now().toIso8601String(),
-      categoryId: _newNoteCategoryId ?? _filterCategoryId,
+      categoryId: _filterCategoryId,
     );
     final next = [...?widget.sphere.notesList, note];
     await ref.read(spheresProvider.notifier).update(
@@ -934,7 +855,7 @@ class _NotesCardState extends ConsumerState<_NotesCard> {
       content: '',
       createdAt: DateTime.now().toIso8601String(),
       photoUrl: path,
-      categoryId: _newNoteCategoryId ?? _filterCategoryId,
+      categoryId: _filterCategoryId,
     );
     final next = [...?widget.sphere.notesList, note];
     await ref.read(spheresProvider.notifier).update(
