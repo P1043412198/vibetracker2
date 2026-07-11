@@ -32,7 +32,7 @@ class _SphereNotePageState extends ConsumerState<SphereNotePage> {
   late final TextEditingController _body;
   Timer? _debounce;
   bool _dirty = false;
-  bool _preview = false;
+  late bool _preview;
 
   @override
   void initState() {
@@ -40,6 +40,10 @@ class _SphereNotePageState extends ConsumerState<SphereNotePage> {
     final note = _currentNote();
     _title = TextEditingController(text: note?.title ?? '');
     _body = TextEditingController(text: note?.content ?? '');
+    // Open existing notes in read/preview mode; brand-new empty notes start
+    // in edit mode so the user can begin typing right away.
+    _preview = (note?.content ?? '').trim().isNotEmpty ||
+        (note?.title ?? '').trim().isNotEmpty;
     _title.addListener(_onChanged);
     _body.addListener(_onChanged);
   }
