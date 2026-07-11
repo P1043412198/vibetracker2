@@ -12,6 +12,8 @@ import '../../models/misc.dart';
 import '../../services/ai_service.dart';
 import '../../state/providers.dart';
 import 'body_photos_tab.dart';
+import 'muscle_heatmap.dart';
+import 'one_rep_max_calculator_page.dart';
 import 'workout_exercise_detail_page.dart';
 import 'workout_format.dart';
 import 'workout_viz.dart';
@@ -1130,6 +1132,28 @@ class _AnalyticsTab extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        Card(
+          clipBehavior: Clip.antiAlias,
+          child: ListTile(
+            leading: const Icon(Icons.calculate_outlined),
+            title: const Text('Калькулятор 1ПМ'),
+            subtitle: const Text('Оценка максимума и рабочие веса по %'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const OneRepMaxCalculatorPage(),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (byMuscle.length >= 2) ...[
+          Text('Карта нагрузки на мышцы',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          MuscleHeatmap(byMuscle: byMuscle),
+          const SizedBox(height: 24),
+        ],
         if (hasWeeklyVolume) ...[
           Text('Объём по неделям — последние 8 недель',
               style: Theme.of(context).textTheme.titleMedium),
@@ -2880,6 +2904,7 @@ class _TodaySetLogger extends ConsumerStatefulWidget {
 
 class _TodaySetLoggerState extends ConsumerState<_TodaySetLogger> {
   final Map<WorkoutMetric, TextEditingController> _ctrls = {};
+  final _rpeCtrl = TextEditingController();
 
   List<WorkoutMetric> get _metrics =>
       (widget.node.metrics?.isNotEmpty ?? false)
@@ -2899,6 +2924,7 @@ class _TodaySetLoggerState extends ConsumerState<_TodaySetLogger> {
     for (final c in _ctrls.values) {
       c.dispose();
     }
+    _rpeCtrl.dispose();
     super.dispose();
   }
 
@@ -2910,6 +2936,7 @@ class _TodaySetLoggerState extends ConsumerState<_TodaySetLogger> {
       if (v != null) metrics[m] = v;
     }
     if (metrics.isEmpty) return;
+    final rpe = num.tryParse(_rpeCtrl.text.trim().replaceAll(',', '.'));
     ref.read(exerciseLogsProvider.notifier).add(ExerciseLog(
           id: const Uuid().v4(),
           exerciseId: widget.node.id,
@@ -2917,7 +2944,9 @@ class _TodaySetLoggerState extends ConsumerState<_TodaySetLogger> {
           metrics: metrics,
           restTime: widget.node.restTime,
           sessionId: widget.sessionId,
+          rpe: (rpe != null && rpe > 0) ? rpe : null,
         ));
+    _rpeCtrl.clear();
     final rest = widget.node.restTime;
     if (rest != null && rest > 0) widget.onRest(rest, widget.node.name);
   }
@@ -2990,6 +3019,21 @@ class _TodaySetLoggerState extends ConsumerState<_TodaySetLogger> {
                   ),
                   const SizedBox(width: 8),
                 ],
+                SizedBox(
+                  width: 64,
+                  child: TextField(
+                    controller: _rpeCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      labelText: 'RPE',
+                      helperText: '6–10',
+                      helperStyle: TextStyle(fontSize: 9),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 FilledButton(
                   onPressed: _addSet,
                   child: const Icon(Icons.add),

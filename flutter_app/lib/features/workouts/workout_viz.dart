@@ -42,7 +42,7 @@ num best1RM(Iterable<ExerciseLog> logs) {
   for (final l in logs) {
     final rm = estimatedOneRepMax(
       l.metrics[WorkoutMetric.weight] ?? 0,
-      l.metrics[WorkoutMetric.reps] ?? 0,
+      l.metrics[WorkoutMetric.reps] ?? 1,
     );
     if (rm > best) best = rm;
   }

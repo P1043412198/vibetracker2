@@ -8,6 +8,7 @@ import '../../state/providers.dart';
 import '../../widgets/app_back_button.dart';
 import 'workout_charts.dart';
 import 'workout_format.dart';
+import 'workout_viz.dart';
 
 /// Full history of a single exercise: summary infographics, trend charts and
 /// a day-grouped list of every recorded set with the user-selected metrics.
@@ -185,7 +186,7 @@ class _GoalCard extends StatelessWidget {
     final tw = node.targetWeight;
     final tr = node.targetReps;
     final bestW = bestMetric(logs, WorkoutMetric.weight);
-    final bestEst = bestE1RM(logs);
+    final bestEst = best1RM(logs);
 
     // Progress toward the target working weight.
     final weightPct = (tw != null && tw > 0)

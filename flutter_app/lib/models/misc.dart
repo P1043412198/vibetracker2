@@ -476,6 +476,7 @@ class ExerciseLog {
     this.notes,
     this.restTime,
     this.sessionId,
+    this.rpe,
   });
 
   final String id;
@@ -485,6 +486,9 @@ class ExerciseLog {
   final String? notes;
   final int? restTime;
   final String? sessionId; // links the set to a WorkoutSession (legacy logs none)
+
+  /// Rate of Perceived Exertion for the set (typically 6–10, half-steps ok).
+  final num? rpe;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -496,6 +500,7 @@ class ExerciseLog {
         if (notes != null) 'notes': notes,
         if (restTime != null) 'restTime': restTime,
         if (sessionId != null) 'sessionId': sessionId,
+        if (rpe != null) 'rpe': rpe,
       };
 
   factory ExerciseLog.fromJson(Map<String, dynamic> json) {
@@ -516,6 +521,7 @@ class ExerciseLog {
       notes: json['notes'] as String?,
       restTime: (json['restTime'] as num?)?.toInt(),
       sessionId: json['sessionId'] as String?,
+      rpe: json['rpe'] as num?,
     );
   }
 
@@ -526,6 +532,8 @@ class ExerciseLog {
     String? notes,
     int? restTime,
     String? sessionId,
+    num? rpe,
+    bool clearRpe = false,
   }) {
     return ExerciseLog(
       id: id,
@@ -535,6 +543,7 @@ class ExerciseLog {
       notes: notes ?? this.notes,
       restTime: restTime ?? this.restTime,
       sessionId: sessionId ?? this.sessionId,
+      rpe: clearRpe ? null : (rpe ?? this.rpe),
     );
   }
 }

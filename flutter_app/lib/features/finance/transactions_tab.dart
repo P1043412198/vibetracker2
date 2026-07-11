@@ -30,6 +30,7 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
   String? _accountFilter;
   TransactionType? _typeFilter;
   String _periodFilter = 'month'; // 'month' | 'all'
+  String? _tagFilter;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +38,16 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
       ..sort((a, b) => b.date.compareTo(a.date));
     final accounts = ref.watch(accountsProvider);
     final monthKey = DateFormat('yyyy-MM').format(DateTime.now());
+
+    final allTags = <String>{};
+    for (final t in transactions) {
+      final tags = t.tags;
+      if (tags != null) allTags.addAll(tags);
+    }
+    final sortedTags = allTags.toList()..sort();
+    if (_tagFilter != null && !allTags.contains(_tagFilter)) {
+      _tagFilter = null;
+    }
 
     final filtered = transactions.where((t) {
       if (_accountFilter != null &&
@@ -46,6 +57,9 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
       }
       if (_typeFilter != null && t.type != _typeFilter) return false;
       if (_periodFilter == 'month' && !t.date.startsWith(monthKey)) {
+        return false;
+      }
+      if (_tagFilter != null && !(t.tags?.contains(_tagFilter) ?? false)) {
         return false;
       }
       return true;
@@ -68,6 +82,36 @@ class _TransactionsTabState extends ConsumerState<TransactionsTab> {
                     builder: (_) => const RecurringPaymentsPage()),
               ),
             ),
+            if (sortedTags.isNotEmpty)
+              SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 6),
+                      child: FilterChip(
+                        label: const Text('Все теги'),
+                        selected: _tagFilter == null,
+                        onSelected: (_) => setState(() => _tagFilter = null),
+                      ),
+                    ),
+                    for (final tag in sortedTags)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 6),
+                        child: FilterChip(
+                          label: Text('#$tag'),
+                          selected: _tagFilter == tag,
+                          onSelected: (sel) => setState(
+                              () => _tagFilter = sel ? tag : null),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             const PaymentRemindersCard(),
             const RecurringReviewCard(),
             Expanded(
@@ -354,16 +398,50 @@ class _TransactionTile extends ConsumerWidget {
             ],
           ],
         ),
-        subtitle: Text(
-          [
-            transaction.date,
-            if (transaction.merchant?.isNotEmpty == true && !isTransfer)
-              transaction.category,
-            if (accountLabel.isNotEmpty) accountLabel,
-            if (transaction.notes != null) transaction.notes!,
-          ].join(' · '),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              [
+                transaction.date,
+                if (transaction.merchant?.isNotEmpty == true && !isTransfer)
+                  transaction.category,
+                if (accountLabel.isNotEmpty) accountLabel,
+                if (transaction.notes != null) transaction.notes!,
+              ].join(' · '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (transaction.tags?.isNotEmpty == true) ...[
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 4,
+                runSpacing: 2,
+                children: [
+                  for (final t in transaction.tags!)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .secondaryContainer,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '#$t',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSecondaryContainer,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -512,10 +590,12 @@ class _TransactionFormSheetState
   final _categoryController = TextEditingController();
   final _notesController = TextEditingController();
   final _merchantController = TextEditingController();
+  final _tagController = TextEditingController();
   TransactionType _type = TransactionType.expense;
   DateTime _date = DateTime.now();
   String? _accountId;
   String? _toAccountId;
+  final List<String> _tags = [];
   final List<String> _receiptPaths = [];
   List<ReceiptLineItem> _scannedItems = const [];
   bool _scanning = false;
@@ -526,6 +606,7 @@ class _TransactionFormSheetState
     _categoryController.dispose();
     _notesController.dispose();
     _merchantController.dispose();
+    _tagController.dispose();
     super.dispose();
   }
 
@@ -659,6 +740,16 @@ class _TransactionFormSheetState
             ),
             if (_type != TransactionType.transfer) ...[
               const SizedBox(height: 12),
+              _TagEditor(
+                controller: _tagController,
+                tags: _tags,
+                suggestions: _allTags(),
+                onAdd: _addTag,
+                onRemove: (t) => setState(() => _tags.remove(t)),
+              ),
+            ],
+            if (_type != TransactionType.transfer) ...[
+              const SizedBox(height: 12),
               TextField(
                 controller: _merchantController,
                 decoration: const InputDecoration(
@@ -707,6 +798,26 @@ class _TransactionFormSheetState
     );
   }
 
+  List<String> _allTags() {
+    final set = <String>{};
+    for (final t in ref.read(transactionsProvider)) {
+      final tags = t.tags;
+      if (tags != null) set.addAll(tags);
+    }
+    set.removeAll(_tags);
+    final list = set.toList()..sort();
+    return list.take(12).toList();
+  }
+
+  void _addTag(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return;
+    if (!_tags.any((e) => e.toLowerCase() == t.toLowerCase())) {
+      setState(() => _tags.add(t));
+    }
+    _tagController.clear();
+  }
+
   Future<void> _save() async {
     final amount = double.tryParse(_amountController.text.trim()) ?? 0;
     if (amount <= 0) return;
@@ -728,6 +839,7 @@ class _TransactionFormSheetState
       accountId: _accountId,
       toAccountId: _type == TransactionType.transfer ? _toAccountId : null,
       merchant: merchant.isEmpty ? null : merchant,
+      tags: _tags.isEmpty ? null : List.of(_tags),
       receiptPaths: _receiptPaths.isEmpty ? null : List.of(_receiptPaths),
     );
     await ref.read(transactionsProvider.notifier).add(tx);
@@ -1005,6 +1117,76 @@ class _ScannedItems extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Free-form tag editor: a text field to add tags, chips for the current
+/// selection (tap × to remove) and quick-add chips for previously used tags.
+class _TagEditor extends StatelessWidget {
+  const _TagEditor({
+    required this.controller,
+    required this.tags,
+    required this.suggestions,
+    required this.onAdd,
+    required this.onRemove,
+  });
+
+  final TextEditingController controller;
+  final List<String> tags;
+  final List<String> suggestions;
+  final void Function(String) onAdd;
+  final void Function(String) onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            labelText: 'Теги',
+            hintText: 'напр. отпуск, подарки',
+            prefixIcon: const Icon(Icons.sell_outlined),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => onAdd(controller.text),
+            ),
+          ),
+          onSubmitted: onAdd,
+        ),
+        if (tags.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final t in tags)
+                InputChip(
+                  label: Text(t),
+                  onDeleted: () => onRemove(t),
+                ),
+            ],
+          ),
+        ],
+        if (suggestions.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [
+              for (final s in suggestions)
+                ActionChip(
+                  label: Text(s),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => onAdd(s),
+                ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
