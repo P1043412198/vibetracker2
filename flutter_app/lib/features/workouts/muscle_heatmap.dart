@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/enums.dart';
@@ -14,8 +15,10 @@ class MuscleHeatmap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final maxV = byMuscle.values.fold<num>(0, (m, v) => v > m ? v : m);
-    double intensity(MuscleGroup g) =>
-        maxV <= 0 ? 0 : (byMuscle[g] ?? 0) / maxV;
+    final intensity = <MuscleGroup, double>{
+      for (final g in MuscleGroup.values)
+        g: maxV <= 0 ? 0 : (byMuscle[g] ?? 0) / maxV,
+    };
 
     return Column(
       children: [
@@ -55,7 +58,7 @@ class _Figure extends StatelessWidget {
 
   final String title;
   final bool front;
-  final double Function(MuscleGroup) intensity;
+  final Map<MuscleGroup, double> intensity;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +105,7 @@ class _BodyPainter extends CustomPainter {
   });
 
   final bool front;
-  final double Function(MuscleGroup) intensity;
+  final Map<MuscleGroup, double> intensity;
   final Color base;
   final Color outline;
 
@@ -122,7 +125,7 @@ class _BodyPainter extends CustomPainter {
     void region(Rect rect, MuscleGroup? g, {double radius = 8}) {
       final fill = Paint()
         ..style = PaintingStyle.fill
-        ..color = g == null ? base : heatColor(intensity(g), base);
+        ..color = g == null ? base : heatColor(intensity[g] ?? 0, base);
       final rr = RRect.fromRectAndRadius(rect, Radius.circular(radius));
       canvas.drawRRect(rr, fill);
       canvas.drawRRect(rr, stroke);
@@ -156,7 +159,10 @@ class _BodyPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BodyPainter old) =>
-      old.front != front || old.base != base || old.outline != outline;
+      old.front != front ||
+      old.base != base ||
+      old.outline != outline ||
+      !mapEquals(old.intensity, intensity);
 }
 
 class _HeatLegend extends StatelessWidget {

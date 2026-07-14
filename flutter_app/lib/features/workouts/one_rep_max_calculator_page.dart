@@ -54,7 +54,12 @@ class _OneRepMaxCalculatorPageState extends State<OneRepMaxCalculatorPage> {
   Widget build(BuildContext context) {
     final w = double.tryParse(_weight.text.trim().replaceAll(',', '.')) ?? 0;
     final r = double.tryParse(_reps.text.trim()) ?? 0;
-    final oneRm = estimatedOneRepMax(w, r);
+    final epley = estimatedOneRepMax(w, r);
+    final brzycki = brzyckiOneRepMax(w, r);
+    // Use the average of Epley & Brzycki for the headline number — Epley alone
+    // over-estimates on high-rep sets.
+    final oneRm = averagedOneRepMax(w, r);
+    final lowConfidence = r > 10;
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -127,8 +132,29 @@ class _OneRepMaxCalculatorPageState extends State<OneRepMaxCalculatorPage> {
             ),
           ),
           const SizedBox(height: 8),
-          Text('Формула Эпли: 1ПМ = вес × (1 + повторы / 30)',
-              style: Theme.of(context).textTheme.bodySmall),
+          if (oneRm > 0)
+            Text(
+              'Эпли ${fmtNum(epley)} кг · Бжицки ${brzycki <= 0 ? '—' : '${fmtNum(brzycki)} кг'} (показано среднее)',
+              style: Theme.of(context).textTheme.bodySmall,
+            )
+          else
+            Text('Среднее формул Эпли и Бжицки',
+                style: Theme.of(context).textTheme.bodySmall),
+          if (lowConfidence) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.info_outline, size: 15, color: scheme.tertiary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Оценка надёжна до ~10 повторов. Выше — считайте её ориентиром.',
+                    style: TextStyle(fontSize: 12, color: scheme.tertiary),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 24),
           Text('Рабочие веса по % от 1ПМ',
               style: Theme.of(context).textTheme.titleMedium),

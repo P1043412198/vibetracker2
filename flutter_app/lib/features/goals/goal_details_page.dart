@@ -1265,7 +1265,7 @@ class _PhotoTile extends ConsumerWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
         child: Image.file(
-          File(path),
+          File(PhotoStorage.instance.resolve(path)),
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => Container(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -1311,7 +1311,7 @@ class _PhotoTile extends ConsumerWidget {
         child: GestureDetector(
           onTap: () => Navigator.pop(ctx),
           child: InteractiveViewer(
-            child: Image.file(File(path)),
+            child: Image.file(File(PhotoStorage.instance.resolve(path))),
           ),
         ),
       ),

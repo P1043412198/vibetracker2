@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// A filled line chart with a dot on the most recent point. Designed for short
@@ -59,7 +60,7 @@ class _LinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _LinePainter old) =>
-      old.values != values || old.color != color;
+      !listEquals(old.values, values) || old.color != color;
 }
 
 /// A simple labelled bar chart for categorical counts (e.g. sessions/week).

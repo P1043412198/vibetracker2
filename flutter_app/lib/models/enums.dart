@@ -94,3 +94,14 @@ T enumFromName<T extends Enum>(List<T> values, String? name, T fallback) {
   }
   return fallback;
 }
+
+/// Like [enumFromName] but returns null when [name] is null or unknown,
+/// matching case-insensitively.
+T? enumFromNameOrNull<T extends Enum>(List<T> values, String? name) {
+  if (name == null || name.isEmpty) return null;
+  final lower = name.toLowerCase();
+  for (final v in values) {
+    if (v.name.toLowerCase() == lower) return v;
+  }
+  return null;
+}

@@ -679,6 +679,10 @@ Future<void> _showNodeEditor(
       );
     },
   );
+  nameCtrl.dispose();
+  notesCtrl.dispose();
+  videoCtrl.dispose();
+  articlesCtrl.dispose();
 }
 
 Future<void> _confirmDelete(
@@ -972,6 +976,7 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
         );
       },
     );
+    labelCtrl.dispose();
   }
 }
 
@@ -1649,6 +1654,19 @@ Future<void> _showMeasurementForm(
       );
     },
   );
+  for (final c in [
+    weight,
+    height,
+    neck,
+    chest,
+    waist,
+    hips,
+    biceps,
+    thighs,
+    calves,
+  ]) {
+    c.dispose();
+  }
 }
 
 /* ───────────────────────────── helpers ──────────────────────────────── */
@@ -1935,13 +1953,19 @@ Future<void> _runAiPlan(
         if ((raw['notes'] as String?)?.isNotEmpty == true)
           raw['notes'] as String,
       ].join(' · ');
+      // Prefer a group named by the model; otherwise infer from the exercise
+      // name; only then fall back to the first requested target so the
+      // heatmap/analytics reflect what was actually trained.
+      final aiGroup = enumFromNameOrNull(
+          MuscleGroup.values, (raw['muscleGroup'] as String?)?.trim());
+      final group = aiGroup ?? inferMuscleGroup(name, fallback: primaryGroup);
       await ref.read(workoutNodesProvider.notifier).add(WorkoutNode(
             id: const Uuid().v4(),
             parentId: folderId,
             name: name,
             type: WorkoutNodeType.exercise,
             metrics: const [WorkoutMetric.weight, WorkoutMetric.reps],
-            muscleGroup: primaryGroup,
+            muscleGroup: group,
             notes: notes.isEmpty ? null : notes,
           ));
     }

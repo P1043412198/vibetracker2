@@ -17,6 +17,46 @@ Color muscleColor(MuscleGroup? g) => switch (g) {
       null => const Color(0xFF94A3B8), // slate
     };
 
+/// Best-effort mapping of an exercise name to a [MuscleGroup] using Russian
+/// and English keyword matching. Returns [fallback] when nothing matches.
+/// Used to give each AI-generated exercise its own group instead of lumping
+/// every exercise under the first requested target.
+MuscleGroup? inferMuscleGroup(String name, {MuscleGroup? fallback}) {
+  final n = name.toLowerCase();
+  bool has(List<String> kws) => kws.any(n.contains);
+
+  if (has(['присед', 'выпад', 'жим ног', 'разгибан ног', 'сгибан ног', 'икр',
+      'голен', 'ягод', 'становая', 'squat', 'lunge', 'leg', 'calf',
+      'glute', 'deadlift', 'hamstring', 'quad'])) {
+    return MuscleGroup.legs;
+  }
+  if (has(['жим лёж', 'жим лежа', 'отжим', 'разводк', 'бабочк', 'сведен',
+      'груд', 'bench', 'chest', 'push-up', 'pushup', 'fly', 'dip'])) {
+    return MuscleGroup.chest;
+  }
+  if (has(['тяга', 'подтягив', 'спин', 'широчайш', 'row', 'pull-up',
+      'pullup', 'pulldown', 'lat', 'back'])) {
+    return MuscleGroup.back;
+  }
+  if (has(['плеч', 'дельт', 'жим стоя', 'жим сид', 'махи', 'shoulder',
+      'overhead', 'press', 'lateral', 'delt', 'shrug', 'трапец'])) {
+    return MuscleGroup.shoulders;
+  }
+  if (has(['бицепс', 'трицепс', 'сгибан рук', 'разгибан рук', 'предплеч',
+      'молот', 'curl', 'bicep', 'tricep', 'arm', 'forearm'])) {
+    return MuscleGroup.arms;
+  }
+  if (has(['пресс', 'планк', 'скручиван', 'кор', 'корпус', 'abs', 'core',
+      'plank', 'crunch', 'oblique'])) {
+    return MuscleGroup.core;
+  }
+  if (has(['бег', 'кардио', 'велотрен', 'дорожк', 'эллипс', 'гребл', 'run',
+      'cardio', 'bike', 'cycl', 'treadmill', 'row machine', 'jump'])) {
+    return MuscleGroup.cardio;
+  }
+  return fallback;
+}
+
 /// Short muscle-group label for compact chips.
 String muscleShortLabel(MuscleGroup g) => switch (g) {
       MuscleGroup.chest => 'Грудь',
@@ -34,6 +74,26 @@ num estimatedOneRepMax(num weight, num reps) {
   if (weight <= 0 || reps <= 0) return 0;
   if (reps == 1) return weight;
   return weight * (1 + reps / 30);
+}
+
+/// Estimated one-rep max via the Brzycki formula. Undefined at 37+ reps (the
+/// denominator hits zero), so it is only meaningful in the low/moderate rep
+/// range where it tends to be more conservative than Epley.
+num brzyckiOneRepMax(num weight, num reps) {
+  if (weight <= 0 || reps <= 0) return 0;
+  if (reps == 1) return weight;
+  final denom = 1.0278 - 0.0278 * reps;
+  if (denom <= 0) return 0;
+  return weight / denom;
+}
+
+/// Average of the Epley and Brzycki estimates — a bit more robust than either
+/// alone. Falls back to Epley when Brzycki is undefined (high reps).
+num averagedOneRepMax(num weight, num reps) {
+  final e = estimatedOneRepMax(weight, reps);
+  final b = brzyckiOneRepMax(weight, reps);
+  if (b <= 0) return e;
+  return (e + b) / 2;
 }
 
 /// Best estimated 1RM across [logs].
@@ -188,6 +248,8 @@ class VolumeBars extends StatelessWidget {
     final maxV = values.isEmpty
         ? 1.0
         : values.reduce((a, b) => a > b ? a : b).clamp(1.0, double.infinity);
+    // Guard against tiny [height] making the clamp bounds invert.
+    final maxBarH = (height - 40).clamp(2.0, double.infinity);
     return SizedBox(
       height: height,
       child: Row(
@@ -213,9 +275,12 @@ class VolumeBars extends StatelessWidget {
                       duration: Duration(milliseconds: 500 + i * 60),
                       curve: Curves.easeOutBack,
                       builder: (context, t, _) => Container(
-                        height:
-                            ((height - 40) * (values[i] / maxV) * t)
-                                .clamp(2.0, height - 40),
+                        // Zero-volume weeks collapse to nothing so they read as
+                        // "no training" rather than a tiny 2px stub.
+                        height: values[i] <= 0
+                            ? 0.0
+                            : (maxBarH * (values[i] / maxV) * t)
+                                .clamp(2.0, maxBarH),
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
                             begin: Alignment.bottomCenter,

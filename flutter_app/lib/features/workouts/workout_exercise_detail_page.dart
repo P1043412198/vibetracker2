@@ -153,14 +153,17 @@ class WorkoutExerciseDetailPage extends ConsumerWidget {
       ),
     );
 
+    final w = double.tryParse(weightCtrl.text.trim().replaceAll(',', '.'));
+    final r = int.tryParse(repsCtrl.text.trim());
+    weightCtrl.dispose();
+    repsCtrl.dispose();
+
     if (action == null || action == 'cancel') return;
     final notifier = ref.read(workoutNodesProvider.notifier);
     if (action == 'clear') {
       await notifier.update(node.id, (n) => n.copyWith(clearGoal: true));
       return;
     }
-    final w = double.tryParse(weightCtrl.text.trim().replaceAll(',', '.'));
-    final r = int.tryParse(repsCtrl.text.trim());
     if (w == null && r == null) {
       await notifier.update(node.id, (n) => n.copyWith(clearGoal: true));
       return;

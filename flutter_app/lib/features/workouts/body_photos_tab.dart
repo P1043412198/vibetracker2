@@ -293,6 +293,9 @@ Future<void> _showPhotoForm(
       );
     }),
   );
+  labelCtl.dispose();
+  weightCtl.dispose();
+  noteCtl.dispose();
 }
 
 Future<void> _openPhoto(BuildContext context, WidgetRef ref,
@@ -393,7 +396,7 @@ class _PhotoImage extends StatelessWidget {
   final String path;
   @override
   Widget build(BuildContext context) {
-    final f = File(path);
+    final f = File(PhotoStorage.instance.resolve(path));
     if (!f.existsSync()) {
       return Container(
         color: Colors.black26,

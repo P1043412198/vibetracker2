@@ -505,7 +505,8 @@ class _SphereNotePageState extends ConsumerState<SphereNotePage> {
         insetPadding: const EdgeInsets.all(8),
         child: GestureDetector(
           onTap: () => Navigator.pop(ctx),
-          child: InteractiveViewer(child: Image.file(File(path))),
+          child: InteractiveViewer(
+              child: Image.file(File(PhotoStorage.instance.resolve(path)))),
         ),
       ),
     );
@@ -535,7 +536,7 @@ class _PhotoThumb extends StatelessWidget {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(14),
             child: Image.file(
-              File(path),
+              File(PhotoStorage.instance.resolve(path)),
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,

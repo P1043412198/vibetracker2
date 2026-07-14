@@ -41,12 +41,15 @@ String setSummary(ExerciseLog log) {
   return parts.join('  ·  ');
 }
 
-/// Total training volume (Σ weight × reps) across [logs].
+/// Total training volume (Σ weight × reps) across [logs]. Sets that lack an
+/// explicit rep count are skipped rather than counted as a single rep, which
+/// would silently inflate volume for weight-only or cardio logs.
 num totalVolume(Iterable<ExerciseLog> logs) {
   num v = 0;
   for (final l in logs) {
-    final w = l.metrics[WorkoutMetric.weight] ?? 0;
-    final r = l.metrics[WorkoutMetric.reps] ?? 1;
+    final w = l.metrics[WorkoutMetric.weight];
+    final r = l.metrics[WorkoutMetric.reps];
+    if (w == null || r == null) continue;
     v += w * r;
   }
   return v;

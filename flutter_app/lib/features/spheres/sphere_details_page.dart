@@ -1007,7 +1007,7 @@ class SphereNoteTile extends ConsumerWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: Image.file(
-                      File(photo),
+                      File(PhotoStorage.instance.resolve(photo)),
                       width: 56,
                       height: 56,
                       fit: BoxFit.cover,
