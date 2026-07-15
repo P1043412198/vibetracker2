@@ -187,18 +187,36 @@ double grossFromNet(double targetNet,
     int dependents = 0,
     bool applyStandardDeduction = true,
     List<SalaryDeduction> extraDeductions = const []}) {
-  double lo = 0, hi = targetNet * 3, mid = 0;
-  for (int i = 0; i < 80; i++) {
+  if (targetNet <= 0) return 0;
+
+  double netAt(double gross) => calcNetSalary(
+        gross: gross,
+        children: children,
+        dependents: dependents,
+        applyStandardDeduction: applyStandardDeduction,
+        extraDeductions: extraDeductions,
+      ).net;
+
+  // Expand the upper bound until it actually brackets the target (percentage
+  // deductions can push the effective net-to-gross ratio well below 1), rather
+  // than assuming 3× is always enough.
+  double lo = 0;
+  double hi = targetNet <= 0 ? 1 : targetNet * 1.5;
+  var guard = 0;
+  while (netAt(hi) < targetNet && guard < 60) {
+    lo = hi;
+    hi *= 2;
+    guard++;
+  }
+  // No gross yields the requested net (e.g. deductions exceed 100%).
+  if (netAt(hi) < targetNet) return double.nan;
+
+  double mid = hi;
+  for (int i = 0; i < 100; i++) {
     mid = (lo + hi) / 2;
-    final r = calcNetSalary(
-      gross: mid,
-      children: children,
-      dependents: dependents,
-      applyStandardDeduction: applyStandardDeduction,
-      extraDeductions: extraDeductions,
-    );
-    if ((r.net - targetNet).abs() < 0.01) return mid;
-    if (r.net < targetNet) {
+    final net = netAt(mid);
+    if ((net - targetNet).abs() < 0.005) return mid;
+    if (net < targetNet) {
       lo = mid;
     } else {
       hi = mid;
@@ -230,6 +248,14 @@ DepositResult calcDepositBY({
   bool taxApplies = true,
   bool capitalize = true,
 }) {
+  if (termMonths <= 0 || amount <= 0) {
+    return const DepositResult(
+      totalInterestGross: 0,
+      totalTax: 0,
+      totalInterestNet: 0,
+      finalBalance: 0,
+    );
+  }
   final monthlyRate = annualRatePct / 100 / 12;
   double balance = amount;
   double interestGross = 0;
@@ -266,6 +292,9 @@ class IpUsnResult {
   });
 }
 
+/// ⚠️ Historical/reference only. The УСН regime for ИП was abolished in
+/// Belarus from 2023; new activity uses ОСН/подоходный or НПД instead. Kept for
+/// modelling legacy periods — do not present as a current option.
 IpUsnResult calcIpUsn({
   required double annualRevenue,
   required int ratePct,
@@ -305,7 +334,7 @@ class NpdResult {
 NpdResult calcNpd({required double annualRevenue}) {
   final r = annualRevenue;
   final low = r < npdHighRateThreshold ? r : npdHighRateThreshold;
-  final high = (r - npdHighRateThreshold).clamp(0, double.infinity);
+  final high = (r - npdHighRateThreshold).clamp(0.0, double.infinity).toDouble();
   final taxLow = (low * npdLowRatePct) / 100;
   final taxHigh = (high * npdHighRatePct) / 100;
   final total = taxLow + taxHigh;
@@ -320,8 +349,13 @@ NpdResult calcNpd({required double annualRevenue}) {
 
 // --- Vacation pay ---
 
+/// Vacation pay via the average-daily-earnings method.
+///
+/// Uses the 29.6 average-monthly-days coefficient (Постановление Совмина РБ
+/// № 1290 as amended); the exact figure is periodically revised, so treat the
+/// result as an approximation for planning rather than a payroll-exact number.
 ({double avgDaily, double payment}) calcVacationPay(
     double totalEarningsLast12m, int daysOff) {
-  final avgDaily = totalEarningsLast12m / (12 * 29.7);
+  final avgDaily = totalEarningsLast12m / (12 * 29.6);
   return (avgDaily: avgDaily, payment: avgDaily * daysOff);
 }
