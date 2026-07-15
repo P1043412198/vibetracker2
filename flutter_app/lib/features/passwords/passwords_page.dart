@@ -1,14 +1,32 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/misc.dart';
+import '../../services/secure_flag.dart';
 import '../../state/providers.dart';
 import '../../widgets/app_back_button.dart';
 import '../../utils/totp.dart';
 import '../../utils/password_generator.dart';
+import '../../utils/password_strength.dart';
+
+/// How long a copied secret is allowed to linger on the clipboard before it is
+/// automatically wiped.
+const _clipboardClearDelay = Duration(seconds: 45);
+
+/// Copies [text] and schedules the clipboard to be cleared, so passwords and
+/// OTP codes don't sit in the clipboard indefinitely.
+void _copySensitive(String text) {
+  Clipboard.setData(ClipboardData(text: text));
+  Future.delayed(_clipboardClearDelay, () async {
+    final current = await Clipboard.getData(Clipboard.kTextPlain);
+    if (current?.text == text) {
+      await Clipboard.setData(const ClipboardData(text: ''));
+    }
+  });
+}
 
 class PasswordsPage extends ConsumerStatefulWidget {
   const PasswordsPage({super.key});
@@ -17,7 +35,8 @@ class PasswordsPage extends ConsumerStatefulWidget {
   ConsumerState<PasswordsPage> createState() => _PasswordsPageState();
 }
 
-class _PasswordsPageState extends ConsumerState<PasswordsPage> {
+class _PasswordsPageState extends ConsumerState<PasswordsPage>
+    with WidgetsBindingObserver {
   String _search = '';
 
   /// Currently opened folder. `null` means the root (categories list); a
@@ -28,9 +47,103 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage> {
   static const _allKey = '__all__';
   static const _uncategorisedKey = '__none__';
 
+  final _auth = LocalAuthentication();
+  bool _locked = true;
+  bool _authInFlight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    SecureFlag.enable();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _unlock());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    SecureFlag.disable();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Re-lock whenever the app leaves the foreground.
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      if (mounted) setState(() => _locked = true);
+    }
+  }
+
+  Future<void> _unlock() async {
+    if (_authInFlight) return;
+    _authInFlight = true;
+    try {
+      final supported = await _auth.isDeviceSupported();
+      if (!supported) {
+        // No device credential configured — don't hard-lock the user out.
+        if (mounted) setState(() => _locked = false);
+        return;
+      }
+      final ok = await _auth.authenticate(
+        localizedReason: 'Доступ к паролям и 2FA',
+        options: const AuthenticationOptions(
+          biometricOnly: false,
+          stickyAuth: true,
+        ),
+      );
+      if (mounted && ok) setState(() => _locked = false);
+    } catch (_) {
+      // Plugin unavailable (e.g. desktop/test) — fall back to unlocked.
+      if (mounted) setState(() => _locked = false);
+    } finally {
+      _authInFlight = false;
+    }
+  }
+
+  Widget _buildLockScreen(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(
+        leading: const AppBackButton(),
+        title: const Text('Пароли и 2FA'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_outline, size: 48, color: cs.primary),
+            const SizedBox(height: 16),
+            const Text('Раздел защищён'),
+            const SizedBox(height: 4),
+            const Text('Подтвердите личность, чтобы открыть пароли',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _unlock,
+              icon: const Icon(Icons.fingerprint),
+              label: const Text('Разблокировать'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_locked) return _buildLockScreen(context);
     final passwords = ref.watch(passwordsProvider);
+
+    // Detect passwords reused across more than one entry (local comparison).
+    final pwCounts = <String, int>{};
+    for (final p in passwords) {
+      final pw = p.password;
+      if (pw != null && pw.isNotEmpty) {
+        pwCounts[pw] = (pwCounts[pw] ?? 0) + 1;
+      }
+    }
 
     // Group by category (null/empty → "Без категории")
     final byCategory = <String, List<PasswordEntry>>{};
@@ -184,24 +297,15 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage> {
             else
               ...filtered.map((entry) => _PasswordCard(
                     entry: entry,
+                    reused: entry.password != null &&
+                        (pwCounts[entry.password] ?? 0) > 1,
                     onEdit: () => _openEditor(context, entry: entry),
                     onDelete: () => _confirmDelete(context, entry),
                     onTogglePin: () {
                       ref.read(passwordsProvider.notifier).update(
                             entry.id,
-                            (old) => PasswordEntry(
-                              id: old.id,
-                              title: old.title,
-                              username: old.username,
-                              password: old.password,
-                              url: old.url,
-                              totpSecret: old.totpSecret,
-                              notes: old.notes,
-                              category: old.category,
-                              createdAt: old.createdAt,
-                              updatedAt: old.updatedAt,
-                              isPinned: !(old.isPinned ?? false),
-                            ),
+                            (old) => old.copyWith(
+                                isPinned: !(old.isPinned ?? false)),
                           );
                     },
                   )),
@@ -235,15 +339,28 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Удалить пароль?'),
-        content: Text('«${entry.title}» будет удалён навсегда.'),
+        content: Text('«${entry.title}» будет удалён. Можно отменить.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Отмена')),
           FilledButton(
             onPressed: () {
-              ref.read(passwordsProvider.notifier).remove(entry.id);
               Navigator.pop(ctx);
+              ref.read(passwordsProvider.notifier).remove(entry.id);
+              ScaffoldMessenger.of(context)
+                ..hideCurrentSnackBar()
+                ..showSnackBar(
+                  SnackBar(
+                    content: Text('«${entry.title}» удалён'),
+                    action: SnackBarAction(
+                      label: 'Отменить',
+                      onPressed: () => ref
+                          .read(passwordsProvider.notifier)
+                          .add(entry),
+                    ),
+                  ),
+                );
             },
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Удалить'),
@@ -258,87 +375,67 @@ class _PasswordsPageState extends ConsumerState<PasswordsPage> {
 // Password card
 // ---------------------------------------------------------------------------
 
-class _PasswordCard extends StatefulWidget {
+class _PasswordCard extends ConsumerStatefulWidget {
   const _PasswordCard({
     required this.entry,
     required this.onEdit,
     required this.onDelete,
     required this.onTogglePin,
+    this.reused = false,
   });
   final PasswordEntry entry;
+  final bool reused;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
   final VoidCallback onTogglePin;
 
   @override
-  State<_PasswordCard> createState() => _PasswordCardState();
+  ConsumerState<_PasswordCard> createState() => _PasswordCardState();
 }
 
-class _PasswordCardState extends State<_PasswordCard> {
+class _PasswordCardState extends ConsumerState<_PasswordCard> {
   bool _showPassword = false;
-  Timer? _totpTimer;
-  String? _totpCode;
-  double _totpProgress = 1;
 
-  @override
-  void initState() {
-    super.initState();
-    _setupTotp();
-  }
-
-  @override
-  void didUpdateWidget(covariant _PasswordCard old) {
-    super.didUpdateWidget(old);
-    if (old.entry.totpSecret != widget.entry.totpSecret) {
-      _totpTimer?.cancel();
-      _setupTotp();
-    }
-  }
-
-  @override
-  void dispose() {
-    _totpTimer?.cancel();
-    super.dispose();
-  }
-
-  void _setupTotp() {
+  /// Computes the current OTP code + progress from the entry's secret, or a
+  /// `(null, error)` pair. Called on every 1 Hz tick from [totpTickProvider]
+  /// so there is a single timer for the whole page.
+  ({String? code, double progress, bool error}) _totp() {
     final secret = widget.entry.totpSecret;
     if (secret == null || secret.isEmpty) {
-      _totpCode = null;
-      return;
+      return (code: null, progress: 1, error: false);
     }
     final parsed = parseTotpSecretFromUri(secret);
-    if (parsed == null || parsed.isEmpty) return;
-
-    void update() {
-      try {
-        setState(() {
-          _totpCode = generateTOTP(parsed);
-          _totpProgress = totpProgressFraction();
-        });
-      } catch (_) {
-        _totpCode = null;
-      }
+    if (parsed == null || parsed.isEmpty) {
+      return (code: null, progress: 1, error: false);
     }
-
-    update();
-    _totpTimer = Timer.periodic(const Duration(seconds: 1), (_) => update());
+    try {
+      return (
+        code: generateTOTP(parsed),
+        progress: totpProgressFraction(),
+        error: false
+      );
+    } catch (_) {
+      return (code: null, progress: 1, error: true);
+    }
   }
 
   void _copy(String text) {
-    Clipboard.setData(ClipboardData(text: text));
+    _copySensitive(text);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-          content: Text('Скопировано'),
-          duration: Duration(milliseconds: 800)),
+          content: Text('Скопировано (очистится через 45 с)'),
+          duration: Duration(milliseconds: 1000)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Single shared 1 Hz tick drives all TOTP cards.
+    ref.watch(totpTickProvider);
     final e = widget.entry;
     final pinned = e.isPinned ?? false;
     final cs = Theme.of(context).colorScheme;
+    final totp = _totp();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -397,11 +494,26 @@ class _PasswordCardState extends State<_PasswordCard> {
                         ],
                       ]),
                       if (e.username != null && e.username!.isNotEmpty)
-                        Text(e.username!,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
-                                ?.copyWith(color: Colors.grey)),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(e.username!,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(color: Colors.grey)),
+                            ),
+                            InkWell(
+                              onTap: () => _copy(e.username!),
+                              child: const Padding(
+                                padding: EdgeInsets.all(2),
+                                child: Icon(Icons.copy,
+                                    size: 12, color: Colors.grey),
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
@@ -474,8 +586,26 @@ class _PasswordCardState extends State<_PasswordCard> {
               ),
             ],
 
+            // TOTP error indicator
+            if (totp.error) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.error_outline,
+                      size: 14, color: Theme.of(context).colorScheme.error),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('Не удалось сгенерировать код 2FA',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.error)),
+                  ),
+                ],
+              ),
+            ],
+
             // TOTP code
-            if (_totpCode != null) ...[
+            if (totp.code != null) ...[
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(10),
@@ -502,7 +632,7 @@ class _PasswordCardState extends State<_PasswordCard> {
                                   letterSpacing: 1)),
                         ]),
                         InkWell(
-                          onTap: () => _copy(_totpCode!),
+                          onTap: () => _copy(totp.code!),
                           child: Padding(
                             padding: const EdgeInsets.all(2),
                             child: Icon(Icons.copy,
@@ -513,7 +643,7 @@ class _PasswordCardState extends State<_PasswordCard> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '${_totpCode!.substring(0, 3)} ${_totpCode!.substring(3)}',
+                      '${totp.code!.substring(0, 3)} ${totp.code!.substring(3)}',
                       style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 22,
@@ -526,7 +656,7 @@ class _PasswordCardState extends State<_PasswordCard> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(2),
                       child: LinearProgressIndicator(
-                        value: _totpProgress,
+                        value: totp.progress,
                         minHeight: 3,
                         backgroundColor: cs.primary.withAlpha(15),
                         color: cs.primary,
@@ -562,10 +692,46 @@ class _PasswordCardState extends State<_PasswordCard> {
                 ),
               ),
             ],
+
+            // Meta row: reuse warning + password age.
+            if (widget.reused || _ageLabel(e) != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  if (widget.reused) ...[
+                    Icon(Icons.warning_amber_rounded,
+                        size: 13, color: Colors.orange[700]),
+                    const SizedBox(width: 4),
+                    Text('Повторно используется',
+                        style: TextStyle(
+                            fontSize: 10, color: Colors.orange[700])),
+                    const SizedBox(width: 10),
+                  ],
+                  if (_ageLabel(e) != null)
+                    Text(_ageLabel(e)!,
+                        style: const TextStyle(
+                            fontSize: 10, color: Colors.grey)),
+                ],
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  /// Human age of the password based on [PasswordEntry.updatedAt], or null when
+  /// there is no stored password.
+  String? _ageLabel(PasswordEntry e) {
+    if (e.password == null || e.password!.isEmpty) return null;
+    final updated = DateTime.tryParse(e.updatedAt);
+    if (updated == null) return null;
+    final days = DateTime.now().difference(updated).inDays;
+    if (days < 1) return 'Обновлён сегодня';
+    if (days < 30) return 'Возраст: $days дн.';
+    if (days < 365) return 'Возраст: ${(days / 30).floor()} мес.';
+    final years = (days / 365).floor();
+    return 'Не менялся ${years == 1 ? '1 год' : '$years г.'}';
   }
 }
 
@@ -573,16 +739,16 @@ class _PasswordCardState extends State<_PasswordCard> {
 // Password editor (bottom sheet)
 // ---------------------------------------------------------------------------
 
-class _PasswordEditor extends StatefulWidget {
+class _PasswordEditor extends ConsumerStatefulWidget {
   const _PasswordEditor({this.entry, required this.onSave});
   final PasswordEntry? entry;
   final ValueChanged<PasswordEntry> onSave;
 
   @override
-  State<_PasswordEditor> createState() => _PasswordEditorState();
+  ConsumerState<_PasswordEditor> createState() => _PasswordEditorState();
 }
 
-class _PasswordEditorState extends State<_PasswordEditor> {
+class _PasswordEditorState extends ConsumerState<_PasswordEditor> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _usernameCtrl;
   late final TextEditingController _passwordCtrl;
@@ -592,6 +758,9 @@ class _PasswordEditorState extends State<_PasswordEditor> {
   late final TextEditingController _notesCtrl;
 
   bool _showGenerator = false;
+  bool _obscure = true;
+  bool _titleError = false;
+  bool _dirty = false;
   int _paranoiaLevel = 1; // 0-based index
 
   @override
@@ -605,6 +774,24 @@ class _PasswordEditorState extends State<_PasswordEditor> {
     _totpCtrl = TextEditingController(text: e?.totpSecret ?? '');
     _categoryCtrl = TextEditingController(text: e?.category ?? '');
     _notesCtrl = TextEditingController(text: e?.notes ?? '');
+    for (final c in [
+      _titleCtrl,
+      _usernameCtrl,
+      _passwordCtrl,
+      _urlCtrl,
+      _totpCtrl,
+      _categoryCtrl,
+      _notesCtrl,
+    ]) {
+      c.addListener(_onChanged);
+    }
+  }
+
+  void _onChanged() {
+    if (!_dirty) _dirty = true;
+    if (_titleError && _titleCtrl.text.trim().isNotEmpty) _titleError = false;
+    // Rebuild so the copy button enablement and strength meter track input.
+    setState(() {});
   }
 
   @override
@@ -624,9 +811,32 @@ class _PasswordEditorState extends State<_PasswordEditor> {
     setState(() {});
   }
 
+  Future<bool> _confirmDiscard() async {
+    if (!_dirty) return true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Закрыть без сохранения?'),
+        content: const Text('Введённые данные не будут сохранены.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Продолжить ввод')),
+          FilledButton.tonal(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Закрыть')),
+        ],
+      ),
+    );
+    return ok ?? false;
+  }
+
   void _save() {
     final title = _titleCtrl.text.trim();
-    if (title.isEmpty) return;
+    if (title.isEmpty) {
+      setState(() => _titleError = true);
+      return;
+    }
     final now = DateTime.now().toIso8601String();
     widget.onSave(PasswordEntry(
       id: widget.entry?.id ?? const Uuid().v4(),
@@ -651,7 +861,26 @@ class _PasswordEditorState extends State<_PasswordEditor> {
   @override
   Widget build(BuildContext context) {
     final level = paranoiaLevels[_paranoiaLevel];
-    return Padding(
+
+    // Existing categories for quick suggestion chips (deduped, case-preserving).
+    final categories = <String>{
+      for (final p in ref.watch(passwordsProvider))
+        if (p.category != null && p.category!.trim().isNotEmpty)
+          p.category!.trim(),
+    }.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    final strength = estimatePasswordStrength(_passwordCtrl.text);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (await _confirmDiscard() && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Padding(
       padding: EdgeInsets.only(
         left: 16,
         right: 16,
@@ -669,7 +898,9 @@ class _PasswordEditorState extends State<_PasswordEditor> {
             const SizedBox(height: 16),
 
             _field('Название сервиса *', _titleCtrl,
-                hint: 'Google, GitHub, VK...'),
+                hint: 'Google, GitHub, VK...',
+                errorText:
+                    _titleError ? 'Введите название сервиса' : null),
             _field('Логин / Email', _usernameCtrl,
                 hint: 'user@example.com'),
 
@@ -680,6 +911,9 @@ class _PasswordEditorState extends State<_PasswordEditor> {
                 Expanded(
                   child: TextField(
                     controller: _passwordCtrl,
+                    obscureText: _obscure,
+                    autocorrect: false,
+                    enableSuggestions: false,
                     style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
                     decoration: const InputDecoration(
                       isDense: true,
@@ -690,7 +924,13 @@ class _PasswordEditorState extends State<_PasswordEditor> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(
+                      _obscure ? Icons.visibility : Icons.visibility_off,
+                      size: 20),
+                  tooltip: _obscure ? 'Показать' : 'Скрыть',
+                  onPressed: () => setState(() => _obscure = !_obscure),
+                ),
                 IconButton(
                   icon: const Icon(Icons.auto_fix_high, size: 20),
                   tooltip: 'Генератор',
@@ -707,17 +947,43 @@ class _PasswordEditorState extends State<_PasswordEditor> {
                   onPressed: _passwordCtrl.text.isEmpty
                       ? null
                       : () {
-                          Clipboard.setData(
-                              ClipboardData(text: _passwordCtrl.text));
+                          _copySensitive(_passwordCtrl.text);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text('Скопировано'),
-                                duration: Duration(milliseconds: 800)),
+                                content: Text(
+                                    'Скопировано (очистится через 45 с)'),
+                                duration: Duration(milliseconds: 1000)),
                           );
                         },
                 ),
               ],
             ),
+
+            // Strength meter
+            if (_passwordCtrl.text.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: (strength.score + 1) / 5,
+                        minHeight: 4,
+                        backgroundColor: Colors.grey.withAlpha(40),
+                        color: _strengthColor(strength.score),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(strength.label,
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _strengthColor(strength.score))),
+                ],
+              ),
+            ],
 
             if (_showGenerator) ...[
               const SizedBox(height: 8),
@@ -794,6 +1060,21 @@ class _PasswordEditorState extends State<_PasswordEditor> {
                 hint: 'JBSWY3DPEHPK3PXP', mono: true),
             _field('Категория', _categoryCtrl,
                 hint: 'Работа, Личное, Финансы...'),
+            if (categories.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: -6,
+                children: [
+                  for (final cat in categories)
+                    ActionChip(
+                      label: Text(cat, style: const TextStyle(fontSize: 11)),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _categoryCtrl.text = cat,
+                    ),
+                ],
+              ),
+            ],
             _field('URL сайта', _urlCtrl, hint: 'example.com'),
             _label('Заметки'),
             TextField(
@@ -817,7 +1098,23 @@ class _PasswordEditorState extends State<_PasswordEditor> {
           ],
         ),
       ),
+    ),
     );
+  }
+
+  Color _strengthColor(int score) {
+    switch (score) {
+      case 0:
+        return Colors.red;
+      case 1:
+        return Colors.deepOrange;
+      case 2:
+        return Colors.amber;
+      case 3:
+        return Colors.lightGreen;
+      default:
+        return Colors.green;
+    }
   }
 
   Color _levelColor(int i) {
@@ -848,13 +1145,16 @@ class _PasswordEditorState extends State<_PasswordEditor> {
   }
 
   Widget _field(String label, TextEditingController ctrl,
-      {String? hint, bool mono = false}) {
+      {String? hint, bool mono = false, String? errorText}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _label(label),
         TextField(
           controller: ctrl,
+          // These are credential fields — never train the keyboard on them.
+          autocorrect: false,
+          enableSuggestions: false,
           style: mono
               ? const TextStyle(fontFamily: 'monospace', fontSize: 12)
               : null,
@@ -862,6 +1162,7 @@ class _PasswordEditorState extends State<_PasswordEditor> {
             isDense: true,
             border: const OutlineInputBorder(),
             hintText: hint,
+            errorText: errorText,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
           ),

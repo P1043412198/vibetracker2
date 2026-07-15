@@ -10,6 +10,7 @@ import '../models/misc.dart';
 import '../models/savings_goal.dart';
 import '../models/sphere.dart';
 import '../models/task.dart';
+import '../services/password_vault.dart';
 import '../services/storage.dart';
 import 'json_list_controller.dart';
 
@@ -387,16 +388,67 @@ final shoppingListProvider =
   return ShoppingListController();
 });
 
-class PasswordsController extends JsonListController<PasswordEntry> {
-  PasswordsController()
-      : super(
-          storageKey: 'passwords',
-          fromJson: PasswordEntry.fromJson,
-          toJson: (p) => p.toJson(),
-        );
+/// Password entries are encrypted at rest via [PasswordVault] (platform
+/// Keystore/Keychain) rather than the plain Hive box, so this controller loads
+/// and persists asynchronously instead of extending [JsonListController].
+class PasswordsController extends StateNotifier<List<PasswordEntry>> {
+  PasswordsController() : super(const []) {
+    _load();
+  }
 
-  @override
+  final PasswordVault _vault = PasswordVault.instance;
+
+  Future<void> _load() async {
+    final raw = await _vault.load();
+    state = raw.map(PasswordEntry.fromJson).toList(growable: false);
+  }
+
+  Future<void> _persist() async {
+    await _vault.save(
+        state.map((p) => p.toJson()).toList(growable: false));
+  }
+
   String idOf(PasswordEntry item) => item.id;
+
+  Future<void> add(PasswordEntry item) async {
+    state = [...state, item];
+    await _persist();
+  }
+
+  Future<void> upsert(PasswordEntry item) async {
+    final index = state.indexWhere((e) => e.id == item.id);
+    if (index == -1) {
+      state = [...state, item];
+    } else {
+      final next = [...state];
+      next[index] = item;
+      state = next;
+    }
+    await _persist();
+  }
+
+  Future<void> remove(String id) async {
+    state = state.where((e) => e.id != id).toList(growable: false);
+    await _persist();
+  }
+
+  Future<void> update(
+      String id, PasswordEntry Function(PasswordEntry) transform) async {
+    bool changed = false;
+    final next = state.map((e) {
+      if (e.id != id) return e;
+      changed = true;
+      return transform(e);
+    }).toList(growable: false);
+    if (!changed) return;
+    state = next;
+    await _persist();
+  }
+
+  Future<void> replaceAll(List<PasswordEntry> items) async {
+    state = List.unmodifiable(items);
+    await _persist();
+  }
 }
 
 final passwordsProvider =
@@ -730,3 +782,10 @@ class BodyPhotosController extends JsonListController<BodyPhoto> {
 final bodyPhotosProvider =
     StateNotifierProvider<BodyPhotosController, List<BodyPhoto>>(
         (ref) => BodyPhotosController());
+
+/// A single app-wide 1 Hz tick, so every TOTP card refreshes off one timer
+/// instead of each spinning up its own `Timer.periodic`.
+final totpTickProvider = StreamProvider<int>((ref) {
+  return Stream<int>.periodic(
+      const Duration(seconds: 1), (count) => count);
+});

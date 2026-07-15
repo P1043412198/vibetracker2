@@ -355,6 +355,31 @@ class PasswordEntry {
         updatedAt: json['updatedAt'] as String,
         isPinned: json['isPinned'] as bool?,
       );
+
+  PasswordEntry copyWith({
+    String? title,
+    String? username,
+    String? password,
+    String? url,
+    String? totpSecret,
+    String? notes,
+    String? category,
+    String? updatedAt,
+    bool? isPinned,
+  }) =>
+      PasswordEntry(
+        id: id,
+        title: title ?? this.title,
+        username: username ?? this.username,
+        password: password ?? this.password,
+        url: url ?? this.url,
+        totpSecret: totpSecret ?? this.totpSecret,
+        notes: notes ?? this.notes,
+        category: category ?? this.category,
+        createdAt: createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        isPinned: isPinned ?? this.isPinned,
+      );
 }
 
 class WorkoutNode {

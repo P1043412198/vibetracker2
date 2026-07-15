@@ -56,6 +56,9 @@ dependencies:
   # Phase 8: Passwords & TOTP
   crypto: ^3.0.6
 
+  # Encryption-at-rest for the password vault (platform Keystore / Keychain)
+  flutter_secure_storage: ^9.2.2
+
   # Data safety: ZIP-archive backup with media files alongside Hive JSON
   archive: ^3.6.1
 

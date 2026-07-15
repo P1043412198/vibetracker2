@@ -19,9 +19,22 @@ Uint8List _base32Decode(String input) {
   return Uint8List.fromList(bytes);
 }
 
-String generateTOTP(String secret, {int digits = 6, int period = 30}) {
+/// Generates a TOTP code (RFC 6238).
+///
+/// [atTime] pins the moment used to derive the counter; defaults to now. It is
+/// exposed so the algorithm can be exercised against the RFC 6238 test
+/// vectors. [algorithm] selects the HMAC hash (SHA-1 by default, as used by
+/// almost every authenticator).
+String generateTOTP(
+  String secret, {
+  int digits = 6,
+  int period = 30,
+  DateTime? atTime,
+  Hash? algorithm,
+}) {
   final key = _base32Decode(secret);
-  final epoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+  final epoch =
+      (atTime ?? DateTime.now()).millisecondsSinceEpoch ~/ 1000;
   final counter = epoch ~/ period;
 
   final counterBytes = Uint8List(8);
@@ -31,8 +44,8 @@ String generateTOTP(String secret, {int digits = 6, int period = 30}) {
     c >>= 8;
   }
 
-  final hmacSha1 = Hmac(sha1, key);
-  final hash = hmacSha1.convert(counterBytes).bytes;
+  final hmac = Hmac(algorithm ?? sha1, key);
+  final hash = hmac.convert(counterBytes).bytes;
 
   final offset = hash.last & 0x0F;
   final code = ((hash[offset] & 0x7F) << 24 |
