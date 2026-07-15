@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/enums.dart';
+import '../../widgets/viz/heat_color.dart';
 
 /// A front/back body silhouette whose muscle regions are shaded by relative
 /// training volume ("heatmap"): the more a group was trained, the hotter
@@ -82,18 +83,6 @@ class _Figure extends StatelessWidget {
       ],
     );
   }
-}
-
-/// Blends a cool grey → amber → red ramp for heat intensity in [0, 1].
-Color heatColor(double t, Color base) {
-  final v = t.clamp(0.0, 1.0);
-  const amber = Color(0xFFF59E0B);
-  const red = Color(0xFFEF4444);
-  if (v <= 0.02) return base;
-  if (v < 0.5) {
-    return Color.lerp(const Color(0xFF93C5FD), amber, v / 0.5)!;
-  }
-  return Color.lerp(amber, red, (v - 0.5) / 0.5)!;
 }
 
 class _BodyPainter extends CustomPainter {

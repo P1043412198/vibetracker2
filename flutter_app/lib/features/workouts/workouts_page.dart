@@ -1,9 +1,10 @@
 import '../../widgets/app_back_button.dart';
 import 'dart:async';
-import 'package:fl_chart/fl_chart.dart';
+import 'package:fl_chart/fl_chart.dart' hide RadarChart;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
@@ -11,6 +12,7 @@ import '../../models/enums.dart';
 import '../../models/misc.dart';
 import '../../services/ai_service.dart';
 import '../../state/providers.dart';
+import '../../widgets/viz/viz.dart';
 import 'body_photos_tab.dart';
 import 'muscle_heatmap.dart';
 import 'one_rep_max_calculator_page.dart';
@@ -1106,10 +1108,6 @@ class _AnalyticsTab extends ConsumerWidget {
     final top5 = top.take(5).toList();
 
     // Weekly training volume for the last 8 weeks (Mon-anchored).
-    MuscleGroup? muscleOf(String id) => exercises
-        .cast<WorkoutNode?>()
-        .firstWhere((n) => n?.id == id, orElse: () => null)
-        ?.muscleGroup;
     final weekStart = today.subtract(Duration(days: today.weekday - 1));
     final weekVolumes = <double>[];
     final weekLabels = <String>[];
@@ -1127,16 +1125,80 @@ class _AnalyticsTab extends ConsumerWidget {
     final hasWeeklyVolume = weekVolumes.any((v) => v > 0);
 
     // Volume distribution by muscle group across all history.
+    final muscleById = <String, MuscleGroup>{
+      for (final e in exercises)
+        if (e.muscleGroup != null) e.id: e.muscleGroup!,
+    };
     final byMuscle = <MuscleGroup, num>{};
     for (final l in logs) {
-      final mg = muscleOf(l.exerciseId);
+      final mg = muscleById[l.exerciseId];
       if (mg == null) continue;
       byMuscle[mg] = (byMuscle[mg] ?? 0) + totalVolume([l]);
     }
 
+    // Daily training volume for the last ~6 months (heat calendar).
+    final byDayVolume = <DateTime, double>{};
+    for (final l in logs) {
+      final d = DateTime.tryParse(l.date);
+      if (d == null) continue;
+      final key = DateTime(d.year, d.month, d.day);
+      byDayVolume[key] =
+          (byDayVolume[key] ?? 0) + totalVolume([l]).toDouble();
+    }
+
+    // 12-week tonnage series + 4-week moving average for load/recovery.
+    final tonnage = <double>[];
+    for (var w = 11; w >= 0; w--) {
+      final ws = weekStart.subtract(Duration(days: 7 * w));
+      final we = ws.add(const Duration(days: 7));
+      final wsIso = DateFormat('y-MM-dd').format(ws);
+      final weIso = DateFormat('y-MM-dd').format(we);
+      final vol = logs
+          .where((l) =>
+              l.date.compareTo(wsIso) >= 0 && l.date.compareTo(weIso) < 0)
+          .fold<num>(0, (s, l) => s + totalVolume([l]));
+      tonnage.add(vol.toDouble());
+    }
+    // This week vs last week for the status hero.
+    final thisWeek = tonnage.isNotEmpty ? tonnage.last : 0.0;
+    final lastWeek = tonnage.length >= 2 ? tonnage[tonnage.length - 2] : 0.0;
+    final weekDeltaPct =
+        lastWeek > 0 ? (thisWeek - lastWeek) / lastWeek * 100 : 0.0;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        StatusHero(
+          value: '${fmtNum(thisWeek)} кг',
+          caption: 'Тоннаж за эту неделю',
+          icon: Icons.fitness_center,
+          color: Colors.orange,
+          delta: lastWeek > 0 ? weekDeltaPct : null,
+          deltaSuffix: '%',
+          higherIsBetter: true,
+          spark: tonnage,
+        ),
+        const SizedBox(height: 16),
+        if (byDayVolume.isNotEmpty) ...[
+          Text('Активность по дням',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text('Интенсивность = объём за день',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 12),
+          HeatCalendar(values: byDayVolume),
+          const SizedBox(height: 24),
+        ],
+        if (tonnage.where((v) => v > 0).length >= 2) ...[
+          Text('Нагрузка и восстановление',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text('Недельный тоннаж против среднего за 4 недели',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 12),
+          _LoadRecoveryChart(tonnage: tonnage, weekStart: weekStart),
+          const SizedBox(height: 24),
+        ],
         Card(
           clipBehavior: Clip.antiAlias,
           child: ListTile(
@@ -1156,7 +1218,14 @@ class _AnalyticsTab extends ConsumerWidget {
           Text('Карта нагрузки на мышцы',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
-          MuscleHeatmap(byMuscle: byMuscle),
+          _BodyHeatmapTimeMachine(logs: logs, muscleById: muscleById),
+          const SizedBox(height: 24),
+        ],
+        if (byMuscle.length >= 3) ...[
+          Text('Баланс групп мышц',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          Center(child: _MuscleRadar(byMuscle: byMuscle)),
           const SizedBox(height: 24),
         ],
         if (hasWeeklyVolume) ...[
@@ -1233,6 +1302,241 @@ class _AnalyticsTab extends ConsumerWidget {
                 'Удалённое упражнение'),
             trailing: Text('${e.value} подх.',
                 style: Theme.of(context).textTheme.bodyMedium),
+          ),
+      ],
+    );
+  }
+}
+
+/// Weekly tonnage bars with a 4-week moving-average line. Weeks whose load
+/// exceeds 1.5× the trailing average are painted red — the visual form of the
+/// overload signal.
+class _LoadRecoveryChart extends StatelessWidget {
+  const _LoadRecoveryChart({required this.tonnage, required this.weekStart});
+
+  final List<double> tonnage;
+  final DateTime weekStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final labels = <String>[
+      for (var w = tonnage.length - 1; w >= 0; w--)
+        DateFormat('d.MM')
+            .format(weekStart.subtract(Duration(days: 7 * w))),
+    ];
+    return SizedBox(
+      height: 170,
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _LoadRecoveryPainter(
+          tonnage: tonnage,
+          labels: labels,
+          bar: Theme.of(context).colorScheme.primary,
+          over: vizBad,
+          line: Theme.of(context).colorScheme.onSurfaceVariant,
+          text: Theme.of(context).colorScheme.onSurfaceVariant,
+          textDirection: Directionality.of(context),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadRecoveryPainter extends CustomPainter {
+  _LoadRecoveryPainter({
+    required this.tonnage,
+    required this.labels,
+    required this.bar,
+    required this.over,
+    required this.line,
+    required this.text,
+    required this.textDirection,
+  });
+
+  final List<double> tonnage;
+  final List<String> labels;
+  final Color bar;
+  final Color over;
+  final Color line;
+  final Color text;
+  final TextDirection textDirection;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (tonnage.isEmpty) return;
+    const bottomPad = 18.0;
+    final chartH = size.height - bottomPad;
+    final maxV =
+        tonnage.reduce((a, b) => a > b ? a : b).clamp(1.0, double.infinity);
+    final n = tonnage.length;
+    final slot = size.width / n;
+    final barW = slot * 0.6;
+
+    // 4-week trailing moving average.
+    final ma = <double?>[];
+    for (var i = 0; i < n; i++) {
+      if (i < 3) {
+        ma.add(null);
+        continue;
+      }
+      final window = tonnage.sublist(i - 3, i + 1);
+      ma.add(window.reduce((a, b) => a + b) / 4);
+    }
+
+    for (var i = 0; i < n; i++) {
+      final v = tonnage[i];
+      final h = (v / maxV) * chartH;
+      final x = slot * i + (slot - barW) / 2;
+      final avg = ma[i];
+      final overload = avg != null && avg > 0 && v > avg * 1.5;
+      final paint = Paint()..color = overload ? over : bar.withValues(alpha: 0.85);
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, chartH - h, barW, h),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(rect, paint);
+    }
+
+    // Moving-average line.
+    final path = Path();
+    var started = false;
+    for (var i = 0; i < n; i++) {
+      final avg = ma[i];
+      if (avg == null) continue;
+      final x = slot * i + slot / 2;
+      final y = chartH - (avg / maxV) * chartH;
+      if (!started) {
+        path.moveTo(x, y);
+        started = true;
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = line
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke,
+    );
+
+    // Sparse x labels (first, middle, last).
+    void label(int i) {
+      if (i < 0 || i >= labels.length) return;
+      final tp = TextPainter(
+        text: TextSpan(
+            text: labels[i], style: TextStyle(color: text, fontSize: 9)),
+        textDirection: textDirection,
+      )..layout();
+      tp.paint(canvas,
+          Offset(slot * i + slot / 2 - tp.width / 2, size.height - 12));
+    }
+
+    label(0);
+    label(n ~/ 2);
+    label(n - 1);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LoadRecoveryPainter old) =>
+      !listEquals(old.tonnage, tonnage) ||
+      old.bar != bar ||
+      old.over != over ||
+      old.line != line;
+}
+
+/// Muscle heatmap with a "time machine" slider: drag across the last 12 weeks
+/// to see a trailing 4-week window and watch groups heat up / cool down.
+class _BodyHeatmapTimeMachine extends StatefulWidget {
+  const _BodyHeatmapTimeMachine({
+    required this.logs,
+    required this.muscleById,
+  });
+
+  final List<ExerciseLog> logs;
+  final Map<String, MuscleGroup> muscleById;
+
+  @override
+  State<_BodyHeatmapTimeMachine> createState() =>
+      _BodyHeatmapTimeMachineState();
+}
+
+class _BodyHeatmapTimeMachineState extends State<_BodyHeatmapTimeMachine> {
+  // 0 = last 4 weeks, up to 8 = a window ending 8 weeks ago.
+  double _weeksBack = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final weekStart = today.subtract(Duration(days: today.weekday - 1));
+    final wb = _weeksBack.round();
+    final windowEnd = weekStart.subtract(Duration(days: 7 * wb - 7));
+    final windowStart = windowEnd.subtract(const Duration(days: 28));
+    final startIso = DateFormat('y-MM-dd').format(windowStart);
+    final endIso = DateFormat('y-MM-dd').format(windowEnd);
+
+    final byMuscle = <MuscleGroup, num>{};
+    for (final l in widget.logs) {
+      if (l.date.compareTo(startIso) < 0 || l.date.compareTo(endIso) >= 0) {
+        continue;
+      }
+      final mg = widget.muscleById[l.exerciseId];
+      if (mg == null) continue;
+      byMuscle[mg] = (byMuscle[mg] ?? 0) + totalVolume([l]);
+    }
+
+    final rangeLabel = wb == 0
+        ? 'Последние 4 недели'
+        : '${DateFormat('d.MM').format(windowStart)} – ${DateFormat('d.MM').format(windowEnd.subtract(const Duration(days: 1)))}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.history, size: 16),
+            const SizedBox(width: 6),
+            Text(rangeLabel,
+                style: Theme.of(context).textTheme.labelMedium),
+          ],
+        ),
+        Slider(
+          value: _weeksBack,
+          min: 0,
+          max: 8,
+          divisions: 8,
+          label: rangeLabel,
+          onChanged: (v) => setState(() => _weeksBack = v),
+        ),
+        if (byMuscle.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text('Нет тренировок в этом окне',
+                style: Theme.of(context).textTheme.bodySmall),
+          )
+        else
+          MuscleHeatmap(byMuscle: byMuscle),
+      ],
+    );
+  }
+}
+
+/// Radar/spider chart of training balance across muscle groups.
+class _MuscleRadar extends StatelessWidget {
+  const _MuscleRadar({required this.byMuscle});
+
+  final Map<MuscleGroup, num> byMuscle;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = byMuscle.entries.where((e) => e.value > 0).toList();
+    final maxV = entries.fold<num>(0, (m, e) => e.value > m ? e.value : m);
+    return RadarChart(
+      axes: [
+        for (final e in entries)
+          RadarAxis(
+            label: muscleShortLabel(e.key),
+            value: maxV <= 0 ? 0 : e.value / maxV,
           ),
       ],
     );

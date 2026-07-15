@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/enums.dart';
 import '../../models/misc.dart';
+import '../../widgets/viz/split_bar.dart';
 import 'workout_format.dart';
 
 /// A stable accent colour per muscle group, used across the journal and the
@@ -163,64 +164,14 @@ class MuscleSplitBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final entries = byMuscle.entries.where((e) => e.value > 0).toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    final total = entries.fold<num>(0, (s, e) => s + e.value);
-    if (total <= 0) {
-      return Text('Нет данных',
-          style: Theme.of(context).textTheme.bodySmall);
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: 1),
-            duration: const Duration(milliseconds: 650),
-            curve: Curves.easeOutCubic,
-            builder: (context, t, _) => SizedBox(
-              height: 14,
-              child: Row(
-                children: [
-                  for (final e in entries)
-                    Expanded(
-                      flex: ((e.value / total) * 1000 * t)
-                          .round()
-                          .clamp(1, 1000000),
-                      child: Container(color: muscleColor(e.key)),
-                    ),
-                ],
-              ),
-            ),
+    return SplitBar(
+      segments: [
+        for (final e in byMuscle.entries)
+          SplitSegment(
+            label: muscleShortLabel(e.key),
+            value: e.value,
+            color: muscleColor(e.key),
           ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 12,
-          runSpacing: 6,
-          children: [
-            for (final e in entries)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: muscleColor(e.key),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    '${muscleShortLabel(e.key)} · ${(e.value / total * 100).round()}%',
-                    style: Theme.of(context).textTheme.labelSmall,
-                  ),
-                ],
-              ),
-          ],
-        ),
       ],
     );
   }

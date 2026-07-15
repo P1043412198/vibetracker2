@@ -10,6 +10,7 @@ import '../../models/habit.dart';
 import '../../services/streak.dart';
 import '../../state/providers.dart';
 import '../../state/settings_state.dart';
+import '../../widgets/viz/heat_calendar.dart';
 
 /// Counterpart of `src/pages/Habits.tsx`. Lists habits with the status log for
 /// the selected day (mark done / skip / failed-resisted). A date selector lets
@@ -804,6 +805,19 @@ class _HabitsStatsHeader extends StatelessWidget {
                 ],
               ),
             ),
+            if (completedByDay.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text('Год привычек',
+                  style: Theme.of(context).textTheme.labelMedium),
+              const SizedBox(height: 6),
+              HeatCalendar(
+                values: {
+                  for (final e in completedByDay.entries)
+                    if (DateTime.tryParse(e.key) != null)
+                      DateTime.parse(e.key): e.value.toDouble(),
+                },
+              ),
+            ],
           ],
         ),
       ),
