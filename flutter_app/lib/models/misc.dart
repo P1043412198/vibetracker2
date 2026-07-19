@@ -355,6 +355,31 @@ class PasswordEntry {
         updatedAt: json['updatedAt'] as String,
         isPinned: json['isPinned'] as bool?,
       );
+
+  PasswordEntry copyWith({
+    String? title,
+    String? username,
+    String? password,
+    String? url,
+    String? totpSecret,
+    String? notes,
+    String? category,
+    String? updatedAt,
+    bool? isPinned,
+  }) =>
+      PasswordEntry(
+        id: id,
+        title: title ?? this.title,
+        username: username ?? this.username,
+        password: password ?? this.password,
+        url: url ?? this.url,
+        totpSecret: totpSecret ?? this.totpSecret,
+        notes: notes ?? this.notes,
+        category: category ?? this.category,
+        createdAt: createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        isPinned: isPinned ?? this.isPinned,
+      );
 }
 
 class WorkoutNode {
@@ -370,6 +395,8 @@ class WorkoutNode {
     this.restTime,
     this.muscleGroup,
     this.isTemplate,
+    this.targetWeight,
+    this.targetReps,
   });
 
   final String id;
@@ -384,6 +411,11 @@ class WorkoutNode {
   final MuscleGroup? muscleGroup;
   final bool? isTemplate;
 
+  /// Optional per-exercise goal: target working weight (kg) and/or reps. Used
+  /// by the exercise detail page to show progress toward a personal record.
+  final num? targetWeight;
+  final int? targetReps;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'parentId': parentId,
@@ -397,6 +429,8 @@ class WorkoutNode {
         if (restTime != null) 'restTime': restTime,
         if (muscleGroup != null) 'muscleGroup': muscleGroup!.name,
         if (isTemplate != null) 'isTemplate': isTemplate,
+        if (targetWeight != null) 'targetWeight': targetWeight,
+        if (targetReps != null) 'targetReps': targetReps,
       };
 
   factory WorkoutNode.fromJson(Map<String, dynamic> json) => WorkoutNode(
@@ -421,6 +455,8 @@ class WorkoutNode {
                 json['muscleGroup'] as String?, MuscleGroup.chest)
             : null,
         isTemplate: json['isTemplate'] as bool?,
+        targetWeight: json['targetWeight'] as num?,
+        targetReps: (json['targetReps'] as num?)?.toInt(),
       );
 
   WorkoutNode copyWith({
@@ -434,6 +470,9 @@ class WorkoutNode {
     int? restTime,
     MuscleGroup? muscleGroup,
     bool? isTemplate,
+    num? targetWeight,
+    int? targetReps,
+    bool clearGoal = false,
   }) {
     return WorkoutNode(
       id: id,
@@ -447,6 +486,8 @@ class WorkoutNode {
       restTime: restTime ?? this.restTime,
       muscleGroup: muscleGroup ?? this.muscleGroup,
       isTemplate: isTemplate ?? this.isTemplate,
+      targetWeight: clearGoal ? null : (targetWeight ?? this.targetWeight),
+      targetReps: clearGoal ? null : (targetReps ?? this.targetReps),
     );
   }
 }
@@ -459,6 +500,8 @@ class ExerciseLog {
     required this.metrics,
     this.notes,
     this.restTime,
+    this.sessionId,
+    this.rpe,
   });
 
   final String id;
@@ -467,6 +510,10 @@ class ExerciseLog {
   final Map<WorkoutMetric, num> metrics;
   final String? notes;
   final int? restTime;
+  final String? sessionId; // links the set to a WorkoutSession (legacy logs none)
+
+  /// Rate of Perceived Exertion for the set (typically 6–10, half-steps ok).
+  final num? rpe;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -477,6 +524,8 @@ class ExerciseLog {
         },
         if (notes != null) 'notes': notes,
         if (restTime != null) 'restTime': restTime,
+        if (sessionId != null) 'sessionId': sessionId,
+        if (rpe != null) 'rpe': rpe,
       };
 
   factory ExerciseLog.fromJson(Map<String, dynamic> json) {
@@ -496,6 +545,104 @@ class ExerciseLog {
       metrics: m,
       notes: json['notes'] as String?,
       restTime: (json['restTime'] as num?)?.toInt(),
+      sessionId: json['sessionId'] as String?,
+      rpe: json['rpe'] as num?,
+    );
+  }
+
+  ExerciseLog copyWith({
+    String? exerciseId,
+    String? date,
+    Map<WorkoutMetric, num>? metrics,
+    String? notes,
+    int? restTime,
+    String? sessionId,
+    num? rpe,
+    bool clearRpe = false,
+  }) {
+    return ExerciseLog(
+      id: id,
+      exerciseId: exerciseId ?? this.exerciseId,
+      date: date ?? this.date,
+      metrics: metrics ?? this.metrics,
+      notes: notes ?? this.notes,
+      restTime: restTime ?? this.restTime,
+      sessionId: sessionId ?? this.sessionId,
+      rpe: clearRpe ? null : (rpe ?? this.rpe),
+    );
+  }
+}
+
+enum WorkoutSessionStatus { active, completed }
+
+class WorkoutSession {
+  WorkoutSession({
+    required this.id,
+    required this.date,
+    required this.startedAt,
+    required this.status,
+    this.endedAt,
+    this.durationSec,
+    this.programId,
+    this.label,
+    this.notes,
+  });
+
+  final String id;
+  final String date; // YYYY-MM-DD
+  final String startedAt; // ISO timestamp
+  final WorkoutSessionStatus status;
+  final String? endedAt; // ISO timestamp
+  final int? durationSec;
+  final String? programId;
+  final String? label;
+  final String? notes;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'date': date,
+        'startedAt': startedAt,
+        'status': status.name,
+        if (endedAt != null) 'endedAt': endedAt,
+        if (durationSec != null) 'durationSec': durationSec,
+        if (programId != null) 'programId': programId,
+        if (label != null) 'label': label,
+        if (notes != null) 'notes': notes,
+      };
+
+  factory WorkoutSession.fromJson(Map<String, dynamic> json) => WorkoutSession(
+        id: json['id'] as String,
+        date: json['date'] as String,
+        startedAt: (json['startedAt'] ?? json['date']) as String,
+        status: enumFromName(WorkoutSessionStatus.values,
+            json['status'] as String?, WorkoutSessionStatus.completed),
+        endedAt: json['endedAt'] as String?,
+        durationSec: (json['durationSec'] as num?)?.toInt(),
+        programId: json['programId'] as String?,
+        label: json['label'] as String?,
+        notes: json['notes'] as String?,
+      );
+
+  WorkoutSession copyWith({
+    String? date,
+    String? startedAt,
+    WorkoutSessionStatus? status,
+    String? endedAt,
+    int? durationSec,
+    String? programId,
+    String? label,
+    String? notes,
+  }) {
+    return WorkoutSession(
+      id: id,
+      date: date ?? this.date,
+      startedAt: startedAt ?? this.startedAt,
+      status: status ?? this.status,
+      endedAt: endedAt ?? this.endedAt,
+      durationSec: durationSec ?? this.durationSec,
+      programId: programId ?? this.programId,
+      label: label ?? this.label,
+      notes: notes ?? this.notes,
     );
   }
 }

@@ -7,6 +7,7 @@ import '../../l10n/app_localizations.dart';
 import '../../services/backup_service.dart';
 import '../../services/claude_service.dart';
 import '../../services/storage.dart';
+import '../../state/providers.dart';
 import '../../state/settings_state.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -324,6 +325,74 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
+          Text('Сброс статистики',
+              style: Theme.of(context).textTheme.labelLarge),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.fitness_center_outlined),
+                  title: const Text('Сбросить статистику тренировок'),
+                  subtitle: const Text(
+                      'Очистит журнал подходов (аналитика, объём, рекорды). Программы, цели, замеры и фото останутся.'),
+                  onTap: () => _confirmReset(
+                    context,
+                    title: 'Сбросить статистику тренировок?',
+                    body:
+                        'Будет удалён весь журнал подходов. Это действие необратимо. Программы, цели, замеры и фото прогресса сохранятся.',
+                    onConfirm: () async {
+                      await ref
+                          .read(exerciseLogsProvider.notifier)
+                          .replaceAll(const []);
+                    },
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.local_fire_department_outlined),
+                  title: const Text('Сбросить статистику привычек'),
+                  subtitle: const Text(
+                      'Очистит отметки выполнения и серии. Сами привычки останутся.'),
+                  onTap: () => _confirmReset(
+                    context,
+                    title: 'Сбросить статистику привычек?',
+                    body:
+                        'Будут удалены все отметки выполнения и серии (стрики). Список привычек сохранится.',
+                    onConfirm: () async {
+                      await ref
+                          .read(habitLogsProvider.notifier)
+                          .replaceAll(const []);
+                    },
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.checklist_outlined),
+                  title: const Text('Сбросить статистику задач'),
+                  subtitle: const Text(
+                      'Снимет отметку «выполнено» со всех задач. Сами задачи останутся.'),
+                  onTap: () => _confirmReset(
+                    context,
+                    title: 'Сбросить статистику задач?',
+                    body:
+                        'Со всех задач будет снята отметка «выполнено». Задачи не удаляются.',
+                    onConfirm: () async {
+                      final notifier = ref.read(tasksProvider.notifier);
+                      final reset = ref
+                          .read(tasksProvider)
+                          .map((t) => t.completed
+                              ? t.copyWith(completed: false)
+                              : t)
+                          .toList();
+                      await notifier.replaceAll(reset);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -346,6 +415,42 @@ class SettingsPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _confirmReset(
+    BuildContext context, {
+    required String title,
+    required String body,
+    required Future<void> Function() onConfirm,
+  }) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton.tonal(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Сбросить'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await onConfirm();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Статистика сброшена.')),
+      );
+    }
   }
 }
 

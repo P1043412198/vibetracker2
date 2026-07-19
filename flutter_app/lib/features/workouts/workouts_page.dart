@@ -1,8 +1,10 @@
 import '../../widgets/app_back_button.dart';
-import 'package:fl_chart/fl_chart.dart';
+import 'dart:async';
+import 'package:fl_chart/fl_chart.dart' hide RadarChart;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
@@ -10,9 +12,13 @@ import '../../models/enums.dart';
 import '../../models/misc.dart';
 import '../../services/ai_service.dart';
 import '../../state/providers.dart';
+import '../../widgets/viz/viz.dart';
 import 'body_photos_tab.dart';
-import 'workout_camera_page.dart';
-import 'workout_history_page.dart';
+import 'muscle_heatmap.dart';
+import 'one_rep_max_calculator_page.dart';
+import 'workout_exercise_detail_page.dart';
+import 'workout_format.dart';
+import 'workout_viz.dart';
 
 Future<void> _openUrl(BuildContext context, String raw) async {
   var s = raw.trim();
@@ -48,7 +54,7 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 5, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -65,22 +71,6 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
         title: const Text('Тренировки'),
         actions: [
           IconButton(
-            tooltip: 'История',
-            icon: const Icon(Icons.history),
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const WorkoutHistoryPage()));
-            },
-          ),
-          IconButton(
-            tooltip: 'Камера-тренер',
-            icon: const Icon(Icons.videocam_outlined),
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => const WorkoutCameraPage()));
-            },
-          ),
-          IconButton(
             tooltip: 'AI-план',
             icon: const Icon(Icons.auto_awesome_outlined),
             onPressed: () => _showAiPlanDialog(context, ref),
@@ -90,22 +80,20 @@ class _WorkoutsPageState extends ConsumerState<WorkoutsPage>
           controller: _tab,
           isScrollable: true,
           tabs: const [
+            Tab(text: 'Сегодня'),
             Tab(text: 'Программы'),
-            Tab(text: 'Календарь'),
-            Tab(text: 'Аналитика'),
+            Tab(text: 'Прогресс'),
             Tab(text: 'Тело'),
-            Tab(text: 'Фото'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tab,
         children: const [
+          _TodayTab(),
           _ProgramsTab(),
-          _CalendarTab(),
-          _AnalyticsTab(),
+          _ProgressTab(),
           _BodyTab(),
-          BodyPhotosTab(),
         ],
       ),
     );
@@ -393,7 +381,7 @@ class _ExerciseSheetState extends ConsumerState<_ExerciseSheet> {
                 keyboardType: const TextInputType.numberWithOptions(
                     decimal: true, signed: false),
                 decoration: InputDecoration(
-                  labelText: '${_metricLabel(m)}, ${_metricUnit(m)}',
+                  labelText: '${workoutMetricLabel(m)}, ${workoutMetricUnit(m)}',
                 ),
               ),
             ),
@@ -586,7 +574,7 @@ Future<void> _showNodeEditor(
                     children: [
                       for (final m in WorkoutMetric.values)
                         FilterChip(
-                          label: Text(_metricLabel(m)),
+                          label: Text(workoutMetricLabel(m)),
                           selected: metrics.contains(m),
                           onSelected: (v) {
                             setState(() {
@@ -693,6 +681,10 @@ Future<void> _showNodeEditor(
       );
     },
   );
+  nameCtrl.dispose();
+  notesCtrl.dispose();
+  videoCtrl.dispose();
+  articlesCtrl.dispose();
 }
 
 Future<void> _confirmDelete(
@@ -986,6 +978,7 @@ class _CalendarTabState extends ConsumerState<_CalendarTab> {
         );
       },
     );
+    labelCtrl.dispose();
   }
 }
 
@@ -1114,9 +1107,146 @@ class _AnalyticsTab extends ConsumerWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
     final top5 = top.take(5).toList();
 
+    // Weekly training volume for the last 8 weeks (Mon-anchored).
+    final weekStart = today.subtract(Duration(days: today.weekday - 1));
+    final weekVolumes = <double>[];
+    final weekLabels = <String>[];
+    for (var w = 7; w >= 0; w--) {
+      final ws = weekStart.subtract(Duration(days: 7 * w));
+      final we = ws.add(const Duration(days: 7));
+      final wsIso = DateFormat('y-MM-dd').format(ws);
+      final weIso = DateFormat('y-MM-dd').format(we);
+      final vol = logs
+          .where((l) => l.date.compareTo(wsIso) >= 0 && l.date.compareTo(weIso) < 0)
+          .fold<num>(0, (s, l) => s + totalVolume([l]));
+      weekVolumes.add(vol.toDouble());
+      weekLabels.add(DateFormat('d.MM').format(ws));
+    }
+    final hasWeeklyVolume = weekVolumes.any((v) => v > 0);
+
+    // Volume distribution by muscle group across all history.
+    final muscleById = <String, MuscleGroup>{
+      for (final e in exercises)
+        if (e.muscleGroup != null) e.id: e.muscleGroup!,
+    };
+    final byMuscle = <MuscleGroup, num>{};
+    for (final l in logs) {
+      final mg = muscleById[l.exerciseId];
+      if (mg == null) continue;
+      byMuscle[mg] = (byMuscle[mg] ?? 0) + totalVolume([l]);
+    }
+
+    // Daily training volume for the last ~6 months (heat calendar).
+    final byDayVolume = <DateTime, double>{};
+    for (final l in logs) {
+      final d = DateTime.tryParse(l.date);
+      if (d == null) continue;
+      final key = DateTime(d.year, d.month, d.day);
+      byDayVolume[key] =
+          (byDayVolume[key] ?? 0) + totalVolume([l]).toDouble();
+    }
+
+    // 12-week tonnage series + 4-week moving average for load/recovery.
+    final tonnage = <double>[];
+    for (var w = 11; w >= 0; w--) {
+      final ws = weekStart.subtract(Duration(days: 7 * w));
+      final we = ws.add(const Duration(days: 7));
+      final wsIso = DateFormat('y-MM-dd').format(ws);
+      final weIso = DateFormat('y-MM-dd').format(we);
+      final vol = logs
+          .where((l) =>
+              l.date.compareTo(wsIso) >= 0 && l.date.compareTo(weIso) < 0)
+          .fold<num>(0, (s, l) => s + totalVolume([l]));
+      tonnage.add(vol.toDouble());
+    }
+    // This week vs last week for the status hero.
+    final thisWeek = tonnage.isNotEmpty ? tonnage.last : 0.0;
+    final lastWeek = tonnage.length >= 2 ? tonnage[tonnage.length - 2] : 0.0;
+    final weekDeltaPct =
+        lastWeek > 0 ? (thisWeek - lastWeek) / lastWeek * 100 : 0.0;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        StatusHero(
+          value: '${fmtNum(thisWeek)} кг',
+          caption: 'Тоннаж за эту неделю',
+          icon: Icons.fitness_center,
+          color: Colors.orange,
+          delta: lastWeek > 0 ? weekDeltaPct : null,
+          deltaSuffix: '%',
+          higherIsBetter: true,
+          spark: tonnage,
+        ),
+        const SizedBox(height: 16),
+        if (byDayVolume.isNotEmpty) ...[
+          Text('Активность по дням',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text('Интенсивность = объём за день',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 12),
+          HeatCalendar(values: byDayVolume),
+          const SizedBox(height: 24),
+        ],
+        if (tonnage.where((v) => v > 0).length >= 2) ...[
+          Text('Нагрузка и восстановление',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Text('Недельный тоннаж против среднего за 4 недели',
+              style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 12),
+          _LoadRecoveryChart(tonnage: tonnage, weekStart: weekStart),
+          const SizedBox(height: 24),
+        ],
+        Card(
+          clipBehavior: Clip.antiAlias,
+          child: ListTile(
+            leading: const Icon(Icons.calculate_outlined),
+            title: const Text('Калькулятор 1ПМ'),
+            subtitle: const Text('Оценка максимума и рабочие веса по %'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const OneRepMaxCalculatorPage(),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (byMuscle.length >= 2) ...[
+          Text('Карта нагрузки на мышцы',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          _BodyHeatmapTimeMachine(logs: logs, muscleById: muscleById),
+          const SizedBox(height: 24),
+        ],
+        if (byMuscle.length >= 3) ...[
+          Text('Баланс групп мышц',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          Center(child: _MuscleRadar(byMuscle: byMuscle)),
+          const SizedBox(height: 24),
+        ],
+        if (hasWeeklyVolume) ...[
+          Text('Объём по неделям — последние 8 недель',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          VolumeBars(
+            values: weekVolumes,
+            labels: weekLabels,
+            color: Colors.orange,
+            height: 150,
+          ),
+          const SizedBox(height: 24),
+        ],
+        if (byMuscle.length >= 2) ...[
+          Text('Распределение по группам мышц',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          MuscleSplitBar(byMuscle: byMuscle),
+          const SizedBox(height: 24),
+        ],
         Text('Подходов в день — последние 30 дней',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
@@ -1178,10 +1308,245 @@ class _AnalyticsTab extends ConsumerWidget {
   }
 }
 
+/// Weekly tonnage bars with a 4-week moving-average line. Weeks whose load
+/// exceeds 1.5× the trailing average are painted red — the visual form of the
+/// overload signal.
+class _LoadRecoveryChart extends StatelessWidget {
+  const _LoadRecoveryChart({required this.tonnage, required this.weekStart});
+
+  final List<double> tonnage;
+  final DateTime weekStart;
+
+  @override
+  Widget build(BuildContext context) {
+    final labels = <String>[
+      for (var w = tonnage.length - 1; w >= 0; w--)
+        DateFormat('d.MM')
+            .format(weekStart.subtract(Duration(days: 7 * w))),
+    ];
+    return SizedBox(
+      height: 170,
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _LoadRecoveryPainter(
+          tonnage: tonnage,
+          labels: labels,
+          bar: Theme.of(context).colorScheme.primary,
+          over: vizBad,
+          line: Theme.of(context).colorScheme.onSurfaceVariant,
+          text: Theme.of(context).colorScheme.onSurfaceVariant,
+          textDirection: Directionality.of(context),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadRecoveryPainter extends CustomPainter {
+  _LoadRecoveryPainter({
+    required this.tonnage,
+    required this.labels,
+    required this.bar,
+    required this.over,
+    required this.line,
+    required this.text,
+    required this.textDirection,
+  });
+
+  final List<double> tonnage;
+  final List<String> labels;
+  final Color bar;
+  final Color over;
+  final Color line;
+  final Color text;
+  final TextDirection textDirection;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (tonnage.isEmpty) return;
+    const bottomPad = 18.0;
+    final chartH = size.height - bottomPad;
+    final maxV =
+        tonnage.reduce((a, b) => a > b ? a : b).clamp(1.0, double.infinity);
+    final n = tonnage.length;
+    final slot = size.width / n;
+    final barW = slot * 0.6;
+
+    // 4-week trailing moving average.
+    final ma = <double?>[];
+    for (var i = 0; i < n; i++) {
+      if (i < 3) {
+        ma.add(null);
+        continue;
+      }
+      final window = tonnage.sublist(i - 3, i + 1);
+      ma.add(window.reduce((a, b) => a + b) / 4);
+    }
+
+    for (var i = 0; i < n; i++) {
+      final v = tonnage[i];
+      final h = (v / maxV) * chartH;
+      final x = slot * i + (slot - barW) / 2;
+      final avg = ma[i];
+      final overload = avg != null && avg > 0 && v > avg * 1.5;
+      final paint = Paint()..color = overload ? over : bar.withValues(alpha: 0.85);
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, chartH - h, barW, h),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(rect, paint);
+    }
+
+    // Moving-average line.
+    final path = Path();
+    var started = false;
+    for (var i = 0; i < n; i++) {
+      final avg = ma[i];
+      if (avg == null) continue;
+      final x = slot * i + slot / 2;
+      final y = chartH - (avg / maxV) * chartH;
+      if (!started) {
+        path.moveTo(x, y);
+        started = true;
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = line
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke,
+    );
+
+    // Sparse x labels (first, middle, last).
+    void label(int i) {
+      if (i < 0 || i >= labels.length) return;
+      final tp = TextPainter(
+        text: TextSpan(
+            text: labels[i], style: TextStyle(color: text, fontSize: 9)),
+        textDirection: textDirection,
+      )..layout();
+      tp.paint(canvas,
+          Offset(slot * i + slot / 2 - tp.width / 2, size.height - 12));
+    }
+
+    label(0);
+    label(n ~/ 2);
+    label(n - 1);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LoadRecoveryPainter old) =>
+      !listEquals(old.tonnage, tonnage) ||
+      old.bar != bar ||
+      old.over != over ||
+      old.line != line;
+}
+
+/// Muscle heatmap with a "time machine" slider: drag across the last 12 weeks
+/// to see a trailing 4-week window and watch groups heat up / cool down.
+class _BodyHeatmapTimeMachine extends StatefulWidget {
+  const _BodyHeatmapTimeMachine({
+    required this.logs,
+    required this.muscleById,
+  });
+
+  final List<ExerciseLog> logs;
+  final Map<String, MuscleGroup> muscleById;
+
+  @override
+  State<_BodyHeatmapTimeMachine> createState() =>
+      _BodyHeatmapTimeMachineState();
+}
+
+class _BodyHeatmapTimeMachineState extends State<_BodyHeatmapTimeMachine> {
+  // 0 = last 4 weeks, up to 8 = a window ending 8 weeks ago.
+  double _weeksBack = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    final weekStart = today.subtract(Duration(days: today.weekday - 1));
+    final wb = _weeksBack.round();
+    final windowEnd = weekStart.subtract(Duration(days: 7 * wb - 7));
+    final windowStart = windowEnd.subtract(const Duration(days: 28));
+    final startIso = DateFormat('y-MM-dd').format(windowStart);
+    final endIso = DateFormat('y-MM-dd').format(windowEnd);
+
+    final byMuscle = <MuscleGroup, num>{};
+    for (final l in widget.logs) {
+      if (l.date.compareTo(startIso) < 0 || l.date.compareTo(endIso) >= 0) {
+        continue;
+      }
+      final mg = widget.muscleById[l.exerciseId];
+      if (mg == null) continue;
+      byMuscle[mg] = (byMuscle[mg] ?? 0) + totalVolume([l]);
+    }
+
+    final rangeLabel = wb == 0
+        ? 'Последние 4 недели'
+        : '${DateFormat('d.MM').format(windowStart)} – ${DateFormat('d.MM').format(windowEnd.subtract(const Duration(days: 1)))}';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.history, size: 16),
+            const SizedBox(width: 6),
+            Text(rangeLabel,
+                style: Theme.of(context).textTheme.labelMedium),
+          ],
+        ),
+        Slider(
+          value: _weeksBack,
+          min: 0,
+          max: 8,
+          divisions: 8,
+          label: rangeLabel,
+          onChanged: (v) => setState(() => _weeksBack = v),
+        ),
+        if (byMuscle.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text('Нет тренировок в этом окне',
+                style: Theme.of(context).textTheme.bodySmall),
+          )
+        else
+          MuscleHeatmap(byMuscle: byMuscle),
+      ],
+    );
+  }
+}
+
+/// Radar/spider chart of training balance across muscle groups.
+class _MuscleRadar extends StatelessWidget {
+  const _MuscleRadar({required this.byMuscle});
+
+  final Map<MuscleGroup, num> byMuscle;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = byMuscle.entries.where((e) => e.value > 0).toList();
+    final maxV = entries.fold<num>(0, (m, e) => e.value > m ? e.value : m);
+    return RadarChart(
+      axes: [
+        for (final e in entries)
+          RadarAxis(
+            label: muscleShortLabel(e.key),
+            value: maxV <= 0 ? 0 : e.value / maxV,
+          ),
+      ],
+    );
+  }
+}
+
 /* ─────────────────────────────── Body ───────────────────────────────── */
 
-class _BodyTab extends ConsumerWidget {
-  const _BodyTab();
+class _MeasurementsTab extends ConsumerWidget {
+  const _MeasurementsTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1593,6 +1958,19 @@ Future<void> _showMeasurementForm(
       );
     },
   );
+  for (final c in [
+    weight,
+    height,
+    neck,
+    chest,
+    waist,
+    hips,
+    biceps,
+    thighs,
+    calves,
+  ]) {
+    c.dispose();
+  }
 }
 
 /* ───────────────────────────── helpers ──────────────────────────────── */
@@ -1644,15 +2022,6 @@ String _metricLabel(WorkoutMetric m) => switch (m) {
       WorkoutMetric.time => 'Время',
       WorkoutMetric.speed => 'Скорость',
       WorkoutMetric.calories => 'Ккал',
-    };
-
-String _metricUnit(WorkoutMetric m) => switch (m) {
-      WorkoutMetric.weight => 'кг',
-      WorkoutMetric.reps => 'шт',
-      WorkoutMetric.distance => 'км',
-      WorkoutMetric.time => 'сек',
-      WorkoutMetric.speed => 'км/ч',
-      WorkoutMetric.calories => 'ккал',
     };
 
 String _measurementLabel(String key) => switch (key) {
@@ -1888,13 +2257,19 @@ Future<void> _runAiPlan(
         if ((raw['notes'] as String?)?.isNotEmpty == true)
           raw['notes'] as String,
       ].join(' · ');
+      // Prefer a group named by the model; otherwise infer from the exercise
+      // name; only then fall back to the first requested target so the
+      // heatmap/analytics reflect what was actually trained.
+      final aiGroup = enumFromNameOrNull(
+          MuscleGroup.values, (raw['muscleGroup'] as String?)?.trim());
+      final group = aiGroup ?? inferMuscleGroup(name, fallback: primaryGroup);
       await ref.read(workoutNodesProvider.notifier).add(WorkoutNode(
             id: const Uuid().v4(),
             parentId: folderId,
             name: name,
             type: WorkoutNodeType.exercise,
             metrics: const [WorkoutMetric.weight, WorkoutMetric.reps],
-            muscleGroup: primaryGroup,
+            muscleGroup: group,
             notes: notes.isEmpty ? null : notes,
           ));
     }
@@ -1904,5 +2279,1132 @@ Future<void> _runAiPlan(
   } catch (e) {
     progress.close();
     scaffold.showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+  }
+}
+
+/* ════════════════════════════ Helpers ════════════════════════════════ */
+
+/// All exercise nodes nested (recursively) under [folderId].
+List<WorkoutNode> _exercisesUnder(List<WorkoutNode> nodes, String folderId) {
+  final result = <WorkoutNode>[];
+  void walk(String parentId) {
+    for (final n in nodes.where((n) => n.parentId == parentId)) {
+      if (n.type == WorkoutNodeType.exercise) {
+        result.add(n);
+      } else {
+        walk(n.id);
+      }
+    }
+  }
+
+  walk(folderId);
+  return result;
+}
+
+String _todayIso() => DateFormat('y-MM-dd').format(DateTime.now());
+
+String _formatGroupDate(String iso) {
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return iso;
+  final s = DateFormat('EEEE, d MMMM', 'ru').format(dt);
+  return s.isEmpty ? iso : '${s[0].toUpperCase()}${s.substring(1)}';
+}
+
+/* ═══════════════════════════ Progress tab ════════════════════════════ */
+
+class _ProgressTab extends StatefulWidget {
+  const _ProgressTab();
+
+  @override
+  State<_ProgressTab> createState() => _ProgressTabState();
+}
+
+class _ProgressTabState extends State<_ProgressTab> {
+  int _view = 0; // 0 = журнал, 1 = аналитика
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(
+                  value: 0,
+                  icon: Icon(Icons.event_note_outlined),
+                  label: Text('Журнал')),
+              ButtonSegment(
+                  value: 1,
+                  icon: Icon(Icons.insights_outlined),
+                  label: Text('Аналитика')),
+            ],
+            selected: {_view},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => setState(() => _view = s.first),
+          ),
+        ),
+        Expanded(
+          child: _view == 0
+              ? const _WorkoutJournalView()
+              : const _AnalyticsTab(),
+        ),
+      ],
+    );
+  }
+}
+
+class _JournalGroup {
+  _JournalGroup({
+    required this.key,
+    required this.date,
+    required this.sortKey,
+    required this.title,
+    required this.logs,
+    this.durationSec,
+    this.sessionId,
+    this.active = false,
+  });
+
+  final String key;
+  final String date;
+  final String sortKey;
+  final String title;
+  final List<ExerciseLog> logs;
+  final int? durationSec;
+  final String? sessionId;
+  final bool active;
+}
+
+class _WorkoutJournalView extends ConsumerWidget {
+  const _WorkoutJournalView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final logs = ref.watch(exerciseLogsProvider);
+    final nodes = ref.watch(workoutNodesProvider);
+    final sessions = ref.watch(workoutSessionsProvider);
+
+    WorkoutNode? nodeOf(String id) => nodes
+        .cast<WorkoutNode?>()
+        .firstWhere((n) => n?.id == id, orElse: () => null);
+    String nameOf(String id) => nodeOf(id)?.name ?? '(удалено)';
+    MuscleGroup? muscleOf(String id) => nodeOf(id)?.muscleGroup;
+
+    final groups = <_JournalGroup>[];
+    final used = <String>{};
+
+    final sortedSessions = [...sessions]
+      ..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    for (final s in sortedSessions) {
+      final sLogs = logs.where((l) => l.sessionId == s.id).toList();
+      for (final l in sLogs) {
+        used.add(l.id);
+      }
+      groups.add(_JournalGroup(
+        key: 'session-${s.id}',
+        date: s.date,
+        sortKey: s.startedAt,
+        title: s.label ?? 'Тренировка',
+        logs: sLogs,
+        durationSec: s.durationSec,
+        sessionId: s.id,
+        active: s.status == WorkoutSessionStatus.active,
+      ));
+    }
+
+    final legacy =
+        logs.where((l) => !used.contains(l.id) && l.sessionId == null).toList();
+    final byDate = <String, List<ExerciseLog>>{};
+    for (final l in legacy) {
+      byDate.putIfAbsent(l.date, () => []).add(l);
+    }
+    byDate.forEach((date, ls) {
+      groups.add(_JournalGroup(
+        key: 'date-$date',
+        date: date,
+        sortKey: date,
+        title: 'Тренировка',
+        logs: ls,
+      ));
+    });
+
+    groups
+      ..removeWhere((g) => g.logs.isEmpty && !g.active)
+      ..sort((a, b) => b.sortKey.compareTo(a.sortKey));
+
+    if (groups.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: Text(
+            'Пока нет тренировок.\nНачните сессию во вкладке «Сегодня».',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      itemCount: groups.length,
+      itemBuilder: (context, i) {
+        final g = groups[i];
+        // Distinct exercises, preserving first-seen order.
+        final order = <String>[];
+        final byEx = <String, List<ExerciseLog>>{};
+        for (final l in g.logs) {
+          if (!byEx.containsKey(l.exerciseId)) order.add(l.exerciseId);
+          byEx.putIfAbsent(l.exerciseId, () => []).add(l);
+        }
+
+        // Volume split by muscle group drives the card accent + mini-bar.
+        final byMuscle = <MuscleGroup, num>{};
+        for (final exId in order) {
+          final mg = muscleOf(exId);
+          if (mg == null) continue;
+          byMuscle[mg] = (byMuscle[mg] ?? 0) + totalVolume(byEx[exId]!);
+        }
+        MuscleGroup? dominant;
+        num domVal = -1;
+        byMuscle.forEach((k, v) {
+          if (v > domVal) {
+            domVal = v;
+            dominant = k;
+          }
+        });
+        final accent = muscleColor(dominant);
+        final vol = totalVolume(g.logs);
+        final rm = best1RM(g.logs);
+        final scheme = Theme.of(context).colorScheme;
+
+        return TweenAnimationBuilder<double>(
+          key: ValueKey(g.key),
+          tween: Tween(begin: 0, end: 1),
+          duration: Duration(milliseconds: 300 + i.clamp(0, 6) * 55),
+          curve: Curves.easeOut,
+          builder: (context, t, child) => Opacity(
+            opacity: t.clamp(0, 1),
+            child: Transform.translate(
+              offset: Offset(0, (1 - t) * 16),
+              child: child,
+            ),
+          ),
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 14),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header strip tinted by the session's dominant muscle group.
+                Container(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        accent.withValues(alpha: 0.22),
+                        accent.withValues(alpha: 0.04),
+                      ],
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(Icons.fitness_center,
+                            color: Colors.white, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_formatGroupDate(g.date),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 1),
+                            Text(g.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                        color: Theme.of(context).hintColor)),
+                          ],
+                        ),
+                      ),
+                      if (g.active)
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 9, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text('идёт',
+                              style: TextStyle(
+                                  color: Colors.green,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      if (g.sessionId != null && !g.active)
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          tooltip: 'Удалить тренировку',
+                          onPressed: () async {
+                            final yes = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Удалить тренировку?'),
+                                content: const Text(
+                                    'Записанные подходы этой тренировки тоже будут удалены.'),
+                                actions: [
+                                  TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(ctx, false),
+                                      child: const Text('Отмена')),
+                                  FilledButton(
+                                      onPressed: () => Navigator.pop(ctx, true),
+                                      child: const Text('Удалить')),
+                                ],
+                              ),
+                            );
+                            if (yes == true) {
+                              for (final l in g.logs) {
+                                await ref
+                                    .read(exerciseLogsProvider.notifier)
+                                    .remove(l.id);
+                              }
+                              await ref
+                                  .read(workoutSessionsProvider.notifier)
+                                  .remove(g.sessionId!);
+                            }
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (g.durationSec != null)
+                            WorkoutStatChip(
+                                icon: Icons.timer_outlined,
+                                label: formatWorkoutDuration(g.durationSec),
+                                color: scheme.primary),
+                          WorkoutStatChip(
+                              icon: Icons.layers_outlined,
+                              label: '${g.logs.length} подх.',
+                              color: scheme.tertiary),
+                          WorkoutStatChip(
+                              icon: Icons.fitness_center,
+                              label: '${order.length} упр.',
+                              color: accent),
+                          if (vol > 0)
+                            WorkoutStatChip(
+                                icon: Icons.bolt_outlined,
+                                label: 'объём ${fmtNum(vol)}',
+                                color: Colors.orange),
+                          if (rm > 0)
+                            WorkoutStatChip(
+                                icon: Icons.emoji_events_outlined,
+                                label: '1ПМ ${fmtNum(rm)}',
+                                color: Colors.amber.shade700),
+                        ],
+                      ),
+                      if (byMuscle.length >= 2) ...[
+                        const SizedBox(height: 12),
+                        MuscleSplitBar(byMuscle: byMuscle),
+                      ],
+                      const Divider(height: 22),
+                      for (final exId in order)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) => WorkoutExerciseDetailPage(
+                                      exerciseId: exId))),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: muscleColor(muscleOf(exId))
+                                        .withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(9),
+                                  ),
+                                  child: Icon(Icons.fitness_center,
+                                      size: 16,
+                                      color: muscleColor(muscleOf(exId))),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(nameOf(exId),
+                                                style: const TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.w600)),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding:
+                                                const EdgeInsets.symmetric(
+                                                    horizontal: 7,
+                                                    vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: scheme.surfaceContainerHighest,
+                                              borderRadius:
+                                                  BorderRadius.circular(20),
+                                            ),
+                                            child: Text(
+                                                '${byEx[exId]!.length}×',
+                                                style: const TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight:
+                                                        FontWeight.w700)),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        byEx[exId]!
+                                            .map(setSummary)
+                                            .join('  ·  '),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right, size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/* ════════════════════════════ Body tab ═══════════════════════════════ */
+
+class _BodyTab extends StatefulWidget {
+  const _BodyTab();
+
+  @override
+  State<_BodyTab> createState() => _BodyTabState();
+}
+
+class _BodyTabState extends State<_BodyTab> {
+  int _view = 0; // 0 = замеры, 1 = фото
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(
+                  value: 0,
+                  icon: Icon(Icons.straighten_outlined),
+                  label: Text('Замеры')),
+              ButtonSegment(
+                  value: 1,
+                  icon: Icon(Icons.photo_library_outlined),
+                  label: Text('Фото')),
+            ],
+            selected: {_view},
+            showSelectedIcon: false,
+            onSelectionChanged: (s) => setState(() => _view = s.first),
+          ),
+        ),
+        Expanded(
+          child:
+              _view == 0 ? const _MeasurementsTab() : const BodyPhotosTab(),
+        ),
+      ],
+    );
+  }
+}
+
+/* ════════════════════════════ Today tab ══════════════════════════════ */
+
+class _TodayTab extends ConsumerStatefulWidget {
+  const _TodayTab();
+
+  @override
+  ConsumerState<_TodayTab> createState() => _TodayTabState();
+}
+
+class _TodayTabState extends ConsumerState<_TodayTab> {
+  final List<String> _extra = [];
+  bool _showCalendar = false;
+
+  Timer? _ticker;
+  Timer? _restTimer;
+  int _restRemaining = 0;
+  String? _restLabel;
+
+  @override
+  void initState() {
+    super.initState();
+    // Drives the elapsed-time clock while a session is active.
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _restTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startRest(int seconds, String label) {
+    _restTimer?.cancel();
+    setState(() {
+      _restRemaining = seconds;
+      _restLabel = label;
+    });
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      setState(() {
+        _restRemaining -= 1;
+        if (_restRemaining <= 0) {
+          t.cancel();
+          _restLabel = null;
+        }
+      });
+    });
+  }
+
+  void _stopRest() {
+    _restTimer?.cancel();
+    setState(() {
+      _restRemaining = 0;
+      _restLabel = null;
+    });
+  }
+
+  void _start({String? programId, String? label}) {
+    final now = DateTime.now();
+    ref.read(workoutSessionsProvider.notifier).add(WorkoutSession(
+          id: const Uuid().v4(),
+          date: _todayIso(),
+          startedAt: now.toIso8601String(),
+          status: WorkoutSessionStatus.active,
+          programId: programId,
+          label: label,
+        ));
+    setState(() => _extra.clear());
+  }
+
+  void _finish(WorkoutSession s) {
+    final start = DateTime.tryParse(s.startedAt);
+    final now = DateTime.now();
+    final dur = start != null ? now.difference(start).inSeconds : null;
+    ref.read(workoutSessionsProvider.notifier).update(
+          s.id,
+          (old) => old.copyWith(
+            status: WorkoutSessionStatus.completed,
+            endedAt: now.toIso8601String(),
+            durationSec: dur,
+          ),
+        );
+    final today = _todayIso();
+    for (final p in ref.read(plannedWorkoutsProvider)) {
+      if (p.date == today && p.status == PlannedWorkoutStatus.planned) {
+        ref.read(plannedWorkoutsProvider.notifier).update(
+            p.id, (old) => old.copyWith(status: PlannedWorkoutStatus.completed));
+      }
+    }
+    _stopRest();
+    setState(() => _extra.clear());
+  }
+
+  Future<void> _discard(WorkoutSession s) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Отменить тренировку?'),
+        content: const Text('Записанные подходы будут удалены.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Назад')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Отменить')),
+        ],
+      ),
+    );
+    if (yes != true) return;
+    for (final l in ref.read(exerciseLogsProvider).where((l) => l.sessionId == s.id)) {
+      await ref.read(exerciseLogsProvider.notifier).remove(l.id);
+    }
+    await ref.read(workoutSessionsProvider.notifier).remove(s.id);
+    _stopRest();
+    setState(() => _extra.clear());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sessions = ref.watch(workoutSessionsProvider);
+    final nodes = ref.watch(workoutNodesProvider);
+    final logs = ref.watch(exerciseLogsProvider);
+    final planned = ref.watch(plannedWorkoutsProvider);
+    final today = _todayIso();
+
+    WorkoutSession? active;
+    for (final s in sessions) {
+      if (s.status == WorkoutSessionStatus.active) {
+        active = s;
+        break;
+      }
+    }
+
+    if (active == null) {
+      return _buildStart(context, nodes, planned, today);
+    }
+    return _buildActive(context, active, nodes, logs);
+  }
+
+  Widget _buildStart(BuildContext context, List<WorkoutNode> nodes,
+      List<PlannedWorkout> planned, String today) {
+    final scheme = Theme.of(context).colorScheme;
+    final roots = nodes
+        .where((n) => n.parentId == null && n.type == WorkoutNodeType.folder)
+        .toList();
+    final todays = planned
+        .where((p) => p.date == today && p.status == PlannedWorkoutStatus.planned)
+        .toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [scheme.primary, scheme.tertiary],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatGroupDate(today),
+                style: TextStyle(color: scheme.onPrimary.withValues(alpha: 0.9)),
+              ),
+              const SizedBox(height: 4),
+              Text('Готовы тренироваться?',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      color: scheme.onPrimary, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: scheme.onPrimary,
+                    foregroundColor: scheme.primary,
+                  ),
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Быстрый старт'),
+                  onPressed: () => _start(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (todays.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text('Запланировано на сегодня',
+              style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          for (final p in todays)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                title: Text(p.label ??
+                    (p.programId != null
+                        ? (nodes
+                                .cast<WorkoutNode?>()
+                                .firstWhere((n) => n?.id == p.programId,
+                                    orElse: () => null)
+                                ?.name ??
+                            'Тренировка')
+                        : 'Тренировка')),
+                trailing: const Icon(Icons.play_arrow, color: Colors.green),
+                onTap: () => _start(programId: p.programId, label: p.label),
+              ),
+            ),
+        ],
+        if (roots.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Text('Начать по программе',
+              style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          for (final f in roots)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: const Icon(Icons.folder_outlined),
+                title: Text(f.name),
+                trailing: Text('${_exercisesUnder(nodes, f.id).length} упр.',
+                    style: Theme.of(context).textTheme.bodySmall),
+                onTap: () => _start(programId: f.id, label: f.name),
+              ),
+            ),
+        ],
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.calendar_month_outlined),
+          label: Text(_showCalendar
+              ? 'Скрыть календарь'
+              : 'Календарь и планирование'),
+          onPressed: () => setState(() => _showCalendar = !_showCalendar),
+        ),
+        if (_showCalendar)
+          SizedBox(
+            height: 560,
+            child: const _CalendarTab(),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildActive(BuildContext context, WorkoutSession active,
+      List<WorkoutNode> nodes, List<ExerciseLog> logs) {
+    final scheme = Theme.of(context).colorScheme;
+    final sessionLogs = logs.where((l) => l.sessionId == active.id).toList();
+    final programExercises = active.programId != null
+        ? _exercisesUnder(nodes, active.programId!)
+        : <WorkoutNode>[];
+    final loggedIds = sessionLogs.map((l) => l.exerciseId).toSet();
+
+    final ids = <String>[];
+    for (final e in programExercises) {
+      if (!ids.contains(e.id)) ids.add(e.id);
+    }
+    for (final id in _extra) {
+      if (!ids.contains(id)) ids.add(id);
+    }
+    for (final id in loggedIds) {
+      if (!ids.contains(id)) ids.add(id);
+    }
+    final exNodes = ids
+        .map((id) => nodes
+            .cast<WorkoutNode?>()
+            .firstWhere((n) => n?.id == id, orElse: () => null))
+        .whereType<WorkoutNode>()
+        .toList();
+
+    final start = DateTime.tryParse(active.startedAt);
+    final elapsed =
+        start != null ? DateTime.now().difference(start).inSeconds : 0;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Идёт тренировка',
+                            style: Theme.of(context).textTheme.bodySmall),
+                        Text(active.label ?? 'Тренировка',
+                            style: Theme.of(context).textTheme.titleLarge),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(formatWorkoutDuration(elapsed),
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
+                                  fontFeatures: const [],
+                                  fontWeight: FontWeight.bold)),
+                      Text(
+                          '${sessionLogs.length} подх. · объём ${fmtNum(totalVolume(sessionLogs))}',
+                          style: Theme.of(context).textTheme.bodySmall),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.check),
+                      label: const Text('Завершить'),
+                      onPressed: () => _finish(active),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton(
+                    onPressed: () => _discard(active),
+                    child: const Icon(Icons.stop),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (_restLabel != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.timer_outlined),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Text('Отдых · $_restLabel',
+                        style: TextStyle(color: scheme.onPrimaryContainer))),
+                Text('$_restRemainingс',
+                    style: TextStyle(
+                        color: scheme.onPrimaryContainer,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18)),
+                IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: _stopRest),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 12),
+        if (exNodes.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Text('Добавьте упражнение, чтобы записывать подходы.',
+                textAlign: TextAlign.center),
+          ),
+        for (final node in exNodes)
+          _TodaySetLogger(
+            node: node,
+            sessionId: active.id,
+            sessionDate: active.date,
+            sessionLogs:
+                sessionLogs.where((l) => l.exerciseId == node.id).toList(),
+            allLogs: logs,
+            onRest: _startRest,
+          ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.add),
+          label: const Text('Добавить упражнение'),
+          onPressed: () => _pickExercise(context, nodes, ids),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickExercise(
+      BuildContext context, List<WorkoutNode> nodes, List<String> current) async {
+    final exercises =
+        nodes.where((n) => n.type == WorkoutNodeType.exercise).toList();
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.7),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  child: Text('Добавить упражнение',
+                      style: Theme.of(ctx).textTheme.titleLarge),
+                ),
+                if (exercises.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text(
+                        'Нет упражнений. Создайте их во вкладке «Программы».'),
+                  ),
+                for (final ex in exercises)
+                  ListTile(
+                    leading: const Icon(Icons.fitness_center),
+                    title: Text(ex.name),
+                    enabled: !current.contains(ex.id),
+                    trailing: current.contains(ex.id)
+                        ? const Icon(Icons.check, color: Colors.green)
+                        : null,
+                    onTap: () => Navigator.pop(ctx, ex.id),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked != null && !_extra.contains(picked)) {
+      setState(() => _extra.add(picked));
+    }
+  }
+}
+
+class _TodaySetLogger extends ConsumerStatefulWidget {
+  const _TodaySetLogger({
+    required this.node,
+    required this.sessionId,
+    required this.sessionDate,
+    required this.sessionLogs,
+    required this.allLogs,
+    required this.onRest,
+  });
+
+  final WorkoutNode node;
+  final String sessionId;
+  final String sessionDate;
+  final List<ExerciseLog> sessionLogs;
+  final List<ExerciseLog> allLogs;
+  final void Function(int seconds, String label) onRest;
+
+  @override
+  ConsumerState<_TodaySetLogger> createState() => _TodaySetLoggerState();
+}
+
+class _TodaySetLoggerState extends ConsumerState<_TodaySetLogger> {
+  final Map<WorkoutMetric, TextEditingController> _ctrls = {};
+  final _rpeCtrl = TextEditingController();
+
+  List<WorkoutMetric> get _metrics =>
+      (widget.node.metrics?.isNotEmpty ?? false)
+          ? widget.node.metrics!
+          : const [WorkoutMetric.weight, WorkoutMetric.reps];
+
+  @override
+  void initState() {
+    super.initState();
+    for (final m in _metrics) {
+      _ctrls[m] = TextEditingController();
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctrls.values) {
+      c.dispose();
+    }
+    _rpeCtrl.dispose();
+    super.dispose();
+  }
+
+  void _addSet() {
+    final metrics = <WorkoutMetric, num>{};
+    for (final m in _metrics) {
+      final raw = _ctrls[m]?.text.trim().replaceAll(',', '.') ?? '';
+      final v = num.tryParse(raw);
+      if (v != null) metrics[m] = v;
+    }
+    if (metrics.isEmpty) return;
+    final rpe = num.tryParse(_rpeCtrl.text.trim().replaceAll(',', '.'));
+    ref.read(exerciseLogsProvider.notifier).add(ExerciseLog(
+          id: const Uuid().v4(),
+          exerciseId: widget.node.id,
+          date: widget.sessionDate,
+          metrics: metrics,
+          restTime: widget.node.restTime,
+          sessionId: widget.sessionId,
+          rpe: (rpe != null && rpe > 0) ? rpe : null,
+        ));
+    _rpeCtrl.clear();
+    final rest = widget.node.restTime;
+    if (rest != null && rest > 0) widget.onRest(rest, widget.node.name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allTimeBest = bestWeightFor(widget.allLogs, widget.node.id);
+
+    // "Last time" from logs outside this session.
+    final prior = widget.allLogs
+        .where((l) =>
+            l.exerciseId == widget.node.id && l.sessionId != widget.sessionId)
+        .toList();
+    String? lastDate;
+    for (final l in prior) {
+      if (lastDate == null || l.date.compareTo(lastDate) > 0) lastDate = l.date;
+    }
+    final lastSets = lastDate != null
+        ? prior.where((l) => l.date == lastDate).toList()
+        : <ExerciseLog>[];
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.fitness_center, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(widget.node.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+                if (widget.node.restTime != null)
+                  Text('${widget.node.restTime}с',
+                      style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+            if (lastSets.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, left: 26),
+                child: Text(
+                  'В прошлый раз: ${lastSets.map(setSummary).join('  ·  ')}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            if (widget.sessionLogs.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (var i = 0; i < widget.sessionLogs.length; i++)
+                _setRow(context, i, widget.sessionLogs[i], allTimeBest),
+            ],
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final m in _metrics) ...[
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrls[m],
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        labelText: '${workoutMetricLabel(m)}, ${workoutMetricUnit(m)}',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                SizedBox(
+                  width: 64,
+                  child: TextField(
+                    controller: _rpeCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      labelText: 'RPE',
+                      helperText: '6–10',
+                      helperStyle: TextStyle(fontSize: 9),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _addSet,
+                  child: const Icon(Icons.add),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _setRow(
+      BuildContext context, int i, ExerciseLog s, num allTimeBest) {
+    final w = s.metrics[WorkoutMetric.weight] ?? 0;
+    final isPr = w > 0 && w >= allTimeBest;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(width: 22, child: Text('${i + 1}.')),
+          Expanded(child: Text(setSummary(s))),
+          if (isPr)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text('PR',
+                  style: TextStyle(
+                      color: Colors.orange,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
+            ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close, size: 16),
+            onPressed: () =>
+                ref.read(exerciseLogsProvider.notifier).remove(s.id),
+          ),
+        ],
+      ),
+    );
   }
 }

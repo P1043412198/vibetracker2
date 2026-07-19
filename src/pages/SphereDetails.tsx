@@ -261,6 +261,14 @@ export function SphereDetails() {
                         </button>
                       )}
                       <div className="flex-1">
+                        {note.title && note.title.trim() && (
+                          <h3 className={cn(
+                            "text-base font-bold text-zinc-900 mb-1",
+                            note.isChecked && "line-through text-zinc-400"
+                          )}>
+                            {note.title}
+                          </h3>
+                        )}
                         <NoteContent 
                           content={note.content} 
                           onUpdateContent={(newContent) => updateSphereNote(sphere.id, note.id, { content: newContent })} 

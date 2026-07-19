@@ -2,9 +2,12 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, StateStorage } from 'zustand/middleware';
 import { get, set, del } from 'idb-keyval';
 import { v4 as uuidv4 } from 'uuid';
-import { format, isSameMonth, parseISO } from 'date-fns';
-import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset, IncomeSource, PlannedExpense, ActualExpense } from '../types';
+import { format } from 'date-fns';
+import { Sphere, Task, Habit, HabitLog, TaskPeriod, HabitType, SphereNote, WorkoutNode, ExerciseLog, WorkoutSession, BodyMeasurement, PlannedWorkout, PlannedWorkoutStatus, PasswordEntry, Transaction, Loan, LoanPayment, FinancialGoal, BudgetLimit, RegularPayment, RecurringSkip, Envelope, Account, NotificationSettings, Goal, GoalStep, GoalLog, WorkSchedule, Vacation, WaterLog, DashboardConfig, DashboardWidget, AppModule, InboxItem, SleepLog, PomodoroState, PomodoroSettings, ShoppingItem, ShoppingCategory, SavingsGoal, ShoppingItemPrice, DailyActivity, Currency, MonthlyBudgetPlan, SalaryDeductionPreset, IncomeSource, PlannedExpense, ActualExpense } from '../types';
 import { createMonthlyBudgetActions } from './slices/monthlyBudgetSlice';
+import { convertCurrency } from '../lib/utils';
+import { lastDueOccurrence, refFor, isOccurrencePosted } from '../lib/finance/recurring';
+import type { CashflowRangeMode } from '../lib/finance/budgetPlanner';
 
 // Custom storage using IndexedDB to handle large data (like base64 images)
 const storage: StateStorage = {
@@ -36,6 +39,7 @@ interface AppState {
   habitLogs: HabitLog[];
   workoutNodes: WorkoutNode[];
   exerciseLogs: ExerciseLog[];
+  workoutSessions: WorkoutSession[];
   bodyMeasurements: BodyMeasurement[];
   plannedWorkouts: PlannedWorkout[];
   passwords: PasswordEntry[];
@@ -45,6 +49,9 @@ interface AppState {
   financialGoals: FinancialGoal[];
   budgetLimits: BudgetLimit[];
   regularPayments: RegularPayment[];
+  recurringSkips: RecurringSkip[];
+  /** Reminder ids the user has acknowledged so they aren't surfaced again. */
+  paymentRemindersAcked: string[];
   envelopes: Envelope[];
   goals: Goal[];
   goalLogs: GoalLog[];
@@ -71,6 +78,19 @@ interface AppState {
   incomeSources: IncomeSource[];
   plannedExpenses: PlannedExpense[];
   actualExpenses: ActualExpense[];
+  /** Untouchable reserve kept aside in the safe-to-spend forecast (base currency). */
+  safeToSpendReserve: number;
+  setSafeToSpendReserve: (amount: number) => void;
+  /** Which window the safe-to-spend card calculates over. */
+  safeToSpendRangeMode: CashflowRangeMode;
+  setSafeToSpendRangeMode: (mode: CashflowRangeMode) => void;
+  /** Custom window bounds (ISO yyyy-MM-dd) when range mode is 'custom'. */
+  safeToSpendCustomStart?: string;
+  safeToSpendCustomEnd?: string;
+  setSafeToSpendCustomRange: (start?: string, end?: string) => void;
+  /** Account IDs the safe-to-spend forecast is restricted to (empty = all). */
+  safeToSpendAccountIds: string[];
+  setSafeToSpendAccountIds: (ids: string[]) => void;
   
   // Currency
   rates: Record<string, number>;
@@ -143,9 +163,14 @@ interface AppState {
   deleteWorkoutNode: (id: string) => void;
   moveWorkoutNode: (id: string, newParentId: string | null) => void;
 
-  logExercise: (log: Omit<ExerciseLog, 'id'>) => void;
+  logExercise: (log: Omit<ExerciseLog, 'id'>) => string;
   updateExerciseLog: (id: string, updates: Partial<ExerciseLog>) => void;
   deleteExerciseLog: (id: string) => void;
+
+  startWorkoutSession: (init?: { programId?: string; label?: string; date?: string }) => string;
+  finishWorkoutSession: (id: string, updates?: { durationSec?: number; notes?: string }) => void;
+  updateWorkoutSession: (id: string, updates: Partial<WorkoutSession>) => void;
+  deleteWorkoutSession: (id: string, opts?: { deleteLogs?: boolean }) => void;
 
   addBodyMeasurement: (measurement: Omit<BodyMeasurement, 'id'>) => void;
   updateBodyMeasurement: (id: string, updates: Partial<BodyMeasurement>) => void;
@@ -205,6 +230,9 @@ interface AppState {
   // Regular Payments
   processRegularPayment: (id: string, accountId: string) => void;
   checkRegularPayments: () => void;
+  confirmRecurring: (ruleId: string, periodKey: string, accountId?: string) => void;
+  skipRecurring: (ruleId: string, periodKey: string) => void;
+  ackPaymentReminder: (id: string) => void;
 
   // Price History
   addPriceHistory: (item: Omit<ShoppingItemPrice, 'id'>) => void;
@@ -327,6 +355,7 @@ export const useStore = create<AppState>()(
       habitLogs: [],
       workoutNodes: [],
       exerciseLogs: [],
+      workoutSessions: [],
       bodyMeasurements: [],
       plannedWorkouts: [],
       passwords: [],
@@ -336,6 +365,8 @@ export const useStore = create<AppState>()(
       financialGoals: [],
       budgetLimits: [],
       regularPayments: [],
+      recurringSkips: [],
+      paymentRemindersAcked: [],
       envelopes: [],
       goals: [],
       goalLogs: [],
@@ -348,6 +379,11 @@ export const useStore = create<AppState>()(
       incomeSources: [],
       plannedExpenses: [],
       actualExpenses: [],
+      safeToSpendReserve: 0,
+      safeToSpendRangeMode: 'auto',
+      safeToSpendCustomStart: undefined,
+      safeToSpendCustomEnd: undefined,
+      safeToSpendAccountIds: [],
       wealthTreeTarget: null,
       dashboardConfig: {
         widgetsOrder: ['smart_schedule', 'efficiency', 'trends', 'stats_grid', 'overview', 'spheres_hub', 'goals', 'tasks_habits', 'water', 'activity_trends', 'habit_stories', 'activity_calendar', 'finance_hub', 'monthly_budget', 'upcoming_deadlines', 'habit_matrix', 'pomodoro', 'inbox', 'next_workout', 'sleep_recovery', 'discipline_score', 'stoic_quote', 'shopping_list'],
@@ -551,7 +587,7 @@ export const useStore = create<AppState>()(
           if (s.id === sphereId) {
             return {
               ...s,
-              notesList: (s.notesList || []).map(n => n.id === noteId ? { ...n, ...updates } : n)
+              notesList: (s.notesList || []).map(n => n.id === noteId ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n)
             };
           }
           return s;
@@ -698,14 +734,66 @@ export const useStore = create<AppState>()(
         workoutNodes: state.workoutNodes.map(n => n.id === id ? { ...n, parentId: newParentId } : n)
       })),
 
-      logExercise: (log) => set((state) => ({
-        exerciseLogs: [...state.exerciseLogs, { ...log, id: uuidv4() }]
-      })),
+      logExercise: (log) => {
+        const id = uuidv4();
+        set((state) => ({
+          exerciseLogs: [...state.exerciseLogs, { ...log, id }]
+        }));
+        return id;
+      },
       updateExerciseLog: (id, updates) => set((state) => ({
         exerciseLogs: state.exerciseLogs.map(l => l.id === id ? { ...l, ...updates } : l)
       })),
       deleteExerciseLog: (id) => set((state) => ({
         exerciseLogs: state.exerciseLogs.filter(l => l.id !== id)
+      })),
+
+      startWorkoutSession: (init) => {
+        const id = uuidv4();
+        const now = new Date();
+        const date = init?.date ?? now.toISOString().split('T')[0];
+        set((state) => ({
+          workoutSessions: [
+            ...(state.workoutSessions || []),
+            {
+              id,
+              date,
+              startedAt: now.toISOString(),
+              status: 'active' as const,
+              programId: init?.programId,
+              label: init?.label,
+            },
+          ],
+        }));
+        return id;
+      },
+      finishWorkoutSession: (id, updates) => set((state) => {
+        const now = new Date();
+        return {
+          workoutSessions: (state.workoutSessions || []).map(s =>
+            s.id === id
+              ? {
+                  ...s,
+                  status: 'completed' as const,
+                  endedAt: now.toISOString(),
+                  durationSec:
+                    updates?.durationSec ??
+                    s.durationSec ??
+                    Math.max(0, Math.round((now.getTime() - new Date(s.startedAt).getTime()) / 1000)),
+                  notes: updates?.notes ?? s.notes,
+                }
+              : s
+          ),
+        };
+      }),
+      updateWorkoutSession: (id, updates) => set((state) => ({
+        workoutSessions: (state.workoutSessions || []).map(s => s.id === id ? { ...s, ...updates } : s)
+      })),
+      deleteWorkoutSession: (id, opts) => set((state) => ({
+        workoutSessions: (state.workoutSessions || []).filter(s => s.id !== id),
+        exerciseLogs: opts?.deleteLogs
+          ? state.exerciseLogs.filter(l => l.sessionId !== id)
+          : state.exerciseLogs.map(l => l.sessionId === id ? { ...l, sessionId: undefined } : l),
       })),
 
       addBodyMeasurement: (measurement) => set((state) => ({
@@ -874,9 +962,7 @@ export const useStore = create<AppState>()(
 
         let finalAmount = payment.amount;
         if (payment.currency && payment.currency !== account.currency) {
-          const fromRate = state.rates[payment.currency] || 1;
-          const toRate = state.rates[account.currency] || 1;
-          finalAmount = (payment.amount * fromRate) / toRate;
+          finalAmount = convertCurrency(payment.amount, payment.currency, account.currency, state.rates);
         }
 
         const transaction: Transaction = {
@@ -894,48 +980,94 @@ export const useStore = create<AppState>()(
         };
       }),
 
+      // Only rules opted into silent posting (autoConfirm) are processed here.
+      // All other due rules surface in the review queue (getDueRecurring) for
+      // one-tap confirmation — no money is posted without the user's say-so.
       checkRegularPayments: () => set((state) => {
-        const today = new Date();
-        const currentDay = today.getDate();
-        const currentMonthTx = (state.transactions || []).filter(t => 
-          isSameMonth(parseISO(t.date), today)
-        );
-
+        const todayISO = new Date().toISOString().split('T')[0];
+        const transactions = state.transactions || [];
         const newTransactions: Transaction[] = [];
-        const defaultAccountId = state.accounts?.[0]?.id;
-        const defaultAccount = state.accounts?.[0];
-
-        if (!defaultAccountId || !defaultAccount) return state;
 
         (state.regularPayments || []).forEach(p => {
-          if (!p.isActive) return;
-          
-          const isPaid = currentMonthTx.some(t => t.notes?.includes(`Автоплатеж: ${p.name}`));
-          if (!isPaid && p.dueDate <= currentDay) {
-            let finalAmount = p.amount;
-            if (p.currency && p.currency !== defaultAccount.currency) {
-              const fromRate = state.rates[p.currency] || 1;
-              const toRate = state.rates[defaultAccount.currency] || 1;
-              finalAmount = (p.amount * fromRate) / toRate;
-            }
+          if (!p.isActive || !p.autoConfirm) return;
 
-            newTransactions.push({
-              id: uuidv4(),
-              type: 'expense',
-              amount: finalAmount,
-              category: p.category,
-              date: today.toISOString().split('T')[0],
-              notes: `Автоплатеж: ${p.name}`,
-              accountId: defaultAccountId
-            });
+          const occ = lastDueOccurrence(p, todayISO);
+          if (!occ) return;
+          if (isOccurrencePosted(transactions, p.id, occ.periodKey)) return;
+
+          const accountId = p.accountId && state.accounts?.some(a => a.id === p.accountId)
+            ? p.accountId
+            : state.accounts?.[0]?.id;
+          const account = state.accounts?.find(a => a.id === accountId);
+          if (!accountId || !account) return;
+
+          let finalAmount = p.amount;
+          if (p.currency && p.currency !== account.currency) {
+            finalAmount = convertCurrency(p.amount, p.currency, account.currency, state.rates);
           }
+
+          newTransactions.push({
+            id: uuidv4(),
+            type: p.type === 'income' ? 'income' : 'expense',
+            amount: finalAmount,
+            category: p.category,
+            date: occ.dateISO,
+            notes: `Регулярно: ${p.name}`,
+            accountId,
+            recurringRef: refFor(p.id, occ.periodKey),
+          });
         });
 
         if (newTransactions.length === 0) return state;
 
         return {
-          transactions: [...newTransactions, ...(state.transactions || [])]
+          transactions: [...newTransactions, ...transactions]
         };
+      }),
+
+      confirmRecurring: (ruleId, periodKey, accountId) => set((state) => {
+        const rule = (state.regularPayments || []).find(p => p.id === ruleId);
+        if (!rule) return state;
+        const ref = refFor(ruleId, periodKey);
+        if ((state.transactions || []).some(t => t.recurringRef === ref)) return state;
+
+        const targetAccountId = accountId
+          || (rule.accountId && state.accounts?.some(a => a.id === rule.accountId) ? rule.accountId : undefined)
+          || state.accounts?.[0]?.id;
+        const account = state.accounts?.find(a => a.id === targetAccountId);
+        if (!targetAccountId || !account) return state;
+
+        let finalAmount = rule.amount;
+        if (rule.currency && rule.currency !== account.currency) {
+          finalAmount = convertCurrency(rule.amount, rule.currency, account.currency, state.rates);
+        }
+
+        const occ = lastDueOccurrence(rule, new Date().toISOString().split('T')[0]);
+        const date = occ?.periodKey === periodKey ? occ.dateISO : new Date().toISOString().split('T')[0];
+
+        const transaction: Transaction = {
+          id: uuidv4(),
+          type: rule.type === 'income' ? 'income' : 'expense',
+          amount: finalAmount,
+          category: rule.category,
+          date,
+          notes: `Регулярно: ${rule.name}`,
+          accountId: targetAccountId,
+          recurringRef: ref,
+        };
+
+        return { transactions: [transaction, ...(state.transactions || [])] };
+      }),
+
+      skipRecurring: (ruleId, periodKey) => set((state) => {
+        const exists = (state.recurringSkips || []).some(s => s.ruleId === ruleId && s.periodKey === periodKey);
+        if (exists) return state;
+        return { recurringSkips: [...(state.recurringSkips || []), { ruleId, periodKey }] };
+      }),
+
+      ackPaymentReminder: (id) => set((state) => {
+        if ((state.paymentRemindersAcked || []).includes(id)) return state;
+        return { paymentRemindersAcked: [...(state.paymentRemindersAcked || []), id] };
       }),
 
       addPriceHistory: (item) => set((state) => ({
@@ -1238,6 +1370,10 @@ export const useStore = create<AppState>()(
       resetMonthlyExpenseStatus: () => set((state) => ({
         plannedExpenses: (state.plannedExpenses || []).map(e => ({ ...e, isPaid: false, paidDate: undefined, paidAmount: undefined }))
       })),
+      setSafeToSpendReserve: (amount) => set({ safeToSpendReserve: Math.max(0, amount || 0) }),
+      setSafeToSpendRangeMode: (mode) => set({ safeToSpendRangeMode: mode }),
+      setSafeToSpendCustomRange: (start, end) => set({ safeToSpendCustomStart: start, safeToSpendCustomEnd: end }),
+      setSafeToSpendAccountIds: (ids) => set({ safeToSpendAccountIds: ids }),
 
       toggleHideHabitNames: () => set((state) => ({
         hideHabitNames: !state.hideHabitNames
@@ -1275,7 +1411,7 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'vibesight-storage',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => storage),
       partialize: (state) => {
         const { isLocked, ...rest } = state;
@@ -1292,6 +1428,10 @@ export const useStore = create<AppState>()(
         }
         if (fromVersion < 2) {
           if (!Array.isArray(next.monthlyBudgetPlans)) next.monthlyBudgetPlans = [];
+        }
+        if (fromVersion < 3) {
+          if (!Array.isArray(next.recurringSkips)) next.recurringSkips = [];
+          if (!Array.isArray(next.paymentRemindersAcked)) next.paymentRemindersAcked = [];
         }
         return next as AppState;
       },

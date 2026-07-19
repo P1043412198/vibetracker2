@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/enums.dart';
+import '../../models/finance.dart';
 import '../../services/finance_calc.dart';
+import '../../services/net_worth.dart';
 import '../../state/currency_state.dart';
 import '../../state/providers.dart';
 import '../../state/settings_state.dart';
@@ -211,6 +213,16 @@ class ChartsTab extends ConsumerWidget {
             SizedBox(width: 24),
             _LegendDot(color: Color(0xFFEF4444), label: 'Расход'),
           ],
+        ),
+        const SizedBox(height: 16),
+        Text('Чистый капитал по месяцам',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        _NetWorthChart(
+          transactions: transactions,
+          accounts: accounts,
+          baseCurrency: baseCurrency,
+          convert: convert,
         ),
         const SizedBox(height: 16),
         Text('Накопительный остаток за 30 дней',
@@ -428,6 +440,180 @@ class _CashflowLineChart extends ConsumerWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Net worth (assets − debts) reconstructed for the last 12 months, with a
+/// trend summary header.
+class _NetWorthChart extends ConsumerWidget {
+  const _NetWorthChart({
+    required this.transactions,
+    required this.accounts,
+    required this.baseCurrency,
+    required this.convert,
+  });
+  final List<Transaction> transactions;
+  final List<Account> accounts;
+  final String baseCurrency;
+  final num Function(num, String, String) convert;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final loans = ref.watch(loansProvider);
+    final loanPayments = ref.watch(loanPaymentsProvider);
+    final history = computeNetWorthHistory(
+      accounts: accounts,
+      transactions: transactions,
+      loans: loans,
+      loanPayments: loanPayments,
+      baseCurrency: baseCurrency,
+      convert: convert,
+    );
+    final trend = computeNetWorthTrend(
+        history.map((p) => p.netWorth).toList(growable: false));
+
+    if (history.every((p) => p.netWorth == 0 && p.assets == 0)) {
+      return const Card(
+        child: _ChartEmpty(icon: '📈', text: 'Нет данных для расчёта капитала'),
+      );
+    }
+
+    final spots = <FlSpot>[
+      for (var i = 0; i < history.length; i++)
+        FlSpot(i.toDouble(), history[i].netWorth.toDouble()),
+    ];
+    final minV = spots.fold<double>(spots.first.y, (a, s) => math.min(a, s.y));
+    final maxV = spots.fold<double>(spots.first.y, (a, s) => math.max(a, s.y));
+    final pad = math.max(50, (maxV - minV).abs() * 0.1);
+    final fmt = NumberFormat.compact(locale: 'ru');
+    final fmtFull =
+        NumberFormat.currency(locale: 'ru_RU', symbol: '', decimalDigits: 0);
+
+    Color trendColor;
+    IconData trendIcon;
+    switch (trend?.direction) {
+      case TrendDirection.up:
+        trendColor = const Color(0xFF22C55E);
+        trendIcon = Icons.trending_up;
+        break;
+      case TrendDirection.down:
+        trendColor = const Color(0xFFEF4444);
+        trendIcon = Icons.trending_down;
+        break;
+      default:
+        trendColor = Colors.grey;
+        trendIcon = Icons.trending_flat;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (trend != null)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Сейчас',
+                          style: Theme.of(context).textTheme.bodySmall),
+                      Text('${fmtFull.format(trend.current)} $baseCurrency',
+                          style: const TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w800)),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: trendColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(trendIcon, size: 16, color: trendColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${trend.change >= 0 ? '+' : '−'}'
+                          '${fmtFull.format(trend.change.abs())} / '
+                          '${trend.monthlyRate >= 0 ? '+' : '−'}'
+                          '${fmtFull.format(trend.monthlyRate.abs())}/мес',
+                          style: TextStyle(
+                              color: trendColor,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  minX: 0,
+                  maxX: (history.length - 1).toDouble(),
+                  minY: minV - pad,
+                  maxY: maxV + pad,
+                  gridData:
+                      const FlGridData(show: true, drawVerticalLine: false),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 44,
+                        getTitlesWidget: (v, _) => Text(fmt.format(v),
+                            style: const TextStyle(fontSize: 10)),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        interval: 2,
+                        reservedSize: 22,
+                        getTitlesWidget: (v, _) {
+                          final i = v.toInt();
+                          if (i < 0 || i >= history.length) {
+                            return const SizedBox.shrink();
+                          }
+                          final parts = history[i].monthKey.split('-');
+                          return Text('${parts[1]}.${parts[0].substring(2)}',
+                              style: const TextStyle(fontSize: 9));
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      barWidth: 2.4,
+                      color: trendColor,
+                      dotData: const FlDotData(show: false),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: trendColor.withValues(alpha: 0.16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

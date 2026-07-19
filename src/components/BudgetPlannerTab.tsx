@@ -6,12 +6,13 @@ import {
   CheckCircle2, Circle, AlertTriangle, Clock, ArrowRight,
   DollarSign, PiggyBank, BarChart3,
 } from 'lucide-react';
-import { format, differenceInCalendarDays } from 'date-fns';
+import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { useStore } from '../store/useStore';
 import { cn } from '../lib/utils';
-import { computeBudgetCycles, getPayDate } from '../lib/finance/budgetPlanner';
-import type { IncomeSource, IncomeSourceType, PlannedExpense } from '../types';
+import { computeBudgetCycles, computeCashflowForecast, computeMonthlyComparison, computeScenarioProjection, computeSpendingAverages, getPayDate, isPlannedExpensePaidByTx, loansAsPlannedExpenses, scenarioLabels } from '../lib/finance/budgetPlanner';
+import type { CashflowForecast, CashflowRangeMode, MonthComparisonSide, SafeToSpendScenario, SpendingAverages } from '../lib/finance/budgetPlanner';
+import type { Account, IncomeSource, IncomeSourceType, PlannedExpense, Transaction } from '../types';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip,
@@ -307,23 +308,43 @@ function IncomePlanSection() {
 // ═══════════════ EXPENSE PLAN ═══════════════
 
 function ExpensePlanSection() {
-  const { plannedExpenses, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, markExpensePaid, markExpenseUnpaid } = useStore();
+  const { plannedExpenses, addPlannedExpense, updatePlannedExpense, deletePlannedExpense, markExpensePaid, markExpenseUnpaid, transactions, accounts, rates, baseCurrency } = useStore();
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const thisMonthKey = useMemo(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
   const [form, setForm] = useState({
     name: '',
     amount: '',
     dayFrom: '1',
     dayTo: '5',
     category: '',
+    recurrence: 'monthly' as 'monthly' | 'once',
+    startMonth: '',
   });
 
   const expenses = plannedExpenses || [];
+  // Auto-detect which planned expenses are already settled by a real
+  // transaction this month, so they show as paid without a manual tick.
+  const autoPaidIds = useMemo(() => {
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const ids = new Set<string>();
+    for (const e of expenses) {
+      if (e.isPaid) continue;
+      if (isPlannedExpensePaidByTx({ expense: e, transactions: transactions || [], monthKey, accounts: accounts || [], rates, baseCurrency })) {
+        ids.add(e.id);
+      }
+    }
+    return ids;
+  }, [expenses, transactions, accounts, rates, baseCurrency]);
   const totalPlanned = expenses.filter(e => e.isActive).reduce((sum, e) => sum + e.amount, 0);
-  const totalPaid = expenses.filter(e => e.isPaid).reduce((sum, e) => e.paidAmount || e.amount, 0);
+  const totalPaid = expenses.filter(e => e.isPaid || autoPaidIds.has(e.id)).reduce((sum, e) => sum + (e.paidAmount || e.amount), 0);
 
   const resetForm = () => {
-    setForm({ name: '', amount: '', dayFrom: '1', dayTo: '5', category: '' });
+    setForm({ name: '', amount: '', dayFrom: '1', dayTo: '5', category: '', recurrence: 'monthly', startMonth: '' });
     setShowForm(false);
     setEditId(null);
   };
@@ -331,12 +352,19 @@ function ExpensePlanSection() {
   const handleSave = () => {
     const amount = parseFloat(form.amount);
     if (!form.name || isNaN(amount)) return;
+    // 'once' must be anchored to a month; default to the current one.
+    const startMonth =
+      form.recurrence === 'once'
+        ? form.startMonth || thisMonthKey
+        : form.startMonth || undefined;
     const data = {
       name: form.name,
       amount,
       dayFrom: parseInt(form.dayFrom) || 1,
       dayTo: parseInt(form.dayTo) || 5,
       category: form.category || undefined,
+      recurrence: form.recurrence,
+      startMonth,
       isPaid: false,
       isActive: true,
     };
@@ -355,6 +383,8 @@ function ExpensePlanSection() {
       dayFrom: String(expense.dayFrom),
       dayTo: String(expense.dayTo),
       category: expense.category || '',
+      recurrence: expense.recurrence ?? 'monthly',
+      startMonth: expense.startMonth || '',
     });
     setEditId(expense.id);
     setShowForm(true);
@@ -382,13 +412,16 @@ function ExpensePlanSection() {
 
       {/* Expense list */}
       <div className="space-y-2">
-        {expenses.map(expense => (
+        {expenses.map(expense => {
+          const autoPaid = autoPaidIds.has(expense.id);
+          const paid = expense.isPaid || autoPaid;
+          return (
           <motion.div
             key={expense.id}
             layout
             className={cn(
               "bg-white p-4 rounded-2xl border transition-all",
-              expense.isPaid ? "border-emerald-200 bg-emerald-50/30" : "border-stone-200",
+              paid ? "border-emerald-200 bg-emerald-50/30" : "border-stone-200",
               !expense.isActive && "opacity-50"
             )}
           >
@@ -397,13 +430,18 @@ function ExpensePlanSection() {
                 <div className="flex items-center gap-2 mb-1">
                   <p className={cn(
                     "text-sm font-bold",
-                    expense.isPaid ? "text-emerald-700 line-through" : "text-zinc-900"
+                    paid ? "text-emerald-700 line-through" : "text-zinc-900"
                   )}>
                     {expense.name}
                   </p>
                   {expense.isPaid && (
                     <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">
                       Оплачено
+                    </span>
+                  )}
+                  {autoPaid && !expense.isPaid && (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">
+                      Оплачено по транзакции
                     </span>
                   )}
                 </div>
@@ -416,6 +454,13 @@ function ExpensePlanSection() {
                   {expense.category && (
                     <span className="text-zinc-400">{expense.category}</span>
                   )}
+                  {expense.recurrence === 'once' ? (
+                    <span className="text-amber-600 font-semibold">
+                      разовый{expense.startMonth ? ` · ${monthKeyLabel(expense.startMonth)}` : ''}
+                    </span>
+                  ) : expense.startMonth ? (
+                    <span className="text-zinc-400">с {monthKeyLabel(expense.startMonth)}</span>
+                  ) : null}
                 </div>
                 {expense.isPaid && expense.paidDate && (
                   <p className="text-[10px] text-emerald-500 mt-1">
@@ -429,11 +474,11 @@ function ExpensePlanSection() {
                   onClick={() => expense.isPaid ? markExpenseUnpaid(expense.id) : markExpensePaid(expense.id)}
                   className={cn(
                     "p-1.5 rounded-lg transition-colors",
-                    expense.isPaid ? "text-emerald-500 hover:bg-emerald-100" : "text-zinc-300 hover:bg-stone-50"
+                    paid ? "text-emerald-500 hover:bg-emerald-100" : "text-zinc-300 hover:bg-stone-50"
                   )}
                   title={expense.isPaid ? 'Отменить оплату' : 'Отметить как оплачено'}
                 >
-                  {expense.isPaid ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                  {paid ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                 </button>
                 <button onClick={() => startEdit(expense)} className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-stone-50 rounded-lg">
                   <Edit3 className="w-4 h-4" />
@@ -444,7 +489,8 @@ function ExpensePlanSection() {
               </div>
             </div>
           </motion.div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Add / Edit form */}
@@ -505,6 +551,49 @@ function ExpensePlanSection() {
               placeholder="Категория (необязательно)"
               className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm"
             />
+            <div>
+              <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block">Повторение</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, recurrence: 'monthly' })}
+                  className={cn(
+                    "py-2 rounded-xl text-xs font-bold border transition-colors",
+                    form.recurrence === 'monthly'
+                      ? "bg-rose-500 text-white border-rose-500"
+                      : "bg-stone-50 text-zinc-500 border-stone-200"
+                  )}
+                >
+                  Каждый месяц
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, recurrence: 'once', startMonth: form.startMonth || thisMonthKey })}
+                  className={cn(
+                    "py-2 rounded-xl text-xs font-bold border transition-colors",
+                    form.recurrence === 'once'
+                      ? "bg-rose-500 text-white border-rose-500"
+                      : "bg-stone-50 text-zinc-500 border-stone-200"
+                  )}
+                >
+                  Разовый
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-zinc-500 uppercase font-bold mb-1 block">
+                {form.recurrence === 'once' ? 'Месяц платежа' : 'С какого месяца (необязательно)'}
+              </label>
+              <input
+                type="month"
+                value={form.startMonth}
+                onChange={e => setForm({ ...form, startMonth: e.target.value })}
+                className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm"
+              />
+              {form.recurrence === 'monthly' && (
+                <p className="text-[10px] text-zinc-400 mt-1">Пусто = считается с текущего месяца и далее.</p>
+              )}
+            </div>
             <div className="flex gap-2">
               <button onClick={resetForm} className="flex-1 py-2 text-xs font-bold text-zinc-500">Отмена</button>
               <button
@@ -530,29 +619,705 @@ function ExpensePlanSection() {
   );
 }
 
+// ═══════════════ SAFE-TO-SPEND CARD ═══════════════
+
+const fmtMoney = (n: number) => Math.round(n).toLocaleString('ru-RU');
+
+const RANGE_OPTIONS: { mode: CashflowRangeMode; label: string }[] = [
+  { mode: 'auto', label: 'До зарплаты' },
+  { mode: 'next', label: 'До ближайшего' },
+  { mode: 'advanceToAdvance', label: 'Аванс→Аванс' },
+  { mode: 'salaryToSalary', label: 'Зарплата→Зарплата' },
+  { mode: 'fullHorizon', label: 'Весь горизонт' },
+  { mode: 'custom', label: 'Свой период' },
+];
+
+function SafeToSpendCard({
+  forecast,
+  reserve,
+  onReserveChange,
+  rangeMode,
+  onRangeModeChange,
+  customStart,
+  customEnd,
+  onCustomRangeChange,
+  accounts,
+  selectedAccountIds,
+  onSelectedAccountIdsChange,
+  averages,
+}: {
+  forecast: CashflowForecast;
+  reserve: number;
+  onReserveChange: (amount: number) => void;
+  rangeMode: CashflowRangeMode;
+  onRangeModeChange: (mode: CashflowRangeMode) => void;
+  customStart?: string;
+  customEnd?: string;
+  onCustomRangeChange: (start?: string, end?: string) => void;
+  accounts: Account[];
+  selectedAccountIds: string[];
+  onSelectedAccountIdsChange: (ids: string[]) => void;
+  averages: SpendingAverages;
+}) {
+  const [reserveInput, setReserveInput] = useState(String(reserve || 0));
+  const [showSegments, setShowSegments] = useState(false);
+  const [scenario, setScenario] = useState<SafeToSpendScenario>('planToZero');
+  const [customDailyInput, setCustomDailyInput] = useState('');
+
+  const customDaily = parseFloat(customDailyInput.replace(',', '.'));
+  const projection = useMemo(
+    () =>
+      computeScenarioProjection({
+        scenario,
+        forecast,
+        reserve,
+        averages,
+        customDaily: isNaN(customDaily) ? 0 : customDaily,
+      }),
+    [scenario, forecast, reserve, averages, customDaily]
+  );
+
+  // Keep local input in sync when store value changes elsewhere.
+  React.useEffect(() => {
+    setReserveInput(String(reserve || 0));
+  }, [reserve]);
+
+  const ccy = forecast.baseCurrency;
+
+  const commitReserve = (raw: string) => {
+    const parsed = parseFloat(raw.replace(',', '.'));
+    onReserveChange(isNaN(parsed) ? 0 : Math.max(0, parsed));
+  };
+
+  return (
+    <div className="bg-gradient-to-br from-indigo-500 to-violet-600 p-5 rounded-2xl text-white shadow-lg shadow-indigo-500/20">
+      <div className="flex items-center gap-2 mb-3">
+        <PiggyBank className="w-4 h-4 opacity-90" />
+        <span className="text-[11px] uppercase font-bold tracking-wide opacity-90">
+          Сколько можно тратить
+        </span>
+      </div>
+
+      {!forecast.ok ? (
+        <p className="text-sm opacity-90">
+          Добавьте источники дохода с датами выплат, чтобы рассчитать дневной лимит.
+        </p>
+      ) : (
+        <>
+          {/* Headline: daily until next income */}
+          <div className="mb-1">
+            <span className="text-3xl font-bold">{fmtMoney(forecast.dailyUntilNextIncome)}</span>
+            <span className="text-sm font-medium opacity-80 ml-1.5">{ccy}/день</span>
+          </div>
+          {forecast.nextIncome ? (
+            <p className="text-xs opacity-85 mb-3">
+              до «{forecast.nextIncome.name}» — через {forecast.nextIncome.daysUntil}{' '}
+              {pluralizeDays(forecast.nextIncome.daysUntil)} ({format(forecast.nextIncome.date, 'd MMM', { locale: ru })},
+              {' '}+{fmtMoney(forecast.nextIncome.amount)} {ccy})
+            </p>
+          ) : (
+            <p className="text-xs opacity-85 mb-3">ближайших поступлений в горизонте нет</p>
+          )}
+
+          {/* Period selector */}
+          <div className="mb-3">
+            <span className="text-[10px] uppercase font-bold opacity-75 block mb-1.5">Период расчёта</span>
+            <div className="flex flex-wrap gap-1.5">
+              {RANGE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.mode}
+                  onClick={() => onRangeModeChange(opt.mode)}
+                  className={cn(
+                    'text-[11px] font-semibold rounded-lg px-2.5 py-1 transition-colors',
+                    rangeMode === opt.mode
+                      ? 'bg-white text-indigo-700'
+                      : 'bg-white/15 text-white hover:bg-white/25'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {rangeMode === 'custom' && (
+              <div className="mt-2">
+                <div className="flex items-end gap-2">
+                  <label className="flex-1 flex flex-col gap-0.5">
+                    <span className="text-[9px] uppercase font-bold opacity-70">С (пусто = сегодня)</span>
+                    <input
+                      type="date"
+                      value={customStart || ''}
+                      onChange={(e) => onCustomRangeChange(e.target.value || undefined, customEnd)}
+                      className="bg-white/90 text-zinc-900 text-xs font-semibold rounded-lg px-2 py-1.5 outline-none"
+                    />
+                  </label>
+                  <ArrowRight className="w-3.5 h-3.5 opacity-70 shrink-0 mb-2.5" />
+                  <label className="flex-1 flex flex-col gap-0.5">
+                    <span className="text-[9px] uppercase font-bold opacity-70">По</span>
+                    <input
+                      type="date"
+                      value={customEnd || ''}
+                      onChange={(e) => onCustomRangeChange(customStart, e.target.value || undefined)}
+                      className="bg-white/90 text-zinc-900 text-xs font-semibold rounded-lg px-2 py-1.5 outline-none"
+                    />
+                  </label>
+                </div>
+                {!customStart && (
+                  <p className="text-[10px] opacity-75 mt-1">Считаем с сегодняшнего дня до выбранной даты.</p>
+                )}
+              </div>
+            )}
+            {forecast.range && (
+              <p className="text-[11px] opacity-85 mt-2">
+                {forecast.range.label}: {format(forecast.range.startDate, 'd MMM', { locale: ru })} → {format(forecast.range.endDate, 'd MMM', { locale: ru })}
+                {' '}({forecast.range.daysLeft} {pluralizeDays(forecast.range.daysLeft)})
+                {forecast.range.totalIncome > 0 && <> · доход +{fmtMoney(forecast.range.totalIncome)} {ccy}</>}
+                {forecast.range.totalObligations > 0 && <> · платежи −{fmtMoney(forecast.range.totalObligations)} {ccy}</>}
+              </p>
+            )}
+          </div>
+
+          {/* Account selector */}
+          {accounts.length > 0 && (
+            <div className="mb-3">
+              <span className="text-[10px] uppercase font-bold opacity-75 block mb-1.5">Счета для расчёта</span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => onSelectedAccountIdsChange([])}
+                  className={cn(
+                    'text-[11px] font-semibold rounded-lg px-2.5 py-1 transition-colors',
+                    selectedAccountIds.length === 0
+                      ? 'bg-white text-indigo-700'
+                      : 'bg-white/15 text-white hover:bg-white/25'
+                  )}
+                >
+                  Все счета
+                </button>
+                {accounts.map((a) => {
+                  const active = selectedAccountIds.includes(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      onClick={() => {
+                        const next = active
+                          ? selectedAccountIds.filter((id) => id !== a.id)
+                          : [...selectedAccountIds, a.id];
+                        onSelectedAccountIdsChange(next);
+                      }}
+                      className={cn(
+                        'text-[11px] font-semibold rounded-lg px-2.5 py-1 transition-colors',
+                        active
+                          ? 'bg-white text-indigo-700'
+                          : 'bg-white/15 text-white hover:bg-white/25'
+                      )}
+                    >
+                      {a.name}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedAccountIds.length > 0 && (
+                <p className="text-[10px] opacity-75 mt-1">
+                  Баланс считается только по выбранным счетам.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Scenario selector (P3b) */}
+          {forecast.range && (
+            <div className="mb-3">
+              <span className="text-[10px] uppercase font-bold opacity-75 block mb-1.5">Сценарий плана</span>
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.keys(scenarioLabels) as SafeToSpendScenario[]).map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => setScenario(key)}
+                    className={cn(
+                      'text-[11px] font-semibold rounded-lg px-2.5 py-1 transition-colors',
+                      scenario === key
+                        ? 'bg-white text-indigo-700'
+                        : 'bg-white/15 text-white hover:bg-white/25'
+                    )}
+                  >
+                    {scenarioLabels[key]}
+                  </button>
+                ))}
+              </div>
+
+              {scenario === 'customDaily' && (
+                <label className="flex flex-col gap-0.5 mt-2">
+                  <span className="text-[9px] uppercase font-bold opacity-70">Мой расход в день ({ccy})</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    value={customDailyInput}
+                    onChange={(e) => setCustomDailyInput(e.target.value)}
+                    placeholder="напр. 30"
+                    className="bg-white/90 text-zinc-900 text-sm font-semibold rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-white/60"
+                  />
+                </label>
+              )}
+
+              {projection && (
+                <div className="bg-white/15 rounded-xl p-3 mt-2">
+                  {projection.insufficientHistory ? (
+                    <p className="text-xs opacity-90 leading-snug">
+                      Недостаточно истории трат, чтобы посчитать средние. Добавьте фактические расходы за прошлые месяцы.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold opacity-75">Трата в день</span>
+                        <span className="text-base font-bold">{fmtMoney(projection.dailySpend)} {ccy}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-1.5">
+                        <span className="text-[10px] uppercase font-bold opacity-75">Остаток к концу</span>
+                        <span className={cn('text-base font-bold', projection.shortfall && 'text-rose-200')}>
+                          {fmtMoney(projection.endBalance)} {ccy}
+                        </span>
+                      </div>
+                      <p className="text-[11px] opacity-80 mt-1.5 leading-snug">
+                        {projection.surplusOverReserve >= 0 ? (
+                          <>профицит над резервом: +{fmtMoney(projection.surplusOverReserve)} {ccy}</>
+                        ) : (
+                          <span className="text-rose-200">не хватает до резерва: {fmtMoney(projection.surplusOverReserve)} {ccy}</span>
+                        )}
+                        {projection.income > 0 && <> · доход +{fmtMoney(projection.income)} {ccy}</>}
+                        {projection.obligations > 0 && <> · платежи −{fmtMoney(projection.obligations)} {ccy}</>}
+                      </p>
+                      {(scenario === 'avgExpense' || scenario === 'avgExpenseIncome') && (
+                        <p className="text-[10px] opacity-65 mt-1 leading-snug">
+                          По средним за {averages.monthsCounted}{' '}
+                          {pluralizeMonths(averages.monthsCounted)}; платежи уже внутри средних трат.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Balance + smoothed */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-white/15 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold opacity-75 block">Сейчас на счетах</span>
+              <span className="text-lg font-bold">{fmtMoney(forecast.currentBalance)} {ccy}</span>
+            </div>
+            <div className="bg-white/15 rounded-xl p-3">
+              <span className="text-[10px] uppercase font-bold opacity-75 block">Ровно в день ({forecast.range?.label ?? 'период'})</span>
+              <span className="text-lg font-bold">{fmtMoney(forecast.smoothedDaily)} {ccy}</span>
+            </div>
+          </div>
+
+          {/* Cash gap warning */}
+          {forecast.hasCashGap && (
+            <div className="flex items-start gap-2 bg-rose-500/30 border border-white/30 rounded-xl p-3 mb-3">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span className="text-xs leading-snug">
+                Кассовый разрыв: остатка и резерва не хватает на обязательные платежи до следующего дохода.
+              </span>
+            </div>
+          )}
+
+          {/* Reserve input */}
+          <div className="bg-white/15 rounded-xl p-3 mb-1">
+            <label className="text-[10px] uppercase font-bold opacity-75 block mb-1.5">
+              Несгораемый резерв
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={reserveInput}
+                onChange={(e) => setReserveInput(e.target.value)}
+                onBlur={(e) => commitReserve(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                }}
+                className="flex-1 bg-white/90 text-zinc-900 text-sm font-semibold rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-white/60"
+              />
+              <span className="text-sm font-medium opacity-90">{ccy}</span>
+            </div>
+            <p className="text-[10px] opacity-70 mt-1.5">
+              Эта сумма не входит в дневной лимит — её приложение бережёт.
+            </p>
+          </div>
+
+          {/* Segments toggle */}
+          {forecast.segments.length > 0 && (
+            <button
+              onClick={() => setShowSegments((v) => !v)}
+              className="flex items-center gap-1 text-xs font-medium opacity-90 mt-2"
+            >
+              {showSegments ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              По периодам ({forecast.segments.length})
+            </button>
+          )}
+          {showSegments && (
+            <div className="space-y-2 mt-2">
+              {forecast.segments.map((seg, i) => (
+                <div key={i} className="bg-white/10 rounded-xl p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold">{seg.label}</span>
+                    <span className={cn('text-sm font-bold', seg.shortfall && 'text-rose-200')}>
+                      {fmtMoney(seg.dailyLimit)} {ccy}/день
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] opacity-75 mt-1">
+                    <span>
+                      {format(seg.startDate, 'd MMM', { locale: ru })} → {format(seg.endDate, 'd MMM', { locale: ru })} ({seg.days}{' '}
+                      {pluralizeDays(seg.days)})
+                    </span>
+                    {seg.obligations > 0 && <span>платежи: −{fmtMoney(seg.obligations)}</span>}
+                  </div>
+                  {seg.shortfall && (
+                    <p className="text-[10px] text-rose-200 mt-1">
+                      не хватает на платежи + резерв в этом окне
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function pluralizeDays(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'день';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'дня';
+  return 'дней';
+}
+
+function pluralizeMonths(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'месяц';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'месяца';
+  return 'месяцев';
+}
+
+const MONTH_LABELS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+function monthLabel(m: { month: number; year: number }): string {
+  return `${MONTH_LABELS_SHORT[m.month]} ${String(m.year).slice(2)}`;
+}
+
+// ═══════════════ MONTHLY AVERAGES (P3) ═══════════════
+// "Средние траты по месяцам" — average daily/monthly expense & income per month,
+// with a trend bar chart, derived from real transactions (account-filtered).
+
+function MonthlyAveragesCard({
+  averages,
+  baseCurrency,
+}: {
+  averages: SpendingAverages;
+  baseCurrency: string;
+}) {
+  if (averages.monthsCounted === 0) {
+    return (
+      <div className="bg-white p-4 rounded-2xl border border-stone-200">
+        <h3 className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1.5">
+          <BarChart3 className="w-3.5 h-3.5" /> Средние траты по месяцам
+        </h3>
+        <p className="text-xs text-zinc-400 text-center py-3">
+          Недостаточно истории. Добавьте фактические доходы/расходы за прошлые месяцы.
+        </p>
+      </div>
+    );
+  }
+
+  const chartData = averages.months.map(m => ({
+    name: monthLabel(m),
+    расход: Math.round(m.avgDailyExpense),
+    доход: Math.round(m.avgDailyIncome),
+  }));
+
+  return (
+    <div className="bg-white p-4 rounded-2xl border border-stone-200">
+      <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-1.5">
+        <BarChart3 className="w-3.5 h-3.5" /> Средние траты по месяцам
+      </h3>
+
+      {/* Overall averages */}
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-rose-50 rounded-xl p-3">
+          <span className="text-[10px] uppercase font-bold text-rose-400 block mb-0.5">Расход / день</span>
+          <span className="text-lg font-bold text-rose-600">{fmtMoney(averages.avgDailyExpense)}</span>
+          <span className="text-[10px] text-rose-400 ml-1">{baseCurrency}</span>
+          <p className="text-[10px] text-zinc-400 mt-0.5">≈ {fmtMoney(averages.avgMonthlyExpense)} {baseCurrency}/мес</p>
+        </div>
+        <div className="bg-emerald-50 rounded-xl p-3">
+          <span className="text-[10px] uppercase font-bold text-emerald-500 block mb-0.5">Доход / день</span>
+          <span className="text-lg font-bold text-emerald-600">{fmtMoney(averages.avgDailyIncome)}</span>
+          <span className="text-[10px] text-emerald-400 ml-1">{baseCurrency}</span>
+          <p className="text-[10px] text-zinc-400 mt-0.5">≈ {fmtMoney(averages.avgMonthlyIncome)} {baseCurrency}/мес</p>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-zinc-400 mb-3">
+        По {averages.monthsCounted} {pluralizeMonths(averages.monthsCounted)}; текущий месяц — по прошедшим дням.
+      </p>
+
+      {/* Daily-average trend */}
+      {chartData.length > 1 && (
+        <div className="h-40 mb-3">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#71717a' }} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#71717a' }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#fff', border: '1px solid #e4e4e7', borderRadius: '12px', fontSize: '10px' }}
+              />
+              <Bar dataKey="доход" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={20} />
+              <Bar dataKey="расход" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={20} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Per-month breakdown */}
+      <div className="space-y-1.5">
+        {averages.months.slice().reverse().map(m => (
+          <div key={m.monthKey} className="flex items-center justify-between py-1.5 px-2 bg-stone-50 rounded-lg">
+            <span className="text-xs font-medium text-zinc-700 capitalize">{monthLabel(m)}</span>
+            <div className="flex items-center gap-3 text-[11px]">
+              <span className="text-rose-500 font-semibold">−{fmtMoney(m.avgDailyExpense)}/дн</span>
+              <span className="text-emerald-600 font-semibold">+{fmtMoney(m.avgDailyIncome)}/дн</span>
+              <span className={cn('font-bold', m.net >= 0 ? 'text-emerald-600' : 'text-rose-500')}>
+                {m.net >= 0 ? '+' : ''}{fmtMoney(m.net)}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════ MONTH-VS-MONTH COMPARISON (P4) ═══════════════
+// "Сравнение месяцев" — pick any two months from the history and see how income,
+// expense, net and each category changed (b − a), derived from real transactions.
+
+function monthKeyLabel(key: string): string {
+  const [y, m] = key.split('-').map(Number);
+  return `${MONTH_LABELS_SHORT[(m || 1) - 1]} ${String(y).slice(2)}`;
+}
+
+function DeltaPill({ value, baseCurrency, invert = false }: { value: number; baseCurrency: string; invert?: boolean }) {
+  const rounded = Math.round(value);
+  if (rounded === 0) {
+    return <span className="text-[11px] font-semibold text-zinc-400">±0</span>;
+  }
+  // invert=true for expenses: spending more (positive) is "bad" → rose.
+  const good = invert ? rounded < 0 : rounded > 0;
+  return (
+    <span className={cn('text-[11px] font-bold', good ? 'text-emerald-600' : 'text-rose-500')}>
+      {rounded > 0 ? '+' : ''}{fmtMoney(rounded)} {baseCurrency}
+    </span>
+  );
+}
+
+function MonthComparisonCard({
+  availableMonths,
+  accounts,
+  transactions,
+  rates,
+  baseCurrency,
+  accountIds,
+}: {
+  availableMonths: string[];
+  accounts: Account[];
+  transactions: Transaction[];
+  rates: Record<string, number>;
+  baseCurrency: string;
+  accountIds: string[];
+}) {
+  // Default: latest month vs the one before it.
+  const sorted = useMemo(() => availableMonths.slice().sort(), [availableMonths]);
+  const defaultB = sorted[sorted.length - 1] ?? '';
+  const defaultA = sorted[sorted.length - 2] ?? defaultB;
+  const [monthA, setMonthA] = useState(defaultA);
+  const [monthB, setMonthB] = useState(defaultB);
+
+  // Keep selections valid as the available months change.
+  const a = sorted.includes(monthA) ? monthA : defaultA;
+  const b = sorted.includes(monthB) ? monthB : defaultB;
+
+  const cmp = useMemo(() =>
+    computeMonthlyComparison({
+      accounts, transactions, rates, baseCurrency, monthKeyA: a, monthKeyB: b, accountIds,
+    }),
+    [accounts, transactions, rates, baseCurrency, a, b, accountIds]
+  );
+
+  if (sorted.length < 2) {
+    return (
+      <div className="bg-white p-4 rounded-2xl border border-stone-200">
+        <h3 className="text-xs font-bold text-zinc-500 uppercase mb-2 flex items-center gap-1.5">
+          <BarChart3 className="w-3.5 h-3.5" /> Сравнение месяцев
+        </h3>
+        <p className="text-xs text-zinc-400 text-center py-3">
+          Нужно минимум два месяца с операциями, чтобы сравнить.
+        </p>
+      </div>
+    );
+  }
+
+  const renderSide = (side: MonthComparisonSide) => (
+    <div className="flex-1 bg-stone-50 rounded-xl p-2.5 text-center">
+      <p className="text-rose-500 font-bold text-sm">−{fmtMoney(side.totalExpense)}</p>
+      <p className="text-emerald-600 font-semibold text-[11px]">+{fmtMoney(side.totalIncome)}</p>
+      <p className={cn('text-[11px] font-bold mt-0.5', side.net >= 0 ? 'text-emerald-600' : 'text-rose-500')}>
+        {side.net >= 0 ? '+' : ''}{fmtMoney(side.net)} {baseCurrency}
+      </p>
+    </div>
+  );
+
+  const selectCls = 'text-xs font-semibold text-zinc-700 bg-stone-100 rounded-lg px-2 py-1 border border-stone-200 focus:outline-none focus:ring-1 focus:ring-emerald-400';
+
+  return (
+    <div className="bg-white p-4 rounded-2xl border border-stone-200">
+      <h3 className="text-xs font-bold text-zinc-500 uppercase mb-3 flex items-center gap-1.5">
+        <BarChart3 className="w-3.5 h-3.5" /> Сравнение месяцев
+      </h3>
+
+      {/* Month pickers */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <select className={selectCls} value={a} onChange={e => setMonthA(e.target.value)} aria-label="Месяц A">
+          {sorted.map(k => <option key={k} value={k}>{monthKeyLabel(k)}</option>)}
+        </select>
+        <ArrowRight className="w-4 h-4 text-zinc-300 shrink-0" />
+        <select className={selectCls} value={b} onChange={e => setMonthB(e.target.value)} aria-label="Месяц B">
+          {sorted.map(k => <option key={k} value={k}>{monthKeyLabel(k)}</option>)}
+        </select>
+      </div>
+
+      {/* Side-by-side totals */}
+      <div className="flex items-stretch gap-2 mb-3">
+        {renderSide(cmp.a)}
+        {renderSide(cmp.b)}
+      </div>
+
+      {/* Total deltas */}
+      <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+        <div className="bg-stone-50 rounded-lg py-1.5">
+          <span className="text-[9px] uppercase text-zinc-400 block">Расход</span>
+          <DeltaPill value={cmp.expenseDelta} baseCurrency={baseCurrency} invert />
+        </div>
+        <div className="bg-stone-50 rounded-lg py-1.5">
+          <span className="text-[9px] uppercase text-zinc-400 block">Доход</span>
+          <DeltaPill value={cmp.incomeDelta} baseCurrency={baseCurrency} />
+        </div>
+        <div className="bg-stone-50 rounded-lg py-1.5">
+          <span className="text-[9px] uppercase text-zinc-400 block">Сальдо</span>
+          <DeltaPill value={cmp.netDelta} baseCurrency={baseCurrency} />
+        </div>
+      </div>
+
+      {/* Per-category expense deltas */}
+      {cmp.categories.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] text-zinc-400 mb-1">Изменение по категориям расходов</p>
+          {cmp.categories.slice(0, 8).map(c => (
+            <div key={c.category} className="flex items-center justify-between py-1 px-2 bg-stone-50 rounded-lg">
+              <span className="text-xs text-zinc-700 capitalize truncate mr-2">{c.category}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] text-zinc-400">{fmtMoney(c.a)} → {fmtMoney(c.b)}</span>
+                <DeltaPill value={c.delta} baseCurrency={baseCurrency} invert />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ═══════════════ FACT SECTION ═══════════════
 
 function FactSection() {
-  const { incomeSources, plannedExpenses, actualExpenses, addActualExpense, deleteActualExpense } = useStore();
+  const {
+    incomeSources, plannedExpenses, actualExpenses, addActualExpense, deleteActualExpense,
+    accounts, transactions, rates, baseCurrency, safeToSpendReserve, setSafeToSpendReserve,
+    safeToSpendRangeMode, setSafeToSpendRangeMode,
+    safeToSpendCustomStart, safeToSpendCustomEnd, setSafeToSpendCustomRange,
+    safeToSpendAccountIds, setSafeToSpendAccountIds, loans,
+  } = useStore();
   const [showExpForm, setShowExpForm] = useState(false);
   const [expForm, setExpForm] = useState({ name: '', amount: '', date: format(new Date(), 'yyyy-MM-dd') });
 
   const sources = incomeSources || [];
-  const planned = plannedExpenses || [];
   const actual = actualExpenses || [];
+
+  // Fold active loan monthly payments into the expense plan so the budget and
+  // safe-to-spend card automatically account for credit obligations.
+  const planned = useMemo<PlannedExpense[]>(() => {
+    const base = plannedExpenses || [];
+    const loanExpenses = loansAsPlannedExpenses({
+      loans: loans || [],
+      rates: rates || {},
+      baseCurrency: baseCurrency || 'BYN',
+    });
+    return loanExpenses.length > 0 ? [...base, ...loanExpenses] : base;
+  }, [plannedExpenses, loans, rates, baseCurrency]);
 
   const cycles = useMemo(() =>
     computeBudgetCycles({
+      accounts: accounts || [],
+      transactions: transactions || [],
+      rates: rates || {},
+      baseCurrency: baseCurrency || 'BYN',
       incomeSources: sources,
       plannedExpenses: planned,
-      actualExpenses: actual,
+      reserve: safeToSpendReserve || 0,
+      accountIds: safeToSpendAccountIds || [],
     }),
-    [sources, planned, actual]
+    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve, safeToSpendAccountIds]
+  );
+
+  const customStart = safeToSpendCustomStart ? parseISO(safeToSpendCustomStart) : undefined;
+  const customEnd = safeToSpendCustomEnd ? parseISO(safeToSpendCustomEnd) : undefined;
+
+  const averages = useMemo(() =>
+    computeSpendingAverages({
+      accounts: accounts || [],
+      transactions: transactions || [],
+      rates: rates || {},
+      baseCurrency: baseCurrency || 'BYN',
+      accountIds: safeToSpendAccountIds || [],
+    }),
+    [accounts, transactions, rates, baseCurrency, safeToSpendAccountIds]
+  );
+
+  const forecast = useMemo(() =>
+    computeCashflowForecast({
+      accounts: accounts || [],
+      transactions: transactions || [],
+      rates: rates || {},
+      baseCurrency: baseCurrency || 'BYN',
+      incomeSources: sources,
+      plannedExpenses: planned,
+      reserve: safeToSpendReserve || 0,
+      rangeMode: safeToSpendRangeMode || 'auto',
+      customStart,
+      customEnd,
+      accountIds: safeToSpendAccountIds || [],
+    }),
+    [accounts, transactions, rates, baseCurrency, sources, planned, safeToSpendReserve, safeToSpendRangeMode, safeToSpendCustomStart, safeToSpendCustomEnd, safeToSpendAccountIds]
   );
 
   const totalIncome = sources.filter(s => s.isActive).reduce((sum, s) => sum + s.amount, 0);
   const totalPlannedExp = planned.filter(e => e.isActive).reduce((sum, e) => sum + e.amount, 0);
-  const totalPaid = planned.filter(e => e.isPaid).reduce((sum, e) => e.paidAmount || e.amount, 0);
+  const totalPaid = planned.filter(e => e.isPaid).reduce((sum, e) => sum + (e.paidAmount || e.amount), 0);
   const totalActual = actual.reduce((sum, e) => sum + e.amount, 0);
   const totalSpent = totalPaid + totalActual;
   const remaining = totalIncome - totalSpent;
@@ -591,6 +1356,22 @@ function FactSection() {
 
   return (
     <div className="space-y-4">
+      {/* Safe-to-spend forecast */}
+      <SafeToSpendCard
+        forecast={forecast}
+        reserve={safeToSpendReserve || 0}
+        onReserveChange={setSafeToSpendReserve}
+        rangeMode={safeToSpendRangeMode || 'auto'}
+        onRangeModeChange={setSafeToSpendRangeMode}
+        customStart={safeToSpendCustomStart}
+        customEnd={safeToSpendCustomEnd}
+        onCustomRangeChange={setSafeToSpendCustomRange}
+        accounts={accounts || []}
+        selectedAccountIds={safeToSpendAccountIds || []}
+        onSelectedAccountIdsChange={setSafeToSpendAccountIds}
+        averages={averages}
+      />
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-4 rounded-2xl text-white shadow-lg shadow-emerald-500/20">
@@ -669,6 +1450,19 @@ function FactSection() {
         </div>
       )}
 
+      {/* Monthly spending averages (P3) */}
+      <MonthlyAveragesCard averages={averages} baseCurrency={baseCurrency || 'BYN'} />
+
+      {/* Month-vs-month comparison (P4) */}
+      <MonthComparisonCard
+        availableMonths={averages.months.map(m => m.monthKey)}
+        accounts={accounts || []}
+        transactions={transactions || []}
+        rates={rates || {}}
+        baseCurrency={baseCurrency || 'BYN'}
+        accountIds={safeToSpendAccountIds || []}
+      />
+
       {/* Budget cycles */}
       {cycles.map((cycle, i) => (
         <motion.div
@@ -741,15 +1535,15 @@ function FactSection() {
                   <circle
                     cx="18" cy="18" r="15.5" fill="none" stroke="#f59e0b"
                     strokeWidth="3"
-                    strokeDasharray={`${cycle.totalIncome > 0 ? Math.min(97.4, (cycle.actualSpent / cycle.totalIncome) * 97.4) : 0} 97.4`}
+                    strokeDasharray={`${cycle.totalIncome > 0 ? Math.min(97.4, (cycle.totalPlannedExpenses / cycle.totalIncome) * 97.4) : 0} 97.4`}
                     strokeLinecap="round"
                   />
                 </svg>
                 <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-zinc-900">
-                  {cycle.totalIncome > 0 ? Math.round((cycle.actualSpent / cycle.totalIncome) * 100) : 0}%
+                  {cycle.totalIncome > 0 ? Math.round((cycle.totalPlannedExpenses / cycle.totalIncome) * 100) : 0}%
                 </span>
               </div>
-              <span className="text-[9px] text-zinc-500 font-bold uppercase">Потрачено</span>
+              <span className="text-[9px] text-zinc-500 font-bold uppercase">Платежи</span>
             </div>
           </div>
 

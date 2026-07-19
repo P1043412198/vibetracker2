@@ -79,20 +79,84 @@ final currencyRatesProvider =
   return CurrencyRatesController();
 });
 
-/// Convert [amount] from [from] to [to] using the persisted rates. Falls
-/// back to 1.0 when a rate is missing so the UI stays stable.
+/// Outcome of a currency conversion, including whether every required rate
+/// was available. Mirrors `ConversionResult` in the React `utils.ts`.
+class ConversionResult {
+  /// Converted amount. Falls back to the unconverted amount when a rate is missing.
+  final num value;
+
+  /// True when every rate needed for the conversion was available.
+  final bool ok;
+
+  /// Currency codes whose rate was missing (empty when [ok]).
+  final List<String> missing;
+
+  const ConversionResult({
+    required this.value,
+    required this.ok,
+    required this.missing,
+  });
+}
+
+final Set<String> _warnedMissingRates = <String>{};
+
+/// Convert [amount] from [from] to [to] using the persisted rates, reporting
+/// whether the conversion was actually possible.
+///
+/// Unlike a bare lookup, this never silently fabricates a 1:1 cross-rate: when
+/// a rate is missing the caller gets `ok: false` and the missing codes, so the
+/// UI can flag totals as approximate instead of distorting net worth.
+ConversionResult tryConvertCurrency({
+  required num amount,
+  required String from,
+  required String to,
+  required Map<String, num> rates,
+}) {
+  if (from == to) {
+    return ConversionResult(value: amount, ok: true, missing: const []);
+  }
+
+  final missing = <String>[];
+  final fromRate = rates[from];
+  final toRate = rates[to];
+  if (fromRate == null) missing.add(from);
+  if (toRate == null) missing.add(to);
+
+  if (missing.isNotEmpty) {
+    // Best-effort fallback keeps the UI rendering, but the result is flagged.
+    return ConversionResult(value: amount, ok: false, missing: missing);
+  }
+
+  // Convert via the anchor: amount_anchor = amount * fromRate; result = amount_anchor / toRate.
+  return ConversionResult(value: (amount * fromRate!) / toRate!, ok: true, missing: const []);
+}
+
+/// Convert [amount] from [from] to [to] using the persisted rates. When a rate
+/// is missing this logs a warning and returns the unconverted amount instead of
+/// silently treating the currency as 1:1.
 num convertCurrency({
   required num amount,
   required String from,
   required String to,
   required Map<String, num> rates,
 }) {
-  if (from == to) return amount;
-  final fromRate = rates[from] ?? 1;
-  final toRate = rates[to] ?? 1;
-  // Convert via USD anchor: amount_usd = amount * fromRate; result = amount_usd / toRate.
-  final inAnchor = amount * fromRate;
-  return inAnchor / toRate;
+  final result = tryConvertCurrency(
+    amount: amount,
+    from: from,
+    to: to,
+    rates: rates,
+  );
+  if (!result.ok) {
+    final key = result.missing.join(',');
+    if (_warnedMissingRates.add(key)) {
+      // ignore: avoid_print
+      print(
+        'convertCurrency: missing FX rate(s) for $key; using unconverted '
+        'amount. Totals may be inaccurate until rates load.',
+      );
+    }
+  }
+  return result.value;
 }
 
 /// Convenience hook used by widgets that already have access to ref.

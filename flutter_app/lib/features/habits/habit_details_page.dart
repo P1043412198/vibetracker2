@@ -8,6 +8,7 @@ import '../../models/habit.dart';
 import '../../services/notification_service.dart';
 import '../../services/streak.dart';
 import '../../state/providers.dart';
+import '../../state/settings_state.dart';
 import '../../widgets/habit_charts.dart';
 import '../../widgets/habit_heatmap.dart';
 
@@ -22,6 +23,7 @@ class HabitDetailsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final habits = ref.watch(habitsProvider);
     final logs = ref.watch(habitLogsProvider);
+    final hideNames = ref.watch(hideHabitNamesProvider);
     final habit = habits.cast<Habit?>().firstWhere(
           (h) => h?.id == habitId,
           orElse: () => null,
@@ -38,7 +40,7 @@ class HabitDetailsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(habit.title),
+        title: Text(hideNames ? '••••••' : habit.title),
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),

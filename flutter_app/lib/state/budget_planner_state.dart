@@ -65,6 +65,20 @@ class BudgetPlannerController extends StateNotifier<BudgetPlanStore> {
     await _persist();
   }
 
+  /// Copy the current month's recurring income & planned expenses forward into
+  /// the next [count] months (P2). Months that already have a plan are skipped
+  /// to preserve their per-month overrides, unless [overwrite] is true — in
+  /// which case their plan is replaced but real facts (actual expenses) and
+  /// account links are kept. Returns how many months were written.
+  Future<int> copyToNextMonths(int count, {bool overwrite = false}) async {
+    final result =
+        state.copyForward(state.selectedMonthKey, count, overwrite: overwrite);
+    if (result.copied == 0) return 0;
+    state = result.store;
+    await _persist();
+    return result.copied;
+  }
+
   // ── Income Sources ──
 
   Future<void> addIncomeSource(IncomeSource source) async {

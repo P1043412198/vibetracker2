@@ -350,9 +350,15 @@ class _InboxPageState extends ConsumerState<InboxPage> {
     if (items.isEmpty) return;
     final action = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetCtx) => SafeArea(
-        child: Column(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.85,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
@@ -393,6 +399,8 @@ class _InboxPageState extends ConsumerState<InboxPage> {
             ),
             const SizedBox(height: 8),
           ],
+            ),
+          ),
         ),
       ),
     );
@@ -914,8 +922,15 @@ class _InboxPageState extends ConsumerState<InboxPage> {
   void _showItemMenu(InboxItem item) {
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
       builder: (sheetCtx) => SafeArea(
-        child: Column(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.85,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
@@ -993,6 +1008,8 @@ class _InboxPageState extends ConsumerState<InboxPage> {
             ),
             const SizedBox(height: 8),
           ],
+            ),
+          ),
         ),
       ),
     );

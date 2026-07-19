@@ -62,7 +62,9 @@ export type NoteComment = {
 
 export type SphereNote = {
   id: string;
+  title?: string;
   content: string;
+  updatedAt?: string;
   youtubeUrl?: string;
   photoUrl?: string;
   isCheckbox?: boolean;
@@ -186,6 +188,21 @@ export type ExerciseLog = {
   metrics: Partial<Record<WorkoutMetric, number>>;
   notes?: string;
   restTime?: number; // in seconds
+  sessionId?: string; // links the set to a WorkoutSession (legacy logs have none)
+};
+
+export type WorkoutSessionStatus = 'active' | 'completed';
+
+export type WorkoutSession = {
+  id: string;
+  date: string; // YYYY-MM-DD (local day the session started)
+  startedAt: string; // ISO timestamp
+  endedAt?: string; // ISO timestamp
+  durationSec?: number; // explicit elapsed seconds
+  programId?: string; // workout node (folder/program) used
+  label?: string; // e.g. "День ног"
+  notes?: string;
+  status: WorkoutSessionStatus;
 };
 
 export type BodyMeasurement = {
@@ -259,6 +276,7 @@ export type Transaction = {
   toAccountId?: string; // Destination account ID for transfers
   tags?: string[]; // Array of tags like ['#food', '#restaurant']
   source?: string; // Source of income
+  recurringRef?: string; // "<ruleId>:<periodKey>" — marks a posted recurring occurrence
 };
 
 export type LoanPaymentType = 'payment' | 'withdrawal';
@@ -283,6 +301,8 @@ export type Loan = {
   overpayment: number; // Total interest paid
   createdAt: string;
   payments?: LoanPayment[];
+  /** Day of month (1-31) the monthly payment is due. Defaults to 5. */
+  paymentDay?: number;
 };
 
 export type FinancialGoalStep = {
@@ -337,14 +357,29 @@ export type MonthlyBudgetPlan = {
   updatedAt: string;
 };
 
+export type RecurringFrequency = 'weekly' | 'biweekly' | 'monthly' | 'yearly';
+
 export type RegularPayment = {
   id: string;
   name: string;
+  type?: TransactionType; // 'income' | 'expense' (default 'expense'); transfers out of scope
   amount: number;
   currency?: Currency;
-  dueDate: number; // Day of the month (1-31)
+  dueDate: number; // Day of the month (1-31), used for monthly/yearly
+  frequency?: RecurringFrequency; // default 'monthly'
+  weekday?: number; // 0 (Sun) - 6 (Sat), used for weekly/biweekly
+  month?: number; // 1-12, used for yearly
+  anchorDate?: string; // YYYY-MM-DD anchor for biweekly cadence / start
   category: string;
+  accountId?: string; // Preferred account to post to
+  autoConfirm?: boolean; // true = post silently when due; default false = review queue
   isActive: boolean;
+};
+
+// Records a recurring occurrence the user explicitly skipped (won't be re-suggested).
+export type RecurringSkip = {
+  ruleId: string;
+  periodKey: string;
 };
 
 export type Envelope = {
@@ -485,6 +520,17 @@ export type PlannedExpense = {
   /** End day of payment window (1-31). */
   dayTo: number;
   category?: string;
+  /**
+   * How often the expense recurs. 'monthly' (default) repeats every month on
+   * the [dayFrom..dayTo] window; 'once' applies only in [startMonth].
+   */
+  recurrence?: 'monthly' | 'once';
+  /**
+   * First month the expense applies, as `YYYY-MM`. For 'monthly' it suppresses
+   * occurrences before this month; for 'once' it is the only month. Undefined
+   * means "from now / every month" (legacy behaviour).
+   */
+  startMonth?: string;
   /** Whether this expense has been paid in the current cycle. */
   isPaid: boolean;
   /** Date when it was actually paid (ISO string). */
@@ -518,6 +564,7 @@ export type AppState = {
   habitLogs: HabitLog[];
   workoutNodes?: WorkoutNode[];
   exerciseLogs?: ExerciseLog[];
+  workoutSessions?: WorkoutSession[];
   bodyMeasurements?: BodyMeasurement[];
   plannedWorkouts?: PlannedWorkout[];
   passwords?: PasswordEntry[];

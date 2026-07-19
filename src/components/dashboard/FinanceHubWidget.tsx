@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Zap, QrCode, TrendingUp, PiggyBank, Target, ChevronRight } from 'lucide-react';
+import { Zap, QrCode, TrendingUp, PiggyBank, Target, ChevronRight, BellRing } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { ReceiptScanner } from '../ReceiptScanner';
 import { useStore } from '../../store/useStore';
+import { SafeToSpendMini } from './SafeToSpendMini';
+import { useUpcomingReminders } from '../PaymentRemindersCard';
 
 interface FinanceHubWidgetProps {
   financeStats: {
@@ -23,6 +25,7 @@ export const FinanceHubWidget: React.FC<FinanceHubWidgetProps> = ({ financeStats
   const [isWithdraw, setIsWithdraw] = useState(false);
 
   const selectedGoal = savingsGoals.find(g => g.id === selectedGoalId) || savingsGoals[0];
+  const upcomingReminders = useUpcomingReminders();
 
   const handleContribute = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +46,16 @@ export const FinanceHubWidget: React.FC<FinanceHubWidgetProps> = ({ financeStats
           Финансовый центр
         </h2>
         <div className="flex items-center gap-2">
+          {upcomingReminders.length > 0 && (
+            <Link
+              to="/finance"
+              className="flex items-center gap-1 px-2 py-1 bg-sky-500/10 text-sky-600 rounded-lg text-[10px] font-semibold hover:bg-sky-500/20 transition-colors"
+              title="Скоро оплата"
+            >
+              <BellRing className="w-3.5 h-3.5" />
+              {upcomingReminders.length}
+            </Link>
+          )}
           <button 
             onClick={() => setIsScannerOpen(true)}
             className="p-1.5 bg-stone-100 hover:bg-stone-200 rounded-lg text-zinc-500 hover:text-zinc-900 transition-colors"
@@ -52,6 +65,10 @@ export const FinanceHubWidget: React.FC<FinanceHubWidgetProps> = ({ financeStats
           </button>
           <Link to="/finance" className="text-[10px] text-zinc-500 hover:text-zinc-900 transition-colors">Подробнее</Link>
         </div>
+      </div>
+
+      <div className="mb-4">
+        <SafeToSpendMini compact />
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-4">

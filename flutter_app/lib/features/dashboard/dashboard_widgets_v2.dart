@@ -14,6 +14,7 @@ import '../../models/habit.dart';
 import '../../models/misc.dart';
 import '../../services/budget_planner_calc.dart';
 import '../../services/finance_calc.dart';
+import '../finance/payment_reminders_card.dart';
 import '../../state/budget_planner_state.dart';
 import '../../state/currency_state.dart';
 import '../../state/providers.dart';
@@ -1133,7 +1134,6 @@ class RollingDailyBudgetWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final store = ref.watch(budgetPlannerProvider);
-    final config = store.currentMonth;
     final txs = ref.watch(transactionsProvider);
     final accounts = ref.watch(accountsProvider);
     final loans = ref.watch(loansProvider);
@@ -1144,26 +1144,16 @@ class RollingDailyBudgetWidget extends ConsumerWidget {
     num convert(num amount, String from, String to) =>
         convertCurrency(amount: amount, from: from, to: to, rates: rates);
 
-    final facts = computeBudgetFacts(
-      monthKey: store.selectedMonthKey,
-      transactions: txs,
-      accounts: accounts,
-      convert: convert,
-      baseCurrency: baseCurrency,
-      linkedAccountIds: config.linkedAccountIds,
-    );
-
-    final cycles = computeBudgetCycles(
-      incomeSources: config.incomeSources,
-      plannedExpenses: config.plannedExpenses,
-      actualExpenses: config.actualExpenses,
+    // Dashboard is global: span every month's plan instead of the selected
+    // tab, so a future month's "once" expense never lands in the current cycle.
+    final cycles = computeGlobalBudgetCycles(
+      months: store.months,
       transactions: txs,
       accounts: accounts,
       loans: loans,
       loanPayments: loanPayments,
       convert: convert,
       baseCurrency: baseCurrency,
-      accountBalance: facts.accountBalance,
     );
 
     if (cycles.isEmpty) {
@@ -1401,20 +1391,19 @@ class _FinanceHeroWidgetState extends ConsumerState<FinanceHeroWidget>
       baseCurrency: baseCurrency,
       linkedAccountIds: config.linkedAccountIds,
     );
-    final cycles = computeBudgetCycles(
-      incomeSources: config.incomeSources,
-      plannedExpenses: config.plannedExpenses,
-      actualExpenses: config.actualExpenses,
+    // Global dashboard: span every month's plan, not just the selected tab.
+    final cycles = computeGlobalBudgetCycles(
+      months: store.months,
       transactions: txs,
       accounts: accounts,
       loans: loans,
       loanPayments: loanPayments,
       convert: convert,
       baseCurrency: baseCurrency,
-      accountBalance: facts.accountBalance,
     );
 
     final cycle = cycles.isNotEmpty ? cycles.first : null;
+    final dueReminders = ref.watch(upcomingRemindersProvider).length;
     final balance = facts.accountBalance.toDouble();
     final daysLeft = cycle?.daysLeft ?? 0;
     final daily = (cycle?.dailyBudget ?? 0).toDouble();
@@ -1486,6 +1475,10 @@ class _FinanceHeroWidgetState extends ConsumerState<FinanceHeroWidget>
                   _heroChip('До конца', '$daysLeft дн.'),
                   const SizedBox(height: 4),
                   _heroChip('Кредиты', '${loans.where((l) => l.balance > 0).length}'),
+                  if (dueReminders > 0) ...[
+                    const SizedBox(height: 4),
+                    _heroChip('Скоро оплата', '$dueReminders'),
+                  ],
                 ],
               ),
             ),

@@ -17,6 +17,7 @@ class BodyPhotosTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final photos = [...ref.watch(bodyPhotosProvider)]
       ..sort((a, b) => b.takenAt.compareTo(a.takenAt));
+    final measurements = [...ref.watch(bodyMeasurementsProvider)];
     return Stack(
       children: [
         if (photos.isEmpty)
@@ -54,6 +55,22 @@ class BodyPhotosTab extends ConsumerWidget {
                     onTap: () {
                       Navigator.of(context).push(MaterialPageRoute(
                         builder: (_) => _ComparePage(photos: photos),
+                      ));
+                    },
+                  ),
+                ),
+              if (photos.length >= 2)
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.timeline_outlined),
+                    title: const Text('Таймлайн прогресса'),
+                    subtitle: const Text(
+                        'Тяни дату — вес и талия бегут синхронно'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => _TimelinePage(
+                            photos: photos, measurements: measurements),
                       ));
                     },
                   ),
@@ -293,6 +310,9 @@ Future<void> _showPhotoForm(
       );
     }),
   );
+  labelCtl.dispose();
+  weightCtl.dispose();
+  noteCtl.dispose();
 }
 
 Future<void> _openPhoto(BuildContext context, WidgetRef ref,
@@ -393,7 +413,7 @@ class _PhotoImage extends StatelessWidget {
   final String path;
   @override
   Widget build(BuildContext context) {
-    final f = File(path);
+    final f = File(PhotoStorage.instance.resolve(path));
     if (!f.existsSync()) {
       return Container(
         color: Colors.black26,
@@ -688,6 +708,137 @@ class _Tag extends StatelessWidget {
               color: Colors.white,
               fontSize: 11,
               fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+/* --------------------------- timeline scrubber -------------------------- */
+
+/// A single photo with a date scrubber; dragging the slider walks the photo
+/// timeline while the weight (from the photo) and waist (from the nearest body
+/// measurement) update in sync below.
+class _TimelinePage extends StatefulWidget {
+  const _TimelinePage({required this.photos, required this.measurements});
+  final List<BodyPhoto> photos;
+  final List<BodyMeasurement> measurements;
+
+  @override
+  State<_TimelinePage> createState() => _TimelinePageState();
+}
+
+class _TimelinePageState extends State<_TimelinePage> {
+  late final List<BodyPhoto> _sorted;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _sorted = [...widget.photos]
+      ..sort((a, b) => a.takenAt.compareTo(b.takenAt));
+    _index = _sorted.length - 1;
+  }
+
+  num? _waistNear(String iso) {
+    final target = DateTime.tryParse(iso);
+    if (target == null) return null;
+    num? best;
+    int? bestDiff;
+    for (final m in widget.measurements) {
+      final w = m.measurements?['waist'];
+      if (w == null) continue;
+      final d = DateTime.tryParse(m.date);
+      if (d == null) continue;
+      final diff = (d.difference(target).inDays).abs();
+      if (bestDiff == null || diff < bestDiff) {
+        bestDiff = diff;
+        best = w;
+      }
+    }
+    return best;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _sorted[_index];
+    final waist = _waistNear(p.takenAt);
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: const Text('Таймлайн прогресса'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: InteractiveViewer(
+              child: Center(child: _PhotoImage(path: p.path)),
+            ),
+          ),
+          Container(
+            color: Colors.black87,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  DateFormat('d MMM y', 'ru').format(
+                      DateTime.tryParse(p.takenAt) ?? DateTime.now()),
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w800),
+                ),
+                Slider(
+                  value: _index.toDouble(),
+                  min: 0,
+                  max: (_sorted.length - 1).toDouble(),
+                  divisions: _sorted.length > 1 ? _sorted.length - 1 : null,
+                  onChanged: (v) => setState(() => _index = v.round()),
+                ),
+                Row(
+                  children: [
+                    _metric(
+                      icon: Icons.monitor_weight_outlined,
+                      label: 'Вес',
+                      value: p.weight != null ? '${p.weight} кг' : '—',
+                    ),
+                    const SizedBox(width: 24),
+                    _metric(
+                      icon: Icons.straighten_outlined,
+                      label: 'Талия',
+                      value: waist != null ? '$waist см' : '—',
+                    ),
+                    const Spacer(),
+                    Text('${_index + 1} / ${_sorted.length}',
+                        style: const TextStyle(color: Colors.white54)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metric(
+      {required IconData icon,
+      required String label,
+      required String value}) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.white70, size: 18),
+        const SizedBox(width: 6),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label,
+                style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            Text(value,
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700)),
+          ],
+        ),
+      ],
     );
   }
 }

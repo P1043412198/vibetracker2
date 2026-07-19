@@ -6,6 +6,68 @@ import '../models/enums.dart';
 import '../models/finance.dart';
 import 'finance_calc.dart';
 
+/// Heuristic: has [exp] already been settled by a real expense transaction in
+/// [monthKey] (YYYY-MM)? Matches by category or name plus a comparable amount
+/// (≥ half the planned sum), so the cashflow engine can auto-treat the current
+/// month's obligation as paid without a manual tick. Mirrors the React
+/// `isPlannedExpensePaidByTx`.
+bool plannedExpensePaidByTransaction({
+  required PlannedExpense exp,
+  required List<Transaction> transactions,
+  required String monthKey,
+  required Map<String, String> accountCurrency,
+  required num Function(num, String, String) convert,
+  required String baseCurrency,
+}) {
+  final plannedBase = convert(exp.amount, exp.currency, baseCurrency);
+  if (plannedBase <= 0) return false;
+  final expName = exp.name.trim().toLowerCase();
+  final expCat = exp.category?.trim().toLowerCase();
+  for (final t in transactions) {
+    if (t.type != TransactionType.expense) continue;
+    if (!t.date.startsWith(monthKey)) continue;
+    final txCat = t.category.trim().toLowerCase();
+    final catMatch = expCat != null && expCat.isNotEmpty && txCat == expCat;
+    final nameMatch = expName.isNotEmpty &&
+        (txCat.contains(expName) ||
+            expName.contains(txCat) ||
+            (t.notes?.toLowerCase().contains(expName) ?? false));
+    if (!catMatch && !nameMatch) continue;
+    final cur = t.accountId != null
+        ? (accountCurrency[t.accountId] ?? baseCurrency)
+        : baseCurrency;
+    final amtBase = convert(t.amount, cur, baseCurrency);
+    if (amtBase >= plannedBase * 0.5) return true;
+  }
+  return false;
+}
+
+/// Whether a planned expense should generate an obligation in [monthKey]
+/// (YYYY-MM). [ExpenseRecurrence.once] expenses apply only in their
+/// [PlannedExpense.startMonth] (falling back to [currentMonthKey] when unset);
+/// monthly expenses repeat every month but are suppressed before startMonth.
+/// Legacy expenses (monthly, no startMonth) apply every month. Mirrors the
+/// React `plannedExpenseAppliesToMonth`.
+bool plannedExpenseAppliesToMonth(
+  PlannedExpense exp,
+  String monthKey,
+  String currentMonthKey,
+) {
+  if (exp.recurrence == ExpenseRecurrence.once) {
+    final anchor =
+        (exp.startMonth != null && exp.startMonth!.isNotEmpty)
+            ? exp.startMonth!
+            : currentMonthKey;
+    return monthKey == anchor;
+  }
+  if (exp.startMonth != null &&
+      exp.startMonth!.isNotEmpty &&
+      monthKey.compareTo(exp.startMonth!) < 0) {
+    return false;
+  }
+  return true;
+}
+
 /// Returns the last working day on or before [dayOfMonth] in [year]/[month].
 DateTime adjustedPayDate(int year, int month, int dayOfMonth) {
   final daysInMonth = DateTime(year, month + 1, 0).day;
@@ -185,35 +247,6 @@ int _diffDays(DateTime a, DateTime b) {
 
 bool _isBefore(DateTime a, DateTime b) => _diffDays(a, b) > 0;
 
-/// Check if a planned income source has a matching real income transaction.
-/// Matches by: amount within 20% tolerance, date within ±5 days of pay date.
-bool _isIncomeReceived({
-  required IncomeSource source,
-  required DateTime? payDate,
-  required List<Transaction> incomeTxs,
-  required List<Account> accounts,
-  required CurrencyConvert? convert,
-  required String baseCurrency,
-}) {
-  if (payDate == null || incomeTxs.isEmpty || convert == null) return false;
-
-  for (final t in incomeTxs) {
-    // Date within ±5 days
-    final txDate = DateTime.tryParse(t.date);
-    if (txDate == null) continue;
-    final diff = (txDate.difference(payDate).inDays).abs();
-    if (diff > 5) continue;
-
-    // Amount within 20% tolerance
-    final txAmt =
-        convert(t.amount, _txCurrency(t, accounts, baseCurrency), baseCurrency)
-            .toDouble();
-    final ratio = source.amount > 0 ? txAmt / source.amount : 0.0;
-    if (ratio >= 0.8 && ratio <= 1.2) return true;
-  }
-  return false;
-}
-
 /// Synthesise a virtual [PlannedExpense] for each active loan so the budget
 /// cycle calculator treats loan monthly payments as part of the expense plan.
 ///
@@ -261,16 +294,18 @@ List<PlannedExpense> loansAsPlannedExpenses({
   return result;
 }
 
-/// Calculate budget cycles using real account balance as the base.
+/// Calculate budget cycles anchored to the *real* current balance, using the
+/// same cashflow engine as the "safe-to-spend" card so the two never diverge.
 ///
-/// Logic:
-/// 1. Account balance = real money available now (includes leftover from
-///    previous months)
-/// 2. Check each planned income: if it already arrived as a real transaction,
-///    it is already inside the account balance — do NOT add again.
-///    If it hasn't arrived yet, add it as pending future income.
-/// 3. Subtract unpaid planned expenses (including loans → see [loans] param).
-/// 4. Divide by remaining days = real daily/weekly budget.
+/// Produces, when the matching income sources exist:
+///   • До ближайшего дохода   (today → next income)
+///   • Аванс → Аванс          (today → the advance after next)
+///   • Зарплата → Зарплата    (today → the salary after next)
+///
+/// Each cycle's budget is `currentBalance + income in window − obligations −
+/// reserve`, and the daily figure is the steady safe spend/day for the window.
+/// Loans are folded into the obligations (unified ecosystem). Mirrors
+/// `computeBudgetCycles` in `src/lib/finance/budgetPlanner.ts`.
 List<BudgetCycle> computeBudgetCycles({
   required List<IncomeSource> incomeSources,
   required List<PlannedExpense> plannedExpenses,
@@ -282,40 +317,19 @@ List<BudgetCycle> computeBudgetCycles({
   CurrencyConvert? convert,
   String baseCurrency = 'BYN',
   double accountBalance = 0,
+  double reserve = 0,
   DateTime? today,
+  List<String> accountIds = const [],
 }) {
   final now = today ?? DateTime.now();
-  final year = now.year;
-  final month = now.month;
-  final cycles = <BudgetCycle>[];
+  final active = incomeSources.where((s) => s.isActive).toList();
+  final hasAdvance = active.any((s) => s.type == IncomeSourceType.advance);
+  final hasSalary = active.any((s) => s.type == IncomeSourceType.salary);
+  if (!hasAdvance && !hasSalary) return const <BudgetCycle>[];
 
-  final activeSources = incomeSources.where((s) => s.isActive).toList();
-  final salarySource =
-      activeSources.where((s) => s.type == IncomeSourceType.salary).firstOrNull;
-  final advanceSource =
-      activeSources.where((s) => s.type == IncomeSourceType.advance).firstOrNull;
-  final additionalSources =
-      activeSources.where((s) => s.type == IncomeSourceType.additional).toList();
-  final additionalTotal =
-      additionalSources.fold<double>(0, (sum, s) => sum + s.amount);
-
-  if (salarySource == null && advanceSource == null) return cycles;
-
-  final salaryDate =
-      salarySource != null ? getPayDate(salarySource, year, month) : null;
-  final advanceDate =
-      advanceSource != null ? getPayDate(advanceSource, year, month) : null;
-
-  final nextMonth = month == 12 ? 1 : month + 1;
-  final nextYear = month == 12 ? year + 1 : year;
-  final nextSalaryDate = salarySource != null
-      ? getPayDate(salarySource, nextYear, nextMonth)
-      : null;
-
-  final monthKey = '$year-${month.toString().padLeft(2, '0')}';
-
+  final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
   // Unified ecosystem: append virtual planned expenses derived from active
-  // loans so the daily/weekly budget already accounts for credit payments.
+  // loans so the budget already accounts for credit payments.
   final loanExpenses = loansAsPlannedExpenses(
     loans: loans,
     convert: convert,
@@ -323,184 +337,1311 @@ List<BudgetCycle> computeBudgetCycles({
     monthKey: monthKey,
     loanPayments: loanPayments,
   );
-  final activeExpenses = [
+  final allPlanned = [
     ...plannedExpenses.where((e) => e.isActive),
     ...loanExpenses,
   ];
 
-  // Gather real income transactions this month for matching
-  final realIncomeTxs = transactions
-      .where(
-          (t) => t.type == TransactionType.income && t.date.startsWith(monthKey))
-      .toList();
-
-  // Determine which planned income sources have already been received
-  final salaryReceived = salarySource != null &&
-      _isIncomeReceived(
-        source: salarySource,
-        payDate: salaryDate,
-        incomeTxs: realIncomeTxs,
-        accounts: accounts,
-        convert: convert,
-        baseCurrency: baseCurrency,
-      );
-  final advanceReceived = advanceSource != null &&
-      _isIncomeReceived(
-        source: advanceSource,
-        payDate: advanceDate,
-        incomeTxs: realIncomeTxs,
-        accounts: accounts,
-        convert: convert,
-        baseCurrency: baseCurrency,
-      );
-
-  // Helper: unpaid planned expenses in date range
-  double unpaidExpensesInRange(DateTime start, DateTime end) {
-    return activeExpenses
-        .where((e) {
-          if (e.isPaid) return false;
-          final expDay = e.dayFrom;
-          final startDay = start.day;
-          final endDay = end.day;
-          if (start.month == end.month) {
-            return expDay >= startDay && expDay <= endDay;
-          }
-          return expDay >= startDay || expDay <= endDay;
-        })
-        .fold<double>(0, (sum, e) => sum + e.amount);
+  // Real expenses already spent inside a window (for the dashboard "spent" ring).
+  double spentInWindow(DateTime start, DateTime end) {
+    final conv = convert ?? (num amount, String from, String to) => amount;
+    final from = DateTime(start.year, start.month, start.day);
+    final to = _isBefore(now, end) ? now : end;
+    final toDay = DateTime(to.year, to.month, to.day);
+    double total = 0;
+    for (final t in transactions) {
+      if (t.type != TransactionType.expense) continue;
+      final d = DateTime.tryParse(t.date);
+      if (d == null) continue;
+      final day = DateTime(d.year, d.month, d.day);
+      if (_isBefore(day, from)) continue;
+      if (_isAfter(day, toDay)) continue;
+      total += conv(t.amount, _txCurrency(t, accounts, baseCurrency), baseCurrency)
+          .toDouble();
+    }
+    return total;
   }
 
-  // Paid expenses total (already spent — reflected in account balance)
-  double paidExpensesTotal() {
-    return activeExpenses
-        .where((e) => e.isPaid)
-        .fold<double>(0, (sum, e) => e.paidAmount ?? e.amount);
-  }
+  final wanted = <CashflowRangeMode>[CashflowRangeMode.next];
+  if (hasAdvance) wanted.add(CashflowRangeMode.advanceToAdvance);
+  if (hasSalary) wanted.add(CashflowRangeMode.salaryToSalary);
 
-  // Manual actual expenses total
-  double manualActualTotal() {
-    return actualExpenses.fold<double>(0, (sum, e) => sum + e.amount);
-  }
+  final cycles = <BudgetCycle>[];
+  final seen = <String>{};
 
-  /// Build a cycle using account balance as the real base.
-  ///
-  /// remaining = accountBalance
-  ///           + pendingIncome (planned income not yet received)
-  ///           - unpaidPlannedExpenses
-  /// dailyBudget = remaining / daysLeft
-  BudgetCycle buildCycle(
-    String label,
-    DateTime startDate,
-    DateTime endDate, {
-    required double plannedIncome,
-    required double pendingIncome,
-    required double receivedIncome,
-  }) {
-    final totalDays = _diffDays(startDate, endDate);
-    final daysFromToday = _isBefore(now, startDate)
-        ? totalDays
-        : (_diffDays(now, endDate)).clamp(1, totalDays);
-    final unpaidExpenses = unpaidExpensesInRange(startDate, endDate);
-    final totalActualSpent = paidExpensesTotal() + manualActualTotal();
+  for (final mode in wanted) {
+    final forecast = computeCashflowForecast(
+      accounts: accounts,
+      transactions: transactions,
+      incomeSources: incomeSources,
+      plannedExpenses: allPlanned,
+      convert: convert,
+      baseCurrency: baseCurrency,
+      reserve: reserve,
+      today: now,
+      rangeMode: mode,
+      accountIds: accountIds,
+    );
+    final range = forecast.range;
+    if (!forecast.ok || range == null) continue;
 
-    // Real remaining money:
-    // Account balance already has: leftover + received income - actual spent
-    // We add only pending (future) income and subtract only unpaid expenses
-    final remaining = accountBalance + pendingIncome - unpaidExpenses;
-    final daily = daysFromToday > 0 ? remaining / daysFromToday : 0.0;
-    final fullWeeks = daysFromToday ~/ 7;
-    final extraDays = daysFromToday % 7;
+    // Skip duplicate windows (e.g. advance→advance coinciding with another).
+    final key =
+        '${range.startDate.millisecondsSinceEpoch}-${range.endDate.millisecondsSinceEpoch}-${range.label}';
+    if (seen.contains(key)) continue;
+    seen.add(key);
 
-    return BudgetCycle(
-      label: label,
-      startDate: startDate,
-      endDate: endDate,
-      totalDays: totalDays,
-      daysLeft: daysFromToday,
-      totalIncome: plannedIncome,
-      totalPlannedExpenses: unpaidExpenses,
-      remainingAfterExpenses: accountBalance + pendingIncome,
-      actualSpent: totalActualSpent,
-      remainingBudget: remaining,
-      dailyBudget: daily > 0 ? daily : 0,
-      weeklyBudget: daily > 0 ? daily * 7 : 0,
+    final available = range.startBalance + range.totalIncome;
+    // Keep the budget consistent with the card: total safe discretionary spend
+    // over the window is the steady daily figure across all its days.
+    final remainingBudget = range.smoothedDaily * range.daysLeft;
+    final fullWeeks = range.daysLeft ~/ 7;
+    final extraDays = range.daysLeft % 7;
+
+    cycles.add(BudgetCycle(
+      label: range.label,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      totalDays: range.days,
+      daysLeft: range.daysLeft,
+      totalIncome: available,
+      totalPlannedExpenses: range.totalObligations,
+      remainingAfterExpenses: available - range.totalObligations,
+      actualSpent: spentInWindow(range.startDate, range.endDate),
+      remainingBudget: remainingBudget,
+      dailyBudget: range.smoothedDaily,
+      weeklyBudget: range.smoothedDaily * 7,
       fullWeeks: fullWeeks,
       extraDays: extraDays,
-      accountBalance: accountBalance,
-      receivedIncome: receivedIncome,
-      pendingIncome: pendingIncome,
+      accountBalance: range.startBalance,
+      receivedIncome: 0,
+      pendingIncome: range.totalIncome,
       useAccountBase: true,
-    );
-  }
-
-  // ── Cycle 1: Salary → Advance ──
-  if (salaryDate != null &&
-      advanceDate != null &&
-      _isBefore(salaryDate, advanceDate)) {
-    // In this cycle, salary should be the income.
-    // If salary already received → it's in the account balance.
-    // Advance is NOT in this cycle yet.
-    final salaryAmt = salarySource!.amount;
-    final pending = salaryReceived ? 0.0 : salaryAmt;
-    final received = salaryReceived ? salaryAmt : 0.0;
-    cycles.add(buildCycle(
-      'От зарплаты до аванса',
-      salaryDate,
-      advanceDate,
-      plannedIncome: salaryAmt,
-      pendingIncome: pending,
-      receivedIncome: received,
-    ));
-  }
-
-  // ── Cycle 2: Advance → Next Salary ──
-  if (advanceDate != null && nextSalaryDate != null) {
-    final advanceAmt = advanceSource!.amount;
-    final pending = advanceReceived ? 0.0 : advanceAmt;
-    final received = advanceReceived ? advanceAmt : 0.0;
-    cycles.add(buildCycle(
-      'От аванса до зарплаты',
-      advanceDate,
-      nextSalaryDate,
-      plannedIncome: advanceAmt,
-      pendingIncome: pending,
-      receivedIncome: received,
-    ));
-  }
-
-  // ── Cycle 3: Salary → Next Salary (full cycle) ──
-  if (salaryDate != null && nextSalaryDate != null) {
-    final totalPlanned = (salarySource?.amount ?? 0) +
-        (advanceSource?.amount ?? 0) +
-        additionalTotal;
-    double pending = 0;
-    double received = 0;
-    if (salarySource != null) {
-      if (salaryReceived) {
-        received += salarySource.amount;
-      } else {
-        pending += salarySource.amount;
-      }
-    }
-    if (advanceSource != null) {
-      if (advanceReceived) {
-        received += advanceSource.amount;
-      } else {
-        pending += advanceSource.amount;
-      }
-    }
-    // Additional income: assume not yet received (conservative)
-    pending += additionalTotal;
-
-    cycles.add(buildCycle(
-      'От зарплаты до зарплаты',
-      salaryDate,
-      nextSalaryDate,
-      plannedIncome: totalPlanned,
-      pendingIncome: pending,
-      receivedIncome: received,
     ));
   }
 
   return cycles;
+}
+
+/// Global, month-agnostic budget cycles for the dashboard. Unlike
+/// [computeBudgetCycles] (which is bound to a single month's config), this spans
+/// every monthly budget config in [months] so the dashboard is independent of
+/// the tab the user has open: each projected month uses its own plan, falling
+/// back to the *current* month's config as a recurring template. "Monthly"
+/// items carry forward into unconfigured months; "once" items only land in their
+/// own month (see [plannedExpenseAppliesToMonth]). Loans recur every month.
+List<BudgetCycle> computeGlobalBudgetCycles({
+  required List<BudgetPlanConfig> months,
+  List<Transaction> transactions = const [],
+  List<Account> accounts = const [],
+  List<Loan> loans = const [],
+  List<LoanPayment> loanPayments = const [],
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  double reserve = 0,
+  DateTime? today,
+  List<String> accountIds = const [],
+}) {
+  final now = today ?? DateTime.now();
+  final currentKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  BudgetPlanConfig? byKey(String key) {
+    for (final m in months) {
+      if (m.monthKey == key) return m;
+    }
+    return null;
+  }
+
+  final template = byKey(currentKey);
+
+  // Income presence is taken from the union across every month so cycles still
+  // appear when only a future month carries an advance/salary.
+  final allIncome = [for (final m in months) ...m.incomeSources]
+      .where((s) => s.isActive)
+      .toList();
+  final hasAdvance = allIncome.any((s) => s.type == IncomeSourceType.advance);
+  final hasSalary = allIncome.any((s) => s.type == IncomeSourceType.salary);
+  if (!hasAdvance && !hasSalary) return const <BudgetCycle>[];
+
+  final loanExpenses = loansAsPlannedExpenses(
+    loans: loans,
+    convert: convert,
+    baseCurrency: baseCurrency,
+    monthKey: currentKey,
+    loanPayments: loanPayments,
+  );
+
+  List<IncomeSource> incomeForMonth(int year, int month) {
+    final key = '$year-${month.toString().padLeft(2, '0')}';
+    final cfg = byKey(key) ?? template;
+    return cfg?.incomeSources ?? const [];
+  }
+
+  List<PlannedExpense> expensesForMonth(int year, int month) {
+    final key = '$year-${month.toString().padLeft(2, '0')}';
+    final cfg = byKey(key) ?? template;
+    final base = (cfg?.plannedExpenses ?? const <PlannedExpense>[])
+        .where((e) => e.isActive);
+    return [...base, ...loanExpenses];
+  }
+
+  double spentInWindow(DateTime start, DateTime end) {
+    final conv = convert ?? (num amount, String from, String to) => amount;
+    final from = DateTime(start.year, start.month, start.day);
+    final to = _isBefore(now, end) ? now : end;
+    final toDay = DateTime(to.year, to.month, to.day);
+    double total = 0;
+    for (final t in transactions) {
+      if (t.type != TransactionType.expense) continue;
+      final d = DateTime.tryParse(t.date);
+      if (d == null) continue;
+      final day = DateTime(d.year, d.month, d.day);
+      if (_isBefore(day, from)) continue;
+      if (_isAfter(day, toDay)) continue;
+      total += conv(t.amount, _txCurrency(t, accounts, baseCurrency), baseCurrency)
+          .toDouble();
+    }
+    return total;
+  }
+
+  final wanted = <CashflowRangeMode>[CashflowRangeMode.next];
+  if (hasAdvance) wanted.add(CashflowRangeMode.advanceToAdvance);
+  if (hasSalary) wanted.add(CashflowRangeMode.salaryToSalary);
+
+  final cycles = <BudgetCycle>[];
+  final seen = <String>{};
+
+  for (final mode in wanted) {
+    final forecast = computeCashflowForecast(
+      accounts: accounts,
+      transactions: transactions,
+      incomeSources: template?.incomeSources ?? const [],
+      plannedExpenses: [
+        ...(template?.plannedExpenses ?? const <PlannedExpense>[]),
+        ...loanExpenses,
+      ],
+      convert: convert,
+      baseCurrency: baseCurrency,
+      reserve: reserve,
+      today: now,
+      rangeMode: mode,
+      accountIds: accountIds,
+      incomeForMonth: incomeForMonth,
+      expensesForMonth: expensesForMonth,
+    );
+    final range = forecast.range;
+    if (!forecast.ok || range == null) continue;
+
+    final key =
+        '${range.startDate.millisecondsSinceEpoch}-${range.endDate.millisecondsSinceEpoch}-${range.label}';
+    if (seen.contains(key)) continue;
+    seen.add(key);
+
+    final available = range.startBalance + range.totalIncome;
+    final remainingBudget = range.smoothedDaily * range.daysLeft;
+    final fullWeeks = range.daysLeft ~/ 7;
+    final extraDays = range.daysLeft % 7;
+
+    cycles.add(BudgetCycle(
+      label: range.label,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      totalDays: range.days,
+      daysLeft: range.daysLeft,
+      totalIncome: available,
+      totalPlannedExpenses: range.totalObligations,
+      remainingAfterExpenses: available - range.totalObligations,
+      actualSpent: spentInWindow(range.startDate, range.endDate),
+      remainingBudget: remainingBudget,
+      dailyBudget: range.smoothedDaily,
+      weeklyBudget: range.smoothedDaily * 7,
+      fullWeeks: fullWeeks,
+      extraDays: extraDays,
+      accountBalance: range.startBalance,
+      receivedIncome: 0,
+      pendingIncome: range.totalIncome,
+      useAccountBase: true,
+    ));
+  }
+
+  return cycles;
+}
+
+// ── Cashflow forecast / "safe-to-spend" engine ──
+//
+// Unlike [computeBudgetCycles] (which is anchored to calendar pay dates and uses
+// income amounts as the budget), this engine starts from the *real* current
+// balance across all accounts and projects how much can be spent per day until
+// the next income arrives, while still covering upcoming obligations and keeping
+// an optional untouchable reserve. Mirrors `computeCashflowForecast` in
+// `src/lib/finance/budgetPlanner.ts`.
+
+bool _isAfter(DateTime a, DateTime b) => _diffDays(b, a) > 0;
+
+bool _isSameDayD(DateTime a, DateTime b) => _diffDays(a, b) == 0;
+
+({int year, int month}) _addMonth(int year, int month, int k) {
+  // month here is 1-based (Dart convention). Convert to 0-based for the maths.
+  final total = (month - 1) + k;
+  final y = year + (total / 12).floor();
+  final m = ((total % 12) + 12) % 12;
+  return (year: y, month: m + 1);
+}
+
+/// Which window the forecast should be calculated over.
+/// - [auto]             until the next salary (legacy default)
+/// - [next]             until the next income of any kind
+/// - [advanceToAdvance] a full advance→advance cycle ahead
+/// - [salaryToSalary]   a full salary→salary cycle ahead
+/// - [fullHorizon]      the furthest income within `horizonDays`
+/// - [custom]           a user-picked date window (`customStart`/`customEnd`)
+enum CashflowRangeMode {
+  auto,
+  next,
+  advanceToAdvance,
+  salaryToSalary,
+  fullHorizon,
+  custom,
+}
+
+const Map<CashflowRangeMode, String> cashflowRangeLabels = {
+  CashflowRangeMode.auto: 'До зарплаты',
+  CashflowRangeMode.next: 'До ближайшего дохода',
+  CashflowRangeMode.advanceToAdvance: 'Аванс → Аванс',
+  CashflowRangeMode.salaryToSalary: 'Зарплата → Зарплата',
+  CashflowRangeMode.fullHorizon: 'Весь горизонт',
+  CashflowRangeMode.custom: 'Свой период',
+};
+
+/// Summary of the period the forecast was calculated over.
+class CashflowRangeSummary {
+  CashflowRangeSummary({
+    required this.mode,
+    required this.label,
+    required this.startDate,
+    required this.endDate,
+    required this.days,
+    required this.daysLeft,
+    required this.startBalance,
+    required this.totalIncome,
+    required this.totalObligations,
+    required this.smoothedDaily,
+  });
+
+  final CashflowRangeMode mode;
+  final String label;
+  final DateTime startDate;
+  final DateTime endDate;
+
+  /// Calendar days inside the window (>= 1).
+  final int days;
+
+  /// Calendar days from today to the window end (>= 0).
+  final int daysLeft;
+
+  /// Real balance at the window start, in base currency.
+  final double startBalance;
+
+  /// Income arriving inside the window, base currency.
+  final double totalIncome;
+
+  /// Obligations falling due inside the window, base currency.
+  final double totalObligations;
+
+  /// Steady safe spend/day across the whole window keeping the reserve.
+  final double smoothedDaily;
+}
+
+/// One window between today/an income and the next income.
+class CashflowSegment {
+  CashflowSegment({
+    required this.label,
+    required this.startDate,
+    required this.endDate,
+    required this.days,
+    required this.startBalance,
+    required this.obligations,
+    required this.incomeAtEnd,
+    required this.dailyLimit,
+    required this.endBalance,
+    required this.shortfall,
+  });
+
+  final String label;
+  final DateTime startDate;
+  final DateTime endDate;
+  final int days;
+  final double startBalance;
+  final double obligations;
+  final double incomeAtEnd;
+  final double dailyLimit;
+  final double endBalance;
+  final bool shortfall;
+}
+
+class NextIncome {
+  NextIncome({
+    required this.name,
+    required this.date,
+    required this.amount,
+    required this.daysUntil,
+  });
+
+  final String name;
+  final DateTime date;
+  final double amount;
+  final int daysUntil;
+}
+
+class CashflowForecast {
+  CashflowForecast({
+    required this.currentBalance,
+    required this.reserve,
+    required this.baseCurrency,
+    required this.segments,
+    required this.nextIncome,
+    required this.dailyUntilNextIncome,
+    required this.smoothedDaily,
+    required this.horizonEnd,
+    required this.range,
+    required this.hasCashGap,
+    required this.ok,
+  });
+
+  final double currentBalance;
+  final double reserve;
+  final String baseCurrency;
+  final List<CashflowSegment> segments;
+  final NextIncome? nextIncome;
+  final double dailyUntilNextIncome;
+  final double smoothedDaily;
+  final DateTime? horizonEnd;
+
+  /// The window the forecast was calculated over (null when no forecast).
+  final CashflowRangeSummary? range;
+  final bool hasCashGap;
+  final bool ok;
+}
+
+class _CashEvent {
+  _CashEvent({required this.date, required this.amount, required this.name});
+  final DateTime date;
+  final double amount;
+  final String name;
+}
+
+/// Current balance per account = initialBalance + income − expense ± transfers,
+/// each account's running total converted into [baseCurrency].
+/// [includeAccountIds] restricts which balances are summed (empty = all), but
+/// every account in [accounts] is still used to resolve transfer source/
+/// destination currencies — so a transfer from an unselected account keeps its
+/// FX metadata instead of being credited raw.
+double computeCurrentBalance({
+  required List<Account> accounts,
+  required List<Transaction> transactions,
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  List<String> includeAccountIds = const [],
+}) {
+  final conv = convert ?? (num amount, String from, String to) => amount;
+  final include = includeAccountIds.toSet();
+  double total = 0;
+  for (final a in accounts) {
+    if (include.isNotEmpty && !include.contains(a.id)) continue;
+    final b = accountBalance(
+      account: a,
+      transactions: transactions,
+      accounts: accounts,
+      convert: conv,
+    );
+    total += conv(b, a.currency, baseCurrency).toDouble();
+  }
+  return total;
+}
+
+/// Result of walking the windows between a start date and a horizon end.
+typedef _Walk = ({
+  List<CashflowSegment> segments,
+  double smoothedDaily,
+  bool hasCashGap,
+  double totalIncome,
+  double totalObligations,
+});
+
+/// Project a cash runway from the current balance over a chosen window and work
+/// out a safe spend-per-day for each segment and for the whole window.
+///
+/// The window is controlled by [rangeMode] (default `auto` = until the next
+/// salary, preserving the original behaviour). All figures derive from the real
+/// current balance across accounts, so the card and the budget cycles stay
+/// consistent. Mirrors `computeCashflowForecast` in
+/// `src/lib/finance/budgetPlanner.ts`.
+CashflowForecast computeCashflowForecast({
+  required List<Account> accounts,
+  required List<Transaction> transactions,
+  required List<IncomeSource> incomeSources,
+  required List<PlannedExpense> plannedExpenses,
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  double reserve = 0,
+  DateTime? today,
+  int horizonDays = 45,
+  CashflowRangeMode rangeMode = CashflowRangeMode.auto,
+  DateTime? customStart,
+  DateTime? customEnd,
+  List<String> accountIds = const [],
+  // Optional per-month plan resolvers for a *global* forecast that spans every
+  // monthly budget config. When provided, each projected month uses the plan
+  // returned for that month instead of recurring the flat [incomeSources] /
+  // [plannedExpenses] template. [incomeSources]/[plannedExpenses] are still
+  // used as the fallback template (and for the empty-income guard).
+  List<IncomeSource> Function(int year, int month)? incomeForMonth,
+  List<PlannedExpense> Function(int year, int month)? expensesForMonth,
+}) {
+  final conv = convert ?? (num amount, String from, String to) => amount;
+  final now = today ?? DateTime.now();
+  DateTime startOf(DateTime d) => DateTime(d.year, d.month, d.day);
+  final startOfToday = startOf(now);
+  // Sum only the selected accounts, but keep every account available for
+  // transfer currency resolution (see computeCurrentBalance docs).
+  final currentBalance = computeCurrentBalance(
+    accounts: accounts,
+    transactions: transactions,
+    convert: conv,
+    baseCurrency: baseCurrency,
+    includeAccountIds: accountIds,
+  );
+
+  CashflowForecast empty() => CashflowForecast(
+        currentBalance: currentBalance,
+        reserve: reserve,
+        baseCurrency: baseCurrency,
+        segments: const [],
+        nextIncome: null,
+        dailyUntilNextIncome: 0,
+        smoothedDaily: 0,
+        horizonEnd: null,
+        range: null,
+        hasCashGap: false,
+        ok: false,
+      );
+
+  final active = incomeSources.where((s) => s.isActive).toList();
+  if (active.isEmpty) return empty();
+
+  double toBase(double amount, String currency) =>
+      conv(amount, currency, baseCurrency).toDouble();
+
+  // Build income occurrences across the next several months (enough to find a
+  // second advance/salary for the repeating-cycle modes).
+  final incomeEvents = <_CashEvent>[];
+  final advanceDates = <DateTime>[];
+  final salaryDates = <DateTime>[];
+  DateTime? firstSalary;
+  for (var k = 0; k <= 6; k++) {
+    final ym = _addMonth(now.year, now.month, k);
+    final monthSources = incomeForMonth != null
+        ? incomeForMonth(ym.year, ym.month).where((s) => s.isActive).toList()
+        : active;
+    for (final src in monthSources) {
+      final date = getPayDate(src, ym.year, ym.month);
+      if (date == null) continue;
+      if (!_isAfter(date, startOfToday)) continue;
+      if (src.type == IncomeSourceType.salary) {
+        if (firstSalary == null || _isBefore(date, firstSalary)) {
+          firstSalary = date;
+        }
+        salaryDates.add(date);
+      }
+      if (src.type == IncomeSourceType.advance) advanceDates.add(date);
+      incomeEvents.add(_CashEvent(
+        date: date,
+        amount: toBase(src.amount, src.currency),
+        name: src.name,
+      ));
+    }
+  }
+  incomeEvents.sort((a, b) => a.date.compareTo(b.date));
+  advanceDates.sort((a, b) => a.compareTo(b));
+  salaryDates.sort((a, b) => a.compareTo(b));
+
+  final nextIncomeDate = incomeEvents.isNotEmpty ? incomeEvents.first.date : null;
+  final furthestCandidates = incomeEvents
+      .map((e) => e.date)
+      .where((d) => _diffDays(startOfToday, d) <= horizonDays)
+      .toList()
+    ..sort((a, b) => b.compareTo(a));
+  final furthestWithinHorizon =
+      furthestCandidates.isNotEmpty ? furthestCandidates.first : null;
+
+  // Resolve the window [rangeStart, horizonEnd] from the requested mode.
+  var rangeStart = startOfToday;
+  DateTime? horizonEnd;
+  switch (rangeMode) {
+    case CashflowRangeMode.next:
+      horizonEnd = nextIncomeDate;
+      break;
+    case CashflowRangeMode.advanceToAdvance:
+      horizonEnd = advanceDates.length > 1
+          ? advanceDates[1]
+          : (advanceDates.isNotEmpty ? advanceDates[0] : null);
+      break;
+    case CashflowRangeMode.salaryToSalary:
+      horizonEnd = salaryDates.length > 1
+          ? salaryDates[1]
+          : (salaryDates.isNotEmpty ? salaryDates[0] : null);
+      break;
+    case CashflowRangeMode.fullHorizon:
+      horizonEnd = furthestWithinHorizon;
+      break;
+    case CashflowRangeMode.custom:
+      rangeStart = customStart != null ? startOf(customStart) : startOfToday;
+      horizonEnd = customEnd != null ? startOf(customEnd) : null;
+      break;
+    case CashflowRangeMode.auto:
+      horizonEnd = firstSalary ?? furthestWithinHorizon;
+      break;
+  }
+  // Fall back to the broadest sensible horizon if the requested one is missing.
+  horizonEnd ??= firstSalary ?? furthestWithinHorizon ?? nextIncomeDate;
+  if (horizonEnd == null || !_isAfter(horizonEnd, startOfToday)) return empty();
+  if (_isBefore(rangeStart, startOfToday)) rangeStart = startOfToday;
+  if (!_isAfter(horizonEnd, rangeStart)) return empty();
+  final horizonEndFinal = horizonEnd;
+
+  // Build obligation occurrences (unpaid planned expenses) at their deadline.
+  final accountCurrency = {for (final a in accounts) a.id: a.currency};
+  final currentMonthKey =
+      '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  final obligations = <_CashEvent>[];
+  for (var k = 0; k <= 6; k++) {
+    final ym = _addMonth(now.year, now.month, k);
+    final occMonthKey = '${ym.year}-${ym.month.toString().padLeft(2, '0')}';
+    final monthExpenses =
+        expensesForMonth != null ? expensesForMonth(ym.year, ym.month) : plannedExpenses;
+    for (final exp in monthExpenses) {
+      if (!exp.isActive) continue;
+      if (!plannedExpenseAppliesToMonth(exp, occMonthKey, currentMonthKey)) {
+        continue;
+      }
+      // `isPaid` means "paid in the current cycle" — it (like the auto-detected
+      // transaction match) must only suppress the current-month occurrence, not
+      // every future monthly occurrence.
+      if (k == 0) {
+        final paidThisMonth = exp.isPaid ||
+            plannedExpensePaidByTransaction(
+              exp: exp,
+              transactions: transactions,
+              monthKey: currentMonthKey,
+              accountCurrency: accountCurrency,
+              convert: conv,
+              baseCurrency: baseCurrency,
+            );
+        if (paidThisMonth) continue;
+      }
+      final dim = DateTime(ym.year, ym.month + 1, 0).day;
+      final dayCandidate =
+          exp.dayTo != 0 ? exp.dayTo : (exp.dayFrom != 0 ? exp.dayFrom : dim);
+      final day = dayCandidate.clamp(1, dim);
+      final date = DateTime(ym.year, ym.month, day);
+      // Lower bound is inclusive so a bill due *today* is still counted (walk()
+      // already includes obligations at the segment cursor).
+      if ((_isAfter(date, startOfToday) || _isSameDayD(date, startOfToday)) &&
+          !_isAfter(date, horizonEndFinal)) {
+        obligations.add(_CashEvent(
+          date: date,
+          amount: toBase(exp.amount, exp.currency),
+          name: exp.name,
+        ));
+      }
+    }
+  }
+
+  /// Walk the windows between [from] and [to], splitting at each income event.
+  _Walk walk(DateTime from, double startBalance, DateTime to) {
+    final incs = incomeEvents
+        .where((e) => _isAfter(e.date, from) && !_isAfter(e.date, to))
+        .toList();
+    // Coalesce income events that fall on the same calendar day, otherwise two
+    // sources on one date create a phantom 1-day segment and double-count the
+    // obligations due that day. incomeEvents is already sorted ascending.
+    final boundaries = <({DateTime date, double income, String? name})>[];
+    for (final e in incs) {
+      if (boundaries.isNotEmpty && _isSameDayD(boundaries.last.date, e.date)) {
+        final prev = boundaries.removeLast();
+        boundaries.add((
+          date: prev.date,
+          income: prev.income + e.amount,
+          name: prev.name != null ? '${prev.name}, ${e.name}' : e.name,
+        ));
+      } else {
+        boundaries.add((date: e.date, income: e.amount, name: e.name));
+      }
+    }
+    final last = boundaries.isNotEmpty ? boundaries.last : null;
+    if ((last == null || _isBefore(last.date, to)) && _isAfter(to, from)) {
+      boundaries.add((date: to, income: 0.0, name: null));
+    }
+
+    final segs = <CashflowSegment>[];
+    var cursor = from;
+    var balance = startBalance;
+    var gap = false;
+    var smoothed = double.infinity;
+    var cumDays = 0;
+    var cumObligations = 0.0;
+    var cumIncomeBefore = 0.0;
+    var totalIncome = 0.0;
+    var totalObligations = 0.0;
+
+    for (var i = 0; i < boundaries.length; i++) {
+      final b = boundaries[i];
+      final days = _diffDays(cursor, b.date).clamp(1, 1 << 30);
+      final segObligations = obligations
+          .where((o) => _isAfter(o.date, cursor) || _isSameDayD(o.date, cursor))
+          .where((o) => !_isAfter(o.date, b.date))
+          .fold<double>(0, (sum, o) => sum + o.amount);
+
+      final spendable = balance - reserve - segObligations;
+      final dailyLimit = spendable > 0 ? spendable / days : 0.0;
+      final shortfall = spendable < 0;
+      if (shortfall) gap = true;
+
+      final endBalance = balance - segObligations - dailyLimit * days + b.income;
+      final prevName = i > 0 ? boundaries[i - 1].name : null;
+      final label = i == 0
+          ? (b.name != null ? 'До «${b.name}»' : 'До конца периода')
+          : (b.name != null
+              ? '«${prevName ?? '…'}» → «${b.name}»'
+              : '«${prevName ?? '…'}» → конец периода');
+
+      segs.add(CashflowSegment(
+        label: label,
+        startDate: cursor,
+        endDate: b.date,
+        days: days,
+        startBalance: balance,
+        obligations: segObligations,
+        incomeAtEnd: b.income,
+        dailyLimit: dailyLimit,
+        endBalance: endBalance,
+        shortfall: shortfall,
+      ));
+
+      cumDays += days;
+      cumObligations += segObligations;
+      final feasibleBefore =
+          startBalance + cumIncomeBefore - cumObligations - reserve;
+      final perDay = feasibleBefore / cumDays;
+      if (perDay < smoothed) smoothed = perDay;
+      cumIncomeBefore += b.income;
+      // Income arriving exactly at the window's closing boundary belongs to the
+      // next cycle, so it is not spendable inside this window.
+      if (_isBefore(b.date, to)) totalIncome += b.income;
+      totalObligations += segObligations;
+
+      balance = endBalance;
+      cursor = b.date;
+    }
+
+    return (
+      segments: segs,
+      smoothedDaily:
+          smoothed == double.infinity ? 0.0 : (smoothed > 0 ? smoothed : 0.0),
+      hasCashGap: gap,
+      totalIncome: totalIncome,
+      totalObligations: totalObligations,
+    );
+  }
+
+  // Project the balance forward to a future window start (custom ranges only),
+  // assuming no discretionary spend before the window opens.
+  var startBalance = currentBalance;
+  if (_isAfter(rangeStart, startOfToday)) {
+    var projected = currentBalance;
+    for (final e in incomeEvents) {
+      if (_isAfter(e.date, startOfToday) && !_isAfter(e.date, rangeStart)) {
+        projected += e.amount;
+      }
+    }
+    for (final o in obligations) {
+      if (_isAfter(o.date, startOfToday) && !_isAfter(o.date, rangeStart)) {
+        projected -= o.amount;
+      }
+    }
+    startBalance = projected;
+  }
+
+  final rangeWalk = walk(rangeStart, startBalance, horizonEndFinal);
+  if (rangeWalk.segments.isEmpty) return empty();
+
+  // Headline "until next income" is always measured from today, even when the
+  // selected window starts later.
+  final headline =
+      nextIncomeDate != null ? walk(startOfToday, currentBalance, nextIncomeDate) : null;
+  final dailyUntilNextIncome =
+      rangeStart.isAtSameMomentAs(startOfToday)
+          ? (rangeWalk.segments.isNotEmpty ? rangeWalk.segments.first.dailyLimit : 0.0)
+          : (headline != null && headline.segments.isNotEmpty
+              ? headline.segments.first.dailyLimit
+              : 0.0);
+
+  final next = incomeEvents.isNotEmpty ? incomeEvents.first : null;
+
+  return CashflowForecast(
+    currentBalance: currentBalance,
+    reserve: reserve,
+    baseCurrency: baseCurrency,
+    segments: rangeWalk.segments,
+    nextIncome: next != null
+        ? NextIncome(
+            name: next.name,
+            date: next.date,
+            amount: next.amount,
+            daysUntil: _diffDays(startOfToday, next.date).clamp(0, 1 << 30),
+          )
+        : null,
+    dailyUntilNextIncome: dailyUntilNextIncome,
+    smoothedDaily: rangeWalk.smoothedDaily,
+    horizonEnd: horizonEndFinal,
+    range: CashflowRangeSummary(
+      mode: rangeMode,
+      label: cashflowRangeLabels[rangeMode]!,
+      startDate: rangeStart,
+      endDate: horizonEndFinal,
+      days: _diffDays(rangeStart, horizonEndFinal).clamp(1, 1 << 30),
+      daysLeft: _diffDays(startOfToday, horizonEndFinal).clamp(0, 1 << 30),
+      startBalance: startBalance,
+      totalIncome: rangeWalk.totalIncome,
+      totalObligations: rangeWalk.totalObligations,
+      smoothedDaily: rangeWalk.smoothedDaily,
+    ),
+    hasCashGap: rangeWalk.hasCashGap,
+    ok: true,
+  );
+}
+
+/// Global, month-agnostic cashflow forecast spanning every monthly budget
+/// config in [months]. The dashboard uses this so it no longer depends on the
+/// tab the user happens to have open: each projected month draws its plan from
+/// its own config when one exists, and falls back to the *current* month's
+/// config as a recurring template otherwise. Combined with
+/// [plannedExpenseAppliesToMonth], "monthly" items carry forward into
+/// unconfigured months while "once" items only land in their own month.
+///
+/// [extraMonthlyExpenses] (e.g. loan instalments) recur in every month.
+CashflowForecast computeGlobalCashflowForecast({
+  required List<BudgetPlanConfig> months,
+  required List<Account> accounts,
+  required List<Transaction> transactions,
+  List<PlannedExpense> extraMonthlyExpenses = const [],
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  double reserve = 0,
+  DateTime? today,
+  int horizonDays = 45,
+  CashflowRangeMode rangeMode = CashflowRangeMode.auto,
+  DateTime? customStart,
+  DateTime? customEnd,
+  List<String> accountIds = const [],
+}) {
+  final now = today ?? DateTime.now();
+  final currentKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  BudgetPlanConfig? byKey(String key) {
+    for (final m in months) {
+      if (m.monthKey == key) return m;
+    }
+    return null;
+  }
+
+  final template = byKey(currentKey);
+
+  List<IncomeSource> incomeForMonth(int year, int month) {
+    final key = '$year-${month.toString().padLeft(2, '0')}';
+    final cfg = byKey(key) ?? template;
+    return cfg?.incomeSources ?? const [];
+  }
+
+  List<PlannedExpense> expensesForMonth(int year, int month) {
+    final key = '$year-${month.toString().padLeft(2, '0')}';
+    final cfg = byKey(key) ?? template;
+    final base = cfg?.plannedExpenses ?? const <PlannedExpense>[];
+    return extraMonthlyExpenses.isEmpty
+        ? base
+        : [...base, ...extraMonthlyExpenses];
+  }
+
+  return computeCashflowForecast(
+    accounts: accounts,
+    transactions: transactions,
+    incomeSources: template?.incomeSources ?? const [],
+    plannedExpenses: [
+      ...(template?.plannedExpenses ?? const <PlannedExpense>[]),
+      ...extraMonthlyExpenses,
+    ],
+    convert: convert,
+    baseCurrency: baseCurrency,
+    reserve: reserve,
+    today: today,
+    horizonDays: horizonDays,
+    rangeMode: rangeMode,
+    customStart: customStart,
+    customEnd: customEnd,
+    accountIds: accountIds,
+    incomeForMonth: incomeForMonth,
+    expensesForMonth: expensesForMonth,
+  );
+}
+
+// ── Spending averages (actual history) ──
+//
+// Groups real income/expense transactions by calendar month (converted to the
+// base currency via each account's currency) and derives average daily and
+// monthly figures. Shared by the monthly-analysis section (P3) and the
+// average-based forecast scenarios in the safe-to-spend card (P3b). Mirrors
+// `computeSpendingAverages` in `src/lib/finance/budgetPlanner.ts`.
+
+/// Per-month actual totals plus the average daily figures for that month.
+class MonthlySpending {
+  MonthlySpending({
+    required this.monthKey,
+    required this.year,
+    required this.month,
+    required this.totalExpense,
+    required this.totalIncome,
+    required this.net,
+    required this.days,
+    required this.avgDailyExpense,
+    required this.avgDailyIncome,
+  });
+
+  /// 'yyyy-MM'.
+  final String monthKey;
+  final int year;
+
+  /// 1-based (Dart convention).
+  final int month;
+  final double totalExpense;
+  final double totalIncome;
+  final double net;
+
+  /// Days counted for averaging (elapsed days for the current month).
+  final int days;
+  final double avgDailyExpense;
+  final double avgDailyIncome;
+}
+
+class SpendingAverages {
+  SpendingAverages({
+    required this.months,
+    required this.avgDailyExpense,
+    required this.avgDailyIncome,
+    required this.avgMonthlyExpense,
+    required this.avgMonthlyIncome,
+    required this.monthsCounted,
+  });
+
+  /// Months with activity, oldest → newest.
+  final List<MonthlySpending> months;
+  final double avgDailyExpense;
+  final double avgDailyIncome;
+  final double avgMonthlyExpense;
+  final double avgMonthlyIncome;
+  final int monthsCounted;
+
+  static SpendingAverages empty() => SpendingAverages(
+        months: const [],
+        avgDailyExpense: 0,
+        avgDailyIncome: 0,
+        avgMonthlyExpense: 0,
+        avgMonthlyIncome: 0,
+        monthsCounted: 0,
+      );
+}
+
+/// Compute average daily / monthly expense and income from actual transactions.
+///
+/// Only `income` and `expense` transactions count (transfers move money between
+/// own accounts and are ignored). Amounts are converted from each account's
+/// currency into [baseCurrency]. The window spans the most recent [monthsBack]
+/// calendar months (including the current, partial one); the current month is
+/// averaged over the days elapsed so far so its daily rate isn't diluted.
+SpendingAverages computeSpendingAverages({
+  required List<Account> accounts,
+  required List<Transaction> transactions,
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  DateTime? today,
+  int monthsBack = 6,
+  List<String> accountIds = const [],
+}) {
+  final conv = convert ?? (num amount, String from, String to) => amount;
+  final now = today ?? DateTime.now();
+  final selected = accountIds.isEmpty
+      ? accounts
+      : accounts.where((a) => accountIds.contains(a.id)).toList();
+  if (selected.isEmpty) return SpendingAverages.empty();
+  final selectedIds = selected.map((a) => a.id).toSet();
+
+  final windowStart =
+      _addMonth(now.year, now.month, -((monthsBack < 1 ? 1 : monthsBack) - 1));
+  final startKey =
+      '${windowStart.year}-${windowStart.month.toString().padLeft(2, '0')}';
+  final curKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+
+  final buckets = <String, ({double expense, double income})>{};
+  for (final t in transactions) {
+    if (t.type != TransactionType.income && t.type != TransactionType.expense) {
+      continue;
+    }
+    if (t.accountId == null || !selectedIds.contains(t.accountId)) continue;
+    if (t.date.length < 7) continue;
+    final key = t.date.substring(0, 7); // 'yyyy-MM'
+    if (key.compareTo(startKey) < 0 || key.compareTo(curKey) > 0) continue;
+    final base =
+        conv(t.amount, _txCurrency(t, accounts, baseCurrency), baseCurrency)
+            .toDouble();
+    final cur = buckets[key] ?? (expense: 0.0, income: 0.0);
+    buckets[key] = t.type == TransactionType.expense
+        ? (expense: cur.expense + base, income: cur.income)
+        : (expense: cur.expense, income: cur.income + base);
+  }
+
+  if (buckets.isEmpty) return SpendingAverages.empty();
+  final keys = buckets.keys.toList()..sort();
+
+  final months = <MonthlySpending>[];
+  var sumExpense = 0.0;
+  var sumIncome = 0.0;
+  var sumDays = 0;
+  for (final key in keys) {
+    final parts = key.split('-');
+    final year = int.parse(parts[0]);
+    final month = int.parse(parts[1]); // 1-based
+    final b = buckets[key]!;
+    final days = key == curKey
+        ? (now.day < 1 ? 1 : now.day)
+        : DateTime(year, month + 1, 0).day;
+    months.add(MonthlySpending(
+      monthKey: key,
+      year: year,
+      month: month,
+      totalExpense: b.expense,
+      totalIncome: b.income,
+      net: b.income - b.expense,
+      days: days,
+      avgDailyExpense: b.expense / days,
+      avgDailyIncome: b.income / days,
+    ));
+    sumExpense += b.expense;
+    sumIncome += b.income;
+    sumDays += days;
+  }
+
+  final monthsCounted = months.length;
+  return SpendingAverages(
+    months: months,
+    avgDailyExpense: sumDays > 0 ? sumExpense / sumDays : 0,
+    avgDailyIncome: sumDays > 0 ? sumIncome / sumDays : 0,
+    avgMonthlyExpense: monthsCounted > 0 ? sumExpense / monthsCounted : 0,
+    avgMonthlyIncome: monthsCounted > 0 ? sumIncome / monthsCounted : 0,
+    monthsCounted: monthsCounted,
+  );
+}
+
+// ── Safe-to-spend forecast scenarios (P3b) ──
+//
+// On top of a chosen window (`computeCashflowForecast`), project the ending
+// balance under different spending assumptions. Critical guard against
+// double-counting obligations:
+//   • planToZero / customDaily — the daily figure is *discretionary* spend, so
+//     planned obligations are subtracted on top.
+//   • avgExpense / avgExpenseIncome — the daily figure is the *complete*
+//     historical spend (obligations already inside it), so obligations are NOT
+//     subtracted again. Mirrors `computeScenarioProjection` in
+//     `src/lib/finance/budgetPlanner.ts`.
+
+enum SafeToSpendScenario {
+  /// Safe discretionary spend/day to reach the window end at the reserve.
+  planToZero,
+
+  /// User enters their own daily spend; we project the ending balance.
+  customDaily,
+
+  /// Daily = historical average expense/day; planned income kept.
+  avgExpense,
+
+  /// Daily = historical average expense/day AND income = historical average.
+  avgExpenseIncome,
+}
+
+const Map<SafeToSpendScenario, String> scenarioLabels = {
+  SafeToSpendScenario.planToZero: 'План «в 0»',
+  SafeToSpendScenario.customDaily: 'Свой лимит/день',
+  SafeToSpendScenario.avgExpense: 'Средний расход',
+  SafeToSpendScenario.avgExpenseIncome: 'Средние расход + доход',
+};
+
+class ScenarioProjection {
+  ScenarioProjection({
+    required this.scenario,
+    required this.dailySpend,
+    required this.income,
+    required this.obligations,
+    required this.daysLeft,
+    required this.startBalance,
+    required this.endBalance,
+    required this.surplusOverReserve,
+    required this.shortfall,
+    required this.insufficientHistory,
+  });
+
+  final SafeToSpendScenario scenario;
+  final double dailySpend;
+  final double income;
+  final double obligations;
+  final int daysLeft;
+  final double startBalance;
+  final double endBalance;
+  final double surplusOverReserve;
+  final bool shortfall;
+  final bool insufficientHistory;
+}
+
+/// Project the ending balance for a forecast window under a chosen scenario.
+/// Returns null when the forecast produced no window.
+ScenarioProjection? computeScenarioProjection({
+  required SafeToSpendScenario scenario,
+  required CashflowForecast forecast,
+  double? reserve,
+  SpendingAverages? averages,
+  double? customDaily,
+}) {
+  final range = forecast.range;
+  if (range == null) return null;
+  final res = reserve ?? forecast.reserve;
+
+  final startBalance = range.startBalance;
+  final daysLeft = range.daysLeft;
+  var dailySpend = 0.0;
+  var income = range.totalIncome;
+  var obligations = range.totalObligations;
+  var insufficientHistory = false;
+
+  switch (scenario) {
+    case SafeToSpendScenario.planToZero:
+      dailySpend = range.smoothedDaily;
+      break;
+    case SafeToSpendScenario.customDaily:
+      dailySpend = (customDaily ?? 0) < 0 ? 0 : (customDaily ?? 0);
+      break;
+    case SafeToSpendScenario.avgExpense:
+      dailySpend = averages?.avgDailyExpense ?? 0;
+      obligations = 0; // already inside the historical average
+      insufficientHistory = averages == null || averages.monthsCounted == 0;
+      break;
+    case SafeToSpendScenario.avgExpenseIncome:
+      dailySpend = averages?.avgDailyExpense ?? 0;
+      obligations = 0; // already inside the historical average
+      income = (averages?.avgDailyIncome ?? 0) * daysLeft;
+      insufficientHistory = averages == null || averages.monthsCounted == 0;
+      break;
+  }
+
+  final endBalance = startBalance + income - obligations - dailySpend * daysLeft;
+  final surplusOverReserve = endBalance - res;
+  final shortfall = scenario == SafeToSpendScenario.planToZero
+      ? forecast.hasCashGap
+      : endBalance < res;
+
+  return ScenarioProjection(
+    scenario: scenario,
+    dailySpend: dailySpend,
+    income: income,
+    obligations: obligations,
+    daysLeft: daysLeft,
+    startBalance: startBalance,
+    endBalance: endBalance,
+    surplusOverReserve: surplusOverReserve,
+    shortfall: shortfall,
+    insufficientHistory: insufficientHistory,
+  );
+}
+
+// ── Month-vs-month comparison (P4) ──
+//
+// Compares the actual income/expense of two calendar months (converted to the
+// base currency), including per-category expense deltas. Built directly from
+// real transactions. Mirrors `computeMonthlyComparison` in
+// `src/lib/finance/budgetPlanner.ts`.
+
+/// One month's actual totals plus its per-category expense breakdown.
+class MonthComparisonSide {
+  MonthComparisonSide({
+    required this.monthKey,
+    required this.year,
+    required this.month,
+    required this.totalExpense,
+    required this.totalIncome,
+    required this.net,
+    required this.byCategory,
+  });
+
+  /// 'yyyy-MM'.
+  final String monthKey;
+  final int year;
+
+  /// 1-based (Dart convention).
+  final int month;
+  final double totalExpense;
+  final double totalIncome;
+  final double net;
+
+  /// Expense per category (base currency).
+  final Map<String, double> byCategory;
+}
+
+/// Per-category expense delta between the two compared months (b − a).
+class CategoryDelta {
+  CategoryDelta({
+    required this.category,
+    required this.a,
+    required this.b,
+    required this.delta,
+  });
+
+  final String category;
+  final double a;
+  final double b;
+
+  /// b − a: positive = spent more in month b.
+  final double delta;
+}
+
+class MonthlyComparison {
+  MonthlyComparison({
+    required this.a,
+    required this.b,
+    required this.expenseDelta,
+    required this.incomeDelta,
+    required this.netDelta,
+    required this.categories,
+  });
+
+  final MonthComparisonSide a;
+  final MonthComparisonSide b;
+
+  /// b − a for each total.
+  final double expenseDelta;
+  final double incomeDelta;
+  final double netDelta;
+
+  /// Per-category expense deltas, sorted by |delta| descending.
+  final List<CategoryDelta> categories;
+}
+
+MonthComparisonSide _emptyComparisonSide(String monthKey) {
+  final parts = monthKey.split('-');
+  final year = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 0) : 0;
+  final month = parts.length > 1 ? (int.tryParse(parts[1]) ?? 1) : 1;
+  return MonthComparisonSide(
+    monthKey: monthKey,
+    year: year,
+    month: month,
+    totalExpense: 0,
+    totalIncome: 0,
+    net: 0,
+    byCategory: {},
+  );
+}
+
+/// Compare the actual income/expense of two calendar months (`'yyyy-MM'`).
+///
+/// Transfers are ignored; amounts are converted from each account's currency to
+/// [baseCurrency]. Deltas are computed as `b − a` so a positive expense delta
+/// means month `b` spent more. `categories` lists every expense category present
+/// in either month, sorted by the magnitude of the change.
+MonthlyComparison computeMonthlyComparison({
+  required List<Account> accounts,
+  required List<Transaction> transactions,
+  required String monthKeyA,
+  required String monthKeyB,
+  CurrencyConvert? convert,
+  String baseCurrency = 'BYN',
+  List<String> accountIds = const [],
+}) {
+  final conv = convert ?? (num amount, String from, String to) => amount;
+  final selectedIds = accountIds.isEmpty
+      ? accounts.map((a) => a.id).toSet()
+      : accountIds.toSet();
+
+  final a = _emptyComparisonSide(monthKeyA);
+  final b = _emptyComparisonSide(monthKeyB);
+  var aIncome = 0.0, aExpense = 0.0, bIncome = 0.0, bExpense = 0.0;
+
+  for (final t in transactions) {
+    if (t.type != TransactionType.income && t.type != TransactionType.expense) {
+      continue;
+    }
+    if (t.accountId == null || !selectedIds.contains(t.accountId)) continue;
+    if (t.date.length < 7) continue;
+    final key = t.date.substring(0, 7);
+    final MonthComparisonSide? side =
+        key == monthKeyA ? a : (key == monthKeyB ? b : null);
+    if (side == null) continue;
+    final base =
+        conv(t.amount, _txCurrency(t, accounts, baseCurrency), baseCurrency)
+            .toDouble();
+    if (t.type == TransactionType.income) {
+      if (side == a) {
+        aIncome += base;
+      } else {
+        bIncome += base;
+      }
+    } else {
+      if (side == a) {
+        aExpense += base;
+      } else {
+        bExpense += base;
+      }
+      final cat = t.category.isEmpty ? 'Без категории' : t.category;
+      side.byCategory[cat] = (side.byCategory[cat] ?? 0) + base;
+    }
+  }
+
+  final aSide = MonthComparisonSide(
+    monthKey: a.monthKey,
+    year: a.year,
+    month: a.month,
+    totalExpense: aExpense,
+    totalIncome: aIncome,
+    net: aIncome - aExpense,
+    byCategory: a.byCategory,
+  );
+  final bSide = MonthComparisonSide(
+    monthKey: b.monthKey,
+    year: b.year,
+    month: b.month,
+    totalExpense: bExpense,
+    totalIncome: bIncome,
+    net: bIncome - bExpense,
+    byCategory: b.byCategory,
+  );
+
+  final cats = <String>{...aSide.byCategory.keys, ...bSide.byCategory.keys};
+  final categories = <CategoryDelta>[];
+  for (final category in cats) {
+    final av = aSide.byCategory[category] ?? 0;
+    final bv = bSide.byCategory[category] ?? 0;
+    categories.add(CategoryDelta(category: category, a: av, b: bv, delta: bv - av));
+  }
+  categories.sort((x, y) => y.delta.abs().compareTo(x.delta.abs()));
+
+  return MonthlyComparison(
+    a: aSide,
+    b: bSide,
+    expenseDelta: bSide.totalExpense - aSide.totalExpense,
+    incomeDelta: bSide.totalIncome - aSide.totalIncome,
+    netDelta: bSide.net - aSide.net,
+    categories: categories,
+  );
 }

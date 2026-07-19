@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/finance/recurring_review_card.dart';
 import 'features/security/pin_lock_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'router/app_router.dart';
@@ -29,6 +30,8 @@ class _VibesightAppState extends ConsumerState<VibesightApp>
     // are ready before incoming text is dispatched.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ShareIntentService.instance.attach(ref);
+      // Post any due auto-confirm recurring operations once on startup.
+      processAutoRecurring(ref);
     });
   }
 

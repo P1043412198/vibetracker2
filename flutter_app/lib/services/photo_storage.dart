@@ -14,8 +14,64 @@ class PhotoStorage {
 
   final ImagePicker _picker = ImagePicker();
 
+  /// Absolute path of the app documents directory, cached at startup so it can
+  /// be joined with stored **relative** paths synchronously (e.g. in
+  /// `Image.file`). The container path can change across app updates on iOS,
+  /// which is why we persist relative paths and re-root them at read time.
+  String? _docsPath;
+
+  /// Must be called once during app startup (after the binding is ready).
+  Future<void> init() async {
+    _docsPath = (await getApplicationDocumentsDirectory()).path;
+  }
+
+  String? get docsPath => _docsPath;
+
+  /// Resolve a stored photo reference to an absolute path usable by
+  /// `File`/`Image.file`. Accepts both new relative paths
+  /// (`bucket/entity/ts.jpg`) and legacy absolute paths; legacy paths whose
+  /// container moved are re-rooted under the current documents directory.
+  String resolve(String stored) {
+    if (stored.isEmpty) return stored;
+    final docs = _docsPath;
+    // Relative path → join with the documents directory.
+    if (!p.isAbsolute(stored)) {
+      return docs == null ? stored : p.join(docs, stored);
+    }
+    // Absolute path that still exists → use as-is.
+    if (File(stored).existsSync()) return stored;
+    // Absolute path whose container moved: re-root the tail under docs.
+    if (docs != null) {
+      final rel = _relativeTail(stored);
+      if (rel != null) {
+        final candidate = p.join(docs, rel);
+        if (File(candidate).existsSync()) return candidate;
+      }
+    }
+    return stored;
+  }
+
+  /// Extract the `bucket/entity/file` tail from a legacy absolute path by
+  /// looking for a known bucket segment.
+  String? _relativeTail(String absolute) {
+    final parts = p.split(absolute);
+    for (var i = 0; i < parts.length; i++) {
+      if (_knownBuckets.contains(parts[i])) {
+        return p.joinAll(parts.sublist(i));
+      }
+    }
+    return null;
+  }
+
+  static const _knownBuckets = {
+    'body_photos',
+    'sphere_photos',
+    'goal_photos',
+  };
+
   /// Pick a single image (gallery), copy it into our app documents and
-  /// return the absolute on-disk path. Returns `null` if the user cancels.
+  /// return a path relative to the documents directory. Returns `null` if the
+  /// user cancels.
   Future<String?> pickAndStore({
     required String bucket,
     required String entityId,
@@ -53,6 +109,7 @@ class PhotoStorage {
     required String entityId,
   }) async {
     final docs = await getApplicationDocumentsDirectory();
+    _docsPath ??= docs.path;
     final dir = Directory(p.join(docs.path, bucket, entityId));
     await dir.create(recursive: true);
     final ext = p.extension(picked.path).isEmpty
@@ -61,13 +118,16 @@ class PhotoStorage {
     final ts = DateTime.now().millisecondsSinceEpoch;
     final dst = p.join(dir.path, '$ts$ext');
     await File(picked.path).copy(dst);
-    return dst;
+    // Store relative to the documents directory so the reference survives
+    // container-path changes across app updates (esp. iOS).
+    return p.join(bucket, entityId, '$ts$ext');
   }
 
-  /// Best-effort delete; missing files are ignored.
+  /// Best-effort delete; missing files are ignored. Accepts relative or
+  /// legacy absolute references.
   Future<void> delete(String path) async {
     try {
-      final f = File(path);
+      final f = File(resolve(path));
       if (await f.exists()) await f.delete();
     } catch (_) {}
   }

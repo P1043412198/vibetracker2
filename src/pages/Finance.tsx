@@ -1594,6 +1594,7 @@ function LoansTab() {
   const [currency, setCurrency] = useState<Currency>(baseCurrency);
   const [rate, setRate] = useState('');
   const [termMonths, setTermMonths] = useState('');
+  const [paymentDay, setPaymentDay] = useState('');
 
   const convertCurrency = useCurrencyConverter();
 
@@ -1633,6 +1634,7 @@ function LoansTab() {
     const totalPayment = monthlyPayment * n;
     const overpayment = totalPayment - S;
 
+    const parsedDay = parseInt(paymentDay, 10);
     addLoan({
       name,
       amount: S,
@@ -1641,7 +1643,8 @@ function LoansTab() {
       termMonths: n,
       monthlyPayment,
       totalPayment,
-      overpayment
+      overpayment,
+      paymentDay: Number.isNaN(parsedDay) ? undefined : Math.min(31, Math.max(1, parsedDay)),
     });
 
     setIsAdding(false);
@@ -1650,6 +1653,7 @@ function LoansTab() {
     setCurrency(baseCurrency);
     setRate('');
     setTermMonths('');
+    setPaymentDay('');
   };
 
   const selectedLoan = loans.find(l => l.id === selectedLoanId);
@@ -2035,6 +2039,19 @@ function LoansTab() {
                   onChange={e => setTermMonths(e.target.value)}
                   className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
                   placeholder="36"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-zinc-500">День платежа (1-31)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="31"
+                  step="1"
+                  value={paymentDay}
+                  onChange={e => setPaymentDay(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-200 rounded-lg px-3 py-2 text-zinc-900 focus:outline-none focus:border-zinc-600"
+                  placeholder="5"
                 />
               </div>
             </div>

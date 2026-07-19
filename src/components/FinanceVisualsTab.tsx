@@ -22,6 +22,8 @@ import { NetWorthChart, type NetWorthPoint } from './charts/NetWorthChart';
 import { CurrencyDonut } from './charts/CurrencyDonut';
 import { ExpensesCalendarHeatmap } from './charts/ExpensesCalendarHeatmap';
 import { currencyExposure } from '../lib/finance/calculators';
+import { computeNetWorthTrend } from '../lib/finance/netWorth';
+import { TrendingDown, TrendingUp, Minus } from 'lucide-react';
 
 type Range = 'month' | 'quarter' | 'year';
 
@@ -163,6 +165,14 @@ export function FinanceVisualsTab() {
     return months;
   }, [accounts, accountIds, transactions, loans, convert, baseCurrency]);
 
+  const netWorthTrend = useMemo(() => {
+    const values = netWorthPoints.map((p) => {
+      const assets = Object.values(p.byCurrency).reduce((s, v) => s + v, 0);
+      return assets - p.liabilities;
+    });
+    return computeNetWorthTrend(values);
+  }, [netWorthPoints]);
+
   const exposure = useMemo(() => {
     const buckets = accounts.map((acc) => ({
       currency: acc.currency,
@@ -240,6 +250,42 @@ export function FinanceVisualsTab() {
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2" title="Чистая стоимость по месяцам">
+          {netWorthTrend && (
+            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+              <div>
+                <div className="text-xs text-zinc-500">Сейчас</div>
+                <div className="text-xl font-bold text-zinc-900">
+                  {fmt(netWorthTrend.current)}
+                </div>
+              </div>
+              <div
+                className={
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold ' +
+                  (netWorthTrend.direction === 'up'
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : netWorthTrend.direction === 'down'
+                      ? 'bg-red-50 text-red-600'
+                      : 'bg-stone-100 text-zinc-500')
+                }
+              >
+                {netWorthTrend.direction === 'up' ? (
+                  <TrendingUp className="w-4 h-4" />
+                ) : netWorthTrend.direction === 'down' ? (
+                  <TrendingDown className="w-4 h-4" />
+                ) : (
+                  <Minus className="w-4 h-4" />
+                )}
+                <span>
+                  {netWorthTrend.change >= 0 ? '+' : '−'}
+                  {fmt(Math.abs(netWorthTrend.change))} за {netWorthPoints.length} мес
+                </span>
+                <span className="opacity-70">
+                  ({netWorthTrend.monthlyRate >= 0 ? '+' : '−'}
+                  {fmt(Math.abs(netWorthTrend.monthlyRate))}/мес)
+                </span>
+              </div>
+            </div>
+          )}
           <NetWorthChart points={netWorthPoints} format={fmt} />
         </Card>
         <Card title="Состав по валютам">

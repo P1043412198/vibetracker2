@@ -9,6 +9,9 @@ const _uuid = Uuid();
 
 enum IncomeSourceType { salary, advance, additional }
 
+/// How a planned expense repeats across months.
+enum ExpenseRecurrence { monthly, once }
+
 class IncomeSource {
   IncomeSource({
     required this.id,
@@ -104,6 +107,8 @@ class PlannedExpense {
     required this.dayFrom,
     required this.dayTo,
     this.category,
+    this.recurrence = ExpenseRecurrence.monthly,
+    this.startMonth,
     this.isPaid = false,
     this.paidDate,
     this.paidAmount,
@@ -118,6 +123,16 @@ class PlannedExpense {
   final int dayFrom;
   final int dayTo;
   final String? category;
+
+  /// How often the expense recurs. [ExpenseRecurrence.monthly] (default)
+  /// repeats every month on the [dayFrom..dayTo] window;
+  /// [ExpenseRecurrence.once] applies only in [startMonth].
+  final ExpenseRecurrence recurrence;
+
+  /// First month the expense applies, as `YYYY-MM`. For monthly it suppresses
+  /// occurrences before this month; for once it is the only month. Null means
+  /// "from now / every month" (legacy behaviour).
+  final String? startMonth;
   final bool isPaid;
   final String? paidDate;
   final double? paidAmount;
@@ -131,6 +146,9 @@ class PlannedExpense {
     int? dayFrom,
     int? dayTo,
     String? category,
+    ExpenseRecurrence? recurrence,
+    String? startMonth,
+    bool clearStartMonth = false,
     bool? isPaid,
     String? paidDate,
     double? paidAmount,
@@ -145,6 +163,8 @@ class PlannedExpense {
       dayFrom: dayFrom ?? this.dayFrom,
       dayTo: dayTo ?? this.dayTo,
       category: category ?? this.category,
+      recurrence: recurrence ?? this.recurrence,
+      startMonth: clearStartMonth ? null : (startMonth ?? this.startMonth),
       isPaid: clearPaid ? false : (isPaid ?? this.isPaid),
       paidDate: clearPaid ? null : (paidDate ?? this.paidDate),
       paidAmount: clearPaid ? null : (paidAmount ?? this.paidAmount),
@@ -161,6 +181,8 @@ class PlannedExpense {
         'dayFrom': dayFrom,
         'dayTo': dayTo,
         if (category != null) 'category': category,
+        'recurrence': recurrence.name,
+        if (startMonth != null) 'startMonth': startMonth,
         'isPaid': isPaid,
         if (paidDate != null) 'paidDate': paidDate,
         if (paidAmount != null) 'paidAmount': paidAmount,
@@ -176,6 +198,11 @@ class PlannedExpense {
         dayFrom: (j['dayFrom'] as num).toInt(),
         dayTo: (j['dayTo'] as num).toInt(),
         category: j['category'] as String?,
+        recurrence: ExpenseRecurrence.values.firstWhere(
+          (e) => e.name == j['recurrence'],
+          orElse: () => ExpenseRecurrence.monthly,
+        ),
+        startMonth: j['startMonth'] as String?,
         isPaid: (j['isPaid'] ?? false) as bool,
         paidDate: j['paidDate'] as String?,
         paidAmount: j['paidAmount'] != null
@@ -309,6 +336,10 @@ class BudgetPlanConfig {
                 dayFrom: e.dayFrom,
                 dayTo: e.dayTo,
                 category: e.category,
+                recurrence: e.recurrence,
+                startMonth: e.recurrence == ExpenseRecurrence.once
+                    ? newMonthKey
+                    : e.startMonth,
                 isActive: e.isActive,
                 createdAt: DateTime.now().toIso8601String(),
               ))
@@ -411,6 +442,56 @@ class BudgetPlanStore {
           [],
       selectedMonthKey:
           (j['selectedMonthKey'] ?? defaultKey) as String,
+    );
+  }
+
+  /// Copy a month's recurring income & planned expenses forward into the next
+  /// [count] months (P2). Months that already have a plan are skipped to keep
+  /// their per-month overrides intact, unless [overwrite] is true — in which
+  /// case the plan is replaced while real facts (actual expenses) and account
+  /// links of the target month are preserved.
+  ///
+  /// Returns the resulting store and how many months were written.
+  ({BudgetPlanStore store, int copied}) copyForward(
+    String sourceMonthKey,
+    int count, {
+    bool overwrite = false,
+  }) {
+    if (count < 1) return (store: this, copied: 0);
+    final parts = sourceMonthKey.split('-');
+    if (parts.length < 2) return (store: this, copied: 0);
+    final source = months.firstWhere(
+      (m) => m.monthKey == sourceMonthKey,
+      orElse: () => BudgetPlanConfig.empty(monthKey: sourceMonthKey),
+    );
+    final y = int.parse(parts[0]);
+    final m = int.parse(parts[1]);
+    final next = [...months];
+    var copied = 0;
+    for (var i = 1; i <= count; i++) {
+      final d = DateTime(y, m + i, 1);
+      final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+      final idx = next.indexWhere((mm) => mm.monthKey == key);
+      final exists = idx >= 0;
+      if (exists && !overwrite) continue;
+      var rolled = source.rolloverToMonth(key);
+      if (exists) {
+        rolled = rolled.copyWith(
+          actualExpenses: next[idx].actualExpenses,
+          linkedAccountIds: next[idx].linkedAccountIds,
+        );
+        next[idx] = rolled;
+      } else {
+        next.add(rolled);
+      }
+      copied++;
+    }
+    return (
+      store: BudgetPlanStore(
+        months: next,
+        selectedMonthKey: selectedMonthKey,
+      ),
+      copied: copied,
     );
   }
 

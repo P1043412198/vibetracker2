@@ -23,25 +23,20 @@ const _fixed = [
   (md: '12-25', name: 'Раство Хрыстова (каталіцкае)'),
 ];
 
-/// Orthodox Easter by the simplified Gauss algorithm (Julian → Gregorian).
+/// Orthodox Easter (Meeus Julian algorithm) returned as a Gregorian date.
+///
+/// The algorithm yields the Julian-calendar Easter date, which is then shifted
+/// by the Julian→Gregorian offset (13 days for 1900–2099, computed generally
+/// below) to give the civil Gregorian date used by the Belarus calendar.
 DateTime _orthodoxEaster(int year) {
-  final a = year % 19;
-  final b = year % 4;
-  final c = year % 7;
-  final k = year ~/ 100;
-  final p = (13 + 8 * k) ~/ 25;
-  final q = k ~/ 4;
-  final bigM = (15 - p + k - q) % 30;
-  final bigN = (4 + k - q) % 7;
-  final d = (19 * a + bigM) % 30;
-  final e = (2 * b + 4 * c + 6 * d + bigN) % 7;
-  final julianDay = 22 + d + e;
-  DateTime julian;
-  if (julianDay <= 31) {
-    julian = DateTime.utc(year, 3, julianDay);
-  } else {
-    julian = DateTime.utc(year, 4, julianDay - 31);
-  }
+  final a = year % 4;
+  final b = year % 7;
+  final c = year % 19;
+  final d = (19 * c + 15) % 30;
+  final e = (2 * a + 4 * b - d + 34) % 7;
+  final month = (d + e + 114) ~/ 31; // 3 = March, 4 = April
+  final day = ((d + e + 114) % 31) + 1;
+  final julian = DateTime.utc(year, month, day);
   final offsetDays = year ~/ 100 - year ~/ 400 - 2;
   return julian.add(Duration(days: offsetDays));
 }

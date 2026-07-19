@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/dashboard_config.dart';
+import '../services/budget_planner_calc.dart';
 import '../services/storage.dart';
 
 /// Persisted theme-mode toggle (system/light/dark).
@@ -34,6 +35,118 @@ final themeModeProvider =
 /// Default currency used in finance screens (mirrors React `defaultCurrency`).
 final defaultCurrencyProvider = StateProvider<String>((ref) {
   return AppStorage.readString('defaultCurrency') ?? 'BYN';
+});
+
+/// Untouchable reserve kept aside in the safe-to-spend forecast (base
+/// currency). User-configurable; default 0 (spend down to zero).
+class SafeToSpendReserveController extends StateNotifier<double> {
+  SafeToSpendReserveController() : super(0) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) {
+      state = double.tryParse(stored) ?? 0;
+    }
+  }
+
+  static const _key = 'safeToSpendReserve';
+
+  Future<void> set(double amount) async {
+    final value = amount < 0 ? 0.0 : amount;
+    state = value;
+    await AppStorage.writeString(_key, value.toString());
+  }
+}
+
+final safeToSpendReserveProvider =
+    StateNotifierProvider<SafeToSpendReserveController, double>((ref) {
+  return SafeToSpendReserveController();
+});
+
+/// Selected calculation window for the safe-to-spend card. User-configurable;
+/// default `auto` (until the next salary).
+class SafeToSpendRangeModeController extends StateNotifier<CashflowRangeMode> {
+  SafeToSpendRangeModeController() : super(CashflowRangeMode.auto) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) {
+      state = CashflowRangeMode.values.firstWhere(
+        (m) => m.name == stored,
+        orElse: () => CashflowRangeMode.auto,
+      );
+    }
+  }
+
+  static const _key = 'safeToSpendRangeMode';
+
+  Future<void> set(CashflowRangeMode mode) async {
+    state = mode;
+    await AppStorage.writeString(_key, mode.name);
+  }
+}
+
+final safeToSpendRangeModeProvider =
+    StateNotifierProvider<SafeToSpendRangeModeController, CashflowRangeMode>(
+        (ref) {
+  return SafeToSpendRangeModeController();
+});
+
+/// Custom window bounds (ISO `yyyy-MM-dd`) used when the range mode is
+/// [CashflowRangeMode.custom]. `null` means unset.
+class SafeToSpendCustomRangeController
+    extends StateNotifier<({String? start, String? end})> {
+  SafeToSpendCustomRangeController() : super((start: null, end: null)) {
+    String? clean(String? v) => (v == null || v.isEmpty) ? null : v;
+    state = (
+      start: clean(AppStorage.readString(_startKey)),
+      end: clean(AppStorage.readString(_endKey)),
+    );
+  }
+
+  static const _startKey = 'safeToSpendCustomStart';
+  static const _endKey = 'safeToSpendCustomEnd';
+
+  Future<void> setStart(String? iso) async {
+    state = (start: iso, end: state.end);
+    await AppStorage.writeString(_startKey, iso ?? '');
+  }
+
+  Future<void> setEnd(String? iso) async {
+    state = (start: state.start, end: iso);
+    await AppStorage.writeString(_endKey, iso ?? '');
+  }
+}
+
+final safeToSpendCustomRangeProvider = StateNotifierProvider<
+    SafeToSpendCustomRangeController, ({String? start, String? end})>((ref) {
+  return SafeToSpendCustomRangeController();
+});
+
+/// Account IDs the safe-to-spend forecast is restricted to. Empty = all
+/// accounts. User-configurable; persisted across launches.
+class SafeToSpendAccountIdsController extends StateNotifier<List<String>> {
+  SafeToSpendAccountIdsController() : super(const []) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null && stored.isNotEmpty) {
+      state = stored.split(',').where((s) => s.isNotEmpty).toList();
+    }
+  }
+
+  static const _key = 'safeToSpendAccountIds';
+
+  Future<void> set(List<String> ids) async {
+    state = ids;
+    await AppStorage.writeString(_key, ids.join(','));
+  }
+
+  Future<void> toggle(String id) async {
+    final next = state.contains(id)
+        ? (state.where((x) => x != id).toList())
+        : ([...state, id]);
+    await set(next);
+  }
+}
+
+final safeToSpendAccountIdsProvider =
+    StateNotifierProvider<SafeToSpendAccountIdsController, List<String>>((ref) {
+  return SafeToSpendAccountIdsController();
 });
 
 /// Water goal in ml (default 2000).
@@ -195,6 +308,28 @@ class AiEnabledController extends StateNotifier<bool> {
 final aiEnabledProvider =
     StateNotifierProvider<AiEnabledController, bool>((ref) {
   return AiEnabledController();
+});
+
+/// Privacy: hide habit names (replace titles/descriptions with mask).
+class HideHabitNamesController extends StateNotifier<bool> {
+  HideHabitNamesController() : super(false) {
+    final stored = AppStorage.readString(_key);
+    if (stored != null) state = stored == 'true';
+  }
+
+  static const _key = 'hideHabitNames';
+
+  Future<void> set(bool hidden) async {
+    state = hidden;
+    await AppStorage.writeString(_key, hidden.toString());
+  }
+
+  Future<void> toggle() => set(!state);
+}
+
+final hideHabitNamesProvider =
+    StateNotifierProvider<HideHabitNamesController, bool>((ref) {
+  return HideHabitNamesController();
 });
 
 /// Whether Claude can execute tools (write to user data: add/delete tasks,

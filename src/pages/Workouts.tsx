@@ -1,80 +1,55 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Dumbbell, LineChart, User, Plus, Folder, Play, ChevronRight, ChevronLeft, ChevronDown, Edit2, Trash2, X, Video, Settings, Save, Calendar, Activity, Camera, ImageIcon, Timer, Check, Move, Sparkles, Award, Flame, Zap, TrendingUp, PieChart as PieChartIcon, Loader2 } from 'lucide-react';
+import { Dumbbell, LineChart, User, Plus, Folder, Play, ChevronRight, ChevronLeft, ChevronDown, Edit2, Trash2, X, Video, Settings, Save, Calendar, Activity, Camera, ImageIcon, Timer, Check, Move, Sparkles, Award, Flame, Zap, TrendingUp, Loader2, Square, History as HistoryIcon, BarChart3, CalendarDays } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { cn } from '../lib/utils';
-import { WorkoutNode, WorkoutMetric, BodyMeasurement, PlannedWorkoutStatus, PlannedWorkout, MuscleGroup } from '../types';
-import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { WorkoutNode, WorkoutMetric, BodyMeasurement, PlannedWorkoutStatus, MuscleGroup, ExerciseLog } from '../types';
+import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar } from 'recharts';
 import { WorkoutTimer } from '../components/WorkoutTimer';
 import { MuscleHeatmap } from '../components/MuscleHeatmap';
-import { CameraTracker } from '../components/CameraTracker';
-import { HistoryTab } from '../components/HistoryTab';
 import { generateWorkout } from '../services/aiService';
 import { WORKOUT_PROGRAMS, WorkoutProgramTemplate } from '../data/workoutPrograms';
 import { BookOpen } from 'lucide-react';
+import { WorkoutJournal } from '../components/HistoryTab';
+import { METRIC_LABEL, METRIC_UNIT, fmtNum, setSummary as fmtSet, volumeOf, oneRepMax, bestWeight, exercisesUnder, formatDuration, todayISO } from '../lib/workout';
+
+type WorkoutTab = 'today' | 'programs' | 'progress' | 'body';
+
+const TABS: { id: WorkoutTab; label: string; icon: typeof Dumbbell }[] = [
+  { id: 'today', label: 'Сегодня', icon: Play },
+  { id: 'programs', label: 'Программы', icon: Dumbbell },
+  { id: 'progress', label: 'Прогресс', icon: LineChart },
+  { id: 'body', label: 'Тело', icon: User },
+];
 
 export function Workouts() {
-  const [activeTab, setActiveTab] = useState<'workouts' | 'calendar' | 'analytics' | 'profile' | 'history'>('workouts');
+  const [activeTab, setActiveTab] = useState<WorkoutTab>('today');
 
   return (
     <div className="space-y-6 pb-24">
       <header>
-        <h1 className="text-xl font-bold text-zinc-900 mb-2">Занятия</h1>
-        <p className="text-zinc-500">Тренировки, прогресс и измерения</p>
+        <h1 className="text-xl font-bold text-zinc-900 mb-2">Тренировки</h1>
+        <p className="text-zinc-500">Сессии, прогресс и измерения</p>
       </header>
 
       {/* Tabs */}
-      <div className="grid grid-cols-5 gap-1 bg-white/60 p-1 rounded-xl">
-        <button
-          onClick={() => setActiveTab('workouts')}
-          className={cn(
-            "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'workouts' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
-          )}
-        >
-          <Dumbbell className="w-4 h-4 sm:w-4 sm:h-4" />
-          <span>Программы</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('calendar')}
-          className={cn(
-            "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'calendar' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
-          )}
-        >
-          <Calendar className="w-4 h-4 sm:w-4 sm:h-4" />
-          <span>Календарь</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('analytics')}
-          className={cn(
-            "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'analytics' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
-          )}
-        >
-          <LineChart className="w-4 h-4 sm:w-4 sm:h-4" />
-          <span>Аналитика</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          className={cn(
-            "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'history' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
-          )}
-        >
-          <Timer className="w-4 h-4 sm:w-4 sm:h-4" />
-          <span>История</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={cn(
-            "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
-            activeTab === 'profile' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
-          )}
-        >
-          <User className="w-4 h-4 sm:w-4 sm:h-4" />
-          <span>Профиль</span>
-        </button>
+      <div className="grid grid-cols-4 gap-1 bg-white/60 p-1 rounded-xl">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={cn(
+                "flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 py-2 rounded-lg text-[10px] sm:text-sm font-medium transition-all",
+                activeTab === t.id ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       <motion.div
@@ -83,11 +58,10 @@ export function Workouts() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
       >
-        {activeTab === 'workouts' && <WorkoutsTab />}
-        {activeTab === 'calendar' && <CalendarTab />}
-        {activeTab === 'analytics' && <AnalyticsTab />}
-        {activeTab === 'history' && <HistoryTab />}
-        {activeTab === 'profile' && <ProfileTab />}
+        {activeTab === 'today' && <TodayTab />}
+        {activeTab === 'programs' && <WorkoutsTab />}
+        {activeTab === 'progress' && <ProgressTab />}
+        {activeTab === 'body' && <BodyTab />}
       </motion.div>
 
       <WorkoutTimer />
@@ -102,7 +76,7 @@ function WorkoutsTab() {
   const [selectedExercise, setSelectedExercise] = useState<WorkoutNode | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [genParams, setGenParams] = useState({ duration: 60, focus: 'general', equipment: 'all' });
-  const [showCamera, setShowCamera] = useState(false);
+  const [showAI, setShowAI] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
 
   const handleApplyProgram = (program: WorkoutProgramTemplate) => {
@@ -185,6 +159,7 @@ function WorkoutsTab() {
       console.error(error);
     } finally {
       setIsGenerating(false);
+      setShowAI(false);
     }
   };
 
@@ -196,13 +171,6 @@ function WorkoutsTab() {
         <h2 className="text-xl font-semibold text-zinc-900">Мои программы</h2>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setShowCamera(true)}
-            className="p-2 bg-stone-100 text-zinc-900 rounded-lg hover:bg-stone-200 transition-colors"
-            title="Тренировка с камерой"
-          >
-            <Camera className="w-5 h-5" />
-          </button>
-          <button
             onClick={() => setShowTemplates(true)}
             className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-xs font-medium text-emerald-600 hover:bg-emerald-500/20 transition-all"
             title="Готовые программы"
@@ -211,16 +179,12 @@ function WorkoutsTab() {
             Шаблоны
           </button>
           <button
-            onClick={handleGenerateWorkout}
-            disabled={isGenerating}
-            className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-xs font-medium text-indigo-400 hover:bg-indigo-500/20 transition-all disabled:opacity-50"
+            onClick={() => setShowAI(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-xs font-medium text-indigo-500 hover:bg-indigo-500/20 transition-all"
+            title="Сгенерировать тренировку с AI"
           >
-            {isGenerating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
-            )}
-            {isGenerating ? 'Генерируем...' : 'AI План'}
+            <Sparkles className="w-4 h-4" />
+            AI
           </button>
           <button
             onClick={() => setIsAddingRoot(true)}
@@ -230,8 +194,6 @@ function WorkoutsTab() {
           </button>
         </div>
       </div>
-
-      {showCamera && <CameraTracker onClose={() => setShowCamera(false)} />}
 
       <AnimatePresence>
         {showTemplates && (
@@ -327,13 +289,52 @@ function WorkoutsTab() {
         </form>
       )}
 
-      <div className="bg-white/60 p-4 rounded-xl border border-stone-200 space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-          <input type="number" value={genParams.duration} onChange={e => setGenParams({...genParams, duration: parseInt(e.target.value)})} placeholder="Минуты" className="bg-stone-100 rounded px-2 py-1 text-xs text-zinc-900" />
-          <input type="text" value={genParams.focus} onChange={e => setGenParams({...genParams, focus: e.target.value})} placeholder="Акцент" className="bg-stone-100 rounded px-2 py-1 text-xs text-zinc-900" />
-          <input type="text" value={genParams.equipment} onChange={e => setGenParams({...genParams, equipment: e.target.value})} placeholder="Оборудование" className="bg-stone-100 rounded px-2 py-1 text-xs text-zinc-900" />
-        </div>
-      </div>
+      <AnimatePresence>
+        {showAI && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => !isGenerating && setShowAI(false)}
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              className="bg-white rounded-t-3xl sm:rounded-3xl border border-stone-200 max-w-md w-full p-5 space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-zinc-900 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                  AI-генерация тренировки
+                </h3>
+                <button onClick={() => !isGenerating && setShowAI(false)} className="text-zinc-500 hover:text-zinc-900">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-xs text-zinc-500">Подберём упражнения под ваши параметры. Результат появится в «Мои программы» как папка.</p>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-zinc-600">Длительность (мин)</label>
+                <input type="number" value={genParams.duration} onChange={e => setGenParams({...genParams, duration: parseInt(e.target.value) || 0})} className="w-full bg-stone-100 rounded-lg px-3 py-2 text-sm text-zinc-900" />
+                <label className="text-xs font-medium text-zinc-600">Акцент</label>
+                <input type="text" value={genParams.focus} onChange={e => setGenParams({...genParams, focus: e.target.value})} placeholder="например, грудь и руки" className="w-full bg-stone-100 rounded-lg px-3 py-2 text-sm text-zinc-900" />
+                <label className="text-xs font-medium text-zinc-600">Оборудование</label>
+                <input type="text" value={genParams.equipment} onChange={e => setGenParams({...genParams, equipment: e.target.value})} placeholder="all / штанга, гантели" className="w-full bg-stone-100 rounded-lg px-3 py-2 text-sm text-zinc-900" />
+              </div>
+              <button
+                onClick={handleGenerateWorkout}
+                disabled={isGenerating}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-500 text-white rounded-xl text-sm font-medium hover:bg-indigo-600 transition-colors disabled:opacity-50"
+              >
+                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {isGenerating ? 'Генерируем…' : 'Сгенерировать'}
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="space-y-2">
         {rootNodes.map(node => (
@@ -1316,6 +1317,51 @@ function GeneralAnalytics() {
     cardio: maxMuscleVolume > 0 ? muscleVolume.cardio / maxMuscleVolume : 0,
   };
 
+  // Weekly training volume for the last 8 weeks (Mon-anchored).
+  const weekAnchor = new Date(today);
+  const dow = (weekAnchor.getDay() + 6) % 7; // 0 = Monday
+  weekAnchor.setDate(weekAnchor.getDate() - dow);
+  weekAnchor.setHours(0, 0, 0, 0);
+  const weeklyVolume = Array.from({ length: 8 }).map((_, i) => {
+    const ws = new Date(weekAnchor);
+    ws.setDate(ws.getDate() - 7 * (7 - i));
+    const we = new Date(ws);
+    we.setDate(we.getDate() + 7);
+    const vol = exerciseLogs.reduce((sum, log) => {
+      const d = new Date(log.date);
+      if (d >= ws && d < we && log.metrics.weight && log.metrics.reps) {
+        return sum + log.metrics.weight * log.metrics.reps;
+      }
+      return sum;
+    }, 0);
+    return { label: `${ws.getDate()}.${ws.getMonth() + 1}`, volume: Math.round(vol) };
+  });
+  const hasWeeklyVolume = weeklyVolume.some(w => w.volume > 0);
+
+  // All-time volume distribution by muscle group.
+  const MUSCLE_COLORS: Record<MuscleGroup, string> = {
+    chest: '#6366f1', back: '#0ea5e9', legs: '#f97316', shoulders: '#a855f7',
+    arms: '#ec4899', core: '#f59e0b', cardio: '#10b981',
+  };
+  const MUSCLE_LABELS: Record<MuscleGroup, string> = {
+    chest: 'Грудь', back: 'Спина', legs: 'Ноги', shoulders: 'Плечи',
+    arms: 'Руки', core: 'Кор', cardio: 'Кардио',
+  };
+  const muscleAllTime: Record<MuscleGroup, number> = {
+    chest: 0, back: 0, legs: 0, shoulders: 0, arms: 0, core: 0, cardio: 0,
+  };
+  exerciseLogs.forEach(log => {
+    const ex = workoutNodes.find(n => n.id === log.exerciseId);
+    if (!ex?.muscleGroup) return;
+    const w = log.metrics.weight || 0;
+    const r = log.metrics.reps || 0;
+    muscleAllTime[ex.muscleGroup] += w > 0 && r > 0 ? w * r : (log.metrics.time || 10);
+  });
+  const muscleSplit = (Object.entries(muscleAllTime) as [MuscleGroup, number][])
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const muscleTotal = muscleSplit.reduce((s, [, v]) => s + v, 0);
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
@@ -1375,6 +1421,59 @@ function GeneralAnalytics() {
           })}
         </div>
       </div>
+
+      {hasWeeklyVolume && (
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+          <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-orange-400" />
+            Объём по неделям (8 недель)
+          </h2>
+          <div className="h-[200px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={weeklyVolume} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="wkVol" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f97316" stopOpacity={0.95} />
+                    <stop offset="100%" stopColor="#f97316" stopOpacity={0.45} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" vertical={false} />
+                <XAxis dataKey="label" stroke="#a8a29e" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#a8a29e" fontSize={10} tickLine={false} axisLine={false} width={40} />
+                <Tooltip cursor={{ fill: 'rgba(249,115,22,0.08)' }} contentStyle={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: '8px', fontSize: '12px' }} />
+                <Bar dataKey="volume" name="Объём (кг)" fill="url(#wkVol)" radius={[6, 6, 0, 0]} animationDuration={800} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {muscleSplit.length >= 2 && (
+        <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
+          <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-indigo-400" />
+            Распределение по группам мышц
+          </h2>
+          <div className="flex w-full h-3.5 rounded-full overflow-hidden">
+            {muscleSplit.map(([m, v]) => (
+              <div
+                key={m}
+                className="h-full transition-all"
+                style={{ width: `${(v / muscleTotal) * 100}%`, backgroundColor: MUSCLE_COLORS[m] }}
+                title={`${MUSCLE_LABELS[m]}: ${Math.round((v / muscleTotal) * 100)}%`}
+              />
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {muscleSplit.map(([m, v]) => (
+              <div key={m} className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: MUSCLE_COLORS[m] }} />
+                <span className="text-xs text-zinc-500">{MUSCLE_LABELS[m]} · {Math.round((v / muscleTotal) * 100)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white/60 p-4 rounded-2xl border border-stone-200/70">
         <h2 className="text-base font-semibold text-zinc-900 mb-4 flex items-center gap-2">
@@ -2071,8 +2170,6 @@ function ProfileTab() {
 
   return (
     <div className="space-y-6">
-      <DailyActivityTracker />
-
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-zinc-900">Измерения тела</h2>
         <button
@@ -2361,6 +2458,406 @@ function ProfileTab() {
             </div>
           ))
         )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Прогресс — Журнал / Аналитика
+// ---------------------------------------------------------------------------
+
+function ProgressTab() {
+  const [view, setView] = useState<'journal' | 'analytics'>('journal');
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-1 bg-white/60 p-1 rounded-xl">
+        <button
+          onClick={() => setView('journal')}
+          className={cn(
+            "flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all",
+            view === 'journal' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
+          )}
+        >
+          <HistoryIcon className="w-4 h-4" />
+          Журнал
+        </button>
+        <button
+          onClick={() => setView('analytics')}
+          className={cn(
+            "flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-all",
+            view === 'analytics' ? "bg-stone-100 text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-800"
+          )}
+        >
+          <BarChart3 className="w-4 h-4" />
+          Аналитика
+        </button>
+      </div>
+
+      {view === 'journal' ? (
+        <WorkoutJournal />
+      ) : (
+        <div className="space-y-8">
+          <GeneralAnalytics />
+          <ExerciseAnalytics />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Тело — активность, графики тела, измерения + фото
+// ---------------------------------------------------------------------------
+
+function BodyTab() {
+  return (
+    <div className="space-y-6">
+      <DailyActivityTracker />
+      <BodyAnalytics />
+      <ProfileTab />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Сегодня — активная сессия, запись подходов, таймер отдыха
+// ---------------------------------------------------------------------------
+
+function useNow(active: boolean) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [active]);
+  return now;
+}
+
+function TodayTab() {
+  const {
+    workoutNodes, workoutSessions, exerciseLogs, plannedWorkouts,
+    startWorkoutSession, finishWorkoutSession, deleteWorkoutSession,
+    togglePlannedWorkout,
+  } = useStore();
+
+  const today = todayISO();
+  const active = (workoutSessions || []).find((s) => s.status === 'active');
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [extraExercises, setExtraExercises] = useState<string[]>([]);
+  const [showPicker, setShowPicker] = useState(false);
+
+  const now = useNow(!!active);
+
+  const rootFolders = workoutNodes.filter((n) => n.parentId === null && n.type === 'folder');
+  const todaysPlanned = (plannedWorkouts || []).filter((p) => p.date === today && p.status === 'planned');
+
+  const handleStart = (init?: { programId?: string; label?: string }) => {
+    startWorkoutSession({ ...init, date: today });
+    setExtraExercises([]);
+  };
+
+  const handleFinish = () => {
+    if (!active) return;
+    finishWorkoutSession(active.id);
+    if (todaysPlanned.length > 0) togglePlannedWorkout(today, 'completed');
+    setExtraExercises([]);
+  };
+
+  const handleDiscard = () => {
+    if (!active) return;
+    if (confirm('Отменить тренировку? Записанные подходы будут удалены.')) {
+      deleteWorkoutSession(active.id, { deleteLogs: true });
+      setExtraExercises([]);
+    }
+  };
+
+  // ---- Start screen -------------------------------------------------------
+  if (!active) {
+    return (
+      <div className="space-y-5">
+        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-3xl p-6 text-white">
+          <p className="text-emerald-50/90 text-sm capitalize">
+            {new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+          <h2 className="text-2xl font-bold mt-1">Готовы тренироваться?</h2>
+          <p className="text-emerald-50/80 text-sm mt-1">Начните сессию — подходы запишутся в журнал.</p>
+          <button
+            onClick={() => handleStart()}
+            className="mt-4 w-full bg-white text-emerald-700 font-semibold rounded-xl py-3 flex items-center justify-center gap-2 hover:bg-emerald-50 transition-colors"
+          >
+            <Play className="w-5 h-5" />
+            Быстрый старт
+          </button>
+        </div>
+
+        {todaysPlanned.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-zinc-700">Запланировано на сегодня</h3>
+            {todaysPlanned.map((p) => {
+              const prog = p.programId ? workoutNodes.find((n) => n.id === p.programId) : undefined;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => handleStart({ programId: p.programId, label: p.label || prog?.name })}
+                  className="w-full bg-white/60 border border-stone-200 rounded-2xl p-4 flex items-center justify-between hover:border-emerald-300 transition-colors"
+                >
+                  <span className="font-medium text-zinc-900">{p.label || prog?.name || 'Тренировка'}</span>
+                  <span className="text-emerald-600 text-sm flex items-center gap-1"><Play className="w-4 h-4" /> Начать</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {rootFolders.length > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-zinc-700">Начать по программе</h3>
+            {rootFolders.map((f) => {
+              const count = exercisesUnder(workoutNodes, f.id).length;
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => handleStart({ programId: f.id, label: f.name })}
+                  className="w-full bg-white/60 border border-stone-200 rounded-2xl p-4 flex items-center justify-between hover:border-emerald-300 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Folder className="w-4 h-4 text-emerald-500" />
+                    <span className="font-medium text-zinc-900">{f.name}</span>
+                  </span>
+                  <span className="text-xs text-zinc-500">{count} упр.</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <button
+          onClick={() => setShowCalendar((v) => !v)}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/60 border border-stone-200 rounded-xl text-sm font-medium text-zinc-600 hover:text-zinc-900 transition-colors"
+        >
+          <CalendarDays className="w-4 h-4" />
+          {showCalendar ? 'Скрыть календарь' : 'Календарь и планирование'}
+        </button>
+        {showCalendar && <CalendarTab />}
+      </div>
+    );
+  }
+
+  // ---- Active session -----------------------------------------------------
+  const sessionLogs = exerciseLogs.filter((l) => l.sessionId === active.id);
+  const programExercises = active.programId ? exercisesUnder(workoutNodes, active.programId) : [];
+  const loggedIds = Array.from(new Set(sessionLogs.map((l) => l.exerciseId)));
+  const exerciseIds = Array.from(new Set([
+    ...programExercises.map((e) => e.id),
+    ...extraExercises,
+    ...loggedIds,
+  ]));
+  const exerciseNodes = exerciseIds
+    .map((id) => workoutNodes.find((n) => n.id === id))
+    .filter((n): n is WorkoutNode => !!n);
+
+  const elapsedSec = Math.max(0, Math.floor((now - new Date(active.startedAt).getTime()) / 1000));
+  const allExercises = workoutNodes.filter((n) => n.type === 'exercise');
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-gradient-to-br from-zinc-900 to-zinc-700 rounded-3xl p-5 text-white">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-zinc-300 text-xs">Идёт тренировка</p>
+            <h2 className="text-xl font-bold">{active.label || 'Тренировка'}</h2>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-mono font-bold tabular-nums">{formatDuration(elapsedSec)}</div>
+            <p className="text-zinc-400 text-xs">{sessionLogs.length} подх. · объём {fmtNum(volumeOf(sessionLogs))}</p>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={handleFinish}
+            className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-xl py-2.5 flex items-center justify-center gap-2 transition-colors"
+          >
+            <Check className="w-5 h-5" />
+            Завершить
+          </button>
+          <button
+            onClick={handleDiscard}
+            className="px-4 bg-white/10 hover:bg-white/20 text-white rounded-xl flex items-center justify-center transition-colors"
+            title="Отменить тренировку"
+          >
+            <Square className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {exerciseNodes.length === 0 && (
+        <p className="text-center text-zinc-500 py-6 text-sm">
+          Добавьте упражнение, чтобы начать записывать подходы.
+        </p>
+      )}
+
+      {exerciseNodes.map((node) => (
+        <SetLogger key={node.id} node={node} sessionId={active.id} sessionDate={active.date} sessionLogs={sessionLogs} />
+      ))}
+
+      <button
+        onClick={() => setShowPicker(true)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 bg-white/60 border border-dashed border-stone-300 rounded-xl text-sm font-medium text-zinc-600 hover:text-zinc-900 hover:border-emerald-300 transition-colors"
+      >
+        <Plus className="w-4 h-4" />
+        Добавить упражнение
+      </button>
+
+      <AnimatePresence>
+        {showPicker && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowPicker(false)}
+          >
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 40, opacity: 0 }}
+              className="bg-white rounded-t-3xl sm:rounded-3xl border border-stone-200 max-w-md w-full max-h-[80vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="sticky top-0 bg-white border-b border-stone-200 p-4 flex items-center justify-between rounded-t-3xl z-10">
+                <h3 className="font-semibold text-zinc-900">Добавить упражнение</h3>
+                <button onClick={() => setShowPicker(false)} className="text-zinc-500 hover:text-zinc-900">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-3 space-y-1">
+                {allExercises.length === 0 && (
+                  <p className="text-sm text-zinc-500 text-center py-4">
+                    Нет упражнений. Создайте их во вкладке «Программы».
+                  </p>
+                )}
+                {allExercises.map((ex) => {
+                  const already = exerciseIds.includes(ex.id);
+                  return (
+                    <button
+                      key={ex.id}
+                      disabled={already}
+                      onClick={() => {
+                        setExtraExercises((prev) => [...prev, ex.id]);
+                        setShowPicker(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-2 transition-colors",
+                        already ? "opacity-40" : "hover:bg-stone-100"
+                      )}
+                    >
+                      <Dumbbell className="w-4 h-4 text-emerald-500" />
+                      <span className="text-sm text-zinc-900 flex-1">{ex.name}</span>
+                      {already && <Check className="w-4 h-4 text-emerald-500" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function SetLogger({
+  node, sessionId, sessionDate, sessionLogs,
+}: {
+  node: WorkoutNode;
+  sessionId: string;
+  sessionDate: string;
+  sessionLogs: ExerciseLog[];
+}) {
+  const { logExercise, deleteExerciseLog, exerciseLogs, startTimer } = useStore();
+  const metrics: WorkoutMetric[] = node.metrics && node.metrics.length > 0 ? node.metrics : ['weight', 'reps'];
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  const setsThisSession = sessionLogs.filter((l) => l.exerciseId === node.id);
+
+  const priorLogs = exerciseLogs.filter((l) => l.exerciseId === node.id && l.sessionId !== sessionId);
+  const lastDate = priorLogs.reduce<string | null>((mx, l) => (mx === null || l.date > mx ? l.date : mx), null);
+  const lastSets = lastDate ? priorLogs.filter((l) => l.date === lastDate) : [];
+
+  const allTimeBest = bestWeight(exerciseLogs, node.id);
+
+  const addSet = () => {
+    const m: Partial<Record<WorkoutMetric, number>> = {};
+    metrics.forEach((k) => {
+      const v = parseFloat(values[k]);
+      if (!Number.isNaN(v)) m[k] = v;
+    });
+    if (Object.keys(m).length === 0) return;
+    logExercise({ exerciseId: node.id, date: sessionDate, metrics: m, sessionId, restTime: node.restTime });
+    if (node.restTime && node.restTime > 0) startTimer(node.restTime);
+  };
+
+  return (
+    <div className="bg-white/60 border border-stone-200 rounded-2xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-stone-200/70">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-stone-100 rounded-lg">
+            <Dumbbell className="w-4 h-4 text-emerald-500" />
+          </div>
+          <span className="font-medium text-zinc-900 flex-1">{node.name}</span>
+          {node.restTime ? <span className="text-[11px] text-zinc-400 flex items-center gap-1"><Timer className="w-3 h-3" />{node.restTime}с</span> : null}
+        </div>
+        {lastSets.length > 0 && (
+          <p className="text-[11px] text-zinc-500 mt-1.5 pl-9">
+            В прошлый раз: {lastSets.map(fmtSet).join('  ·  ')}
+          </p>
+        )}
+      </div>
+
+      {setsThisSession.length > 0 && (
+        <div className="px-4 py-2 space-y-1 bg-stone-50/60">
+          {setsThisSession.map((s, i) => {
+            const isPr = (s.metrics.weight ?? 0) > 0 && (s.metrics.weight ?? 0) >= allTimeBest;
+            return (
+              <div key={s.id} className="flex items-center gap-2 text-sm">
+                <span className="text-zinc-400 w-5">{i + 1}.</span>
+                <span className="text-zinc-800 flex-1">{fmtSet(s)}</span>
+                {isPr && (
+                  <span className="text-[10px] font-bold text-amber-600 bg-amber-100 rounded-full px-1.5 py-0.5 flex items-center gap-0.5">
+                    <Award className="w-3 h-3" /> PR
+                  </span>
+                )}
+                <button onClick={() => deleteExerciseLog(s.id)} className="text-zinc-400 hover:text-red-500">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="p-3 flex items-end gap-2 flex-wrap">
+        {metrics.map((k) => (
+          <div key={k} className="flex-1 min-w-[72px]">
+            <label className="text-[10px] text-zinc-500">{METRIC_LABEL[k]}</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={values[k] ?? ''}
+              onChange={(e) => setValues((prev) => ({ ...prev, [k]: e.target.value }))}
+              placeholder={METRIC_UNIT[k]}
+              className="w-full bg-stone-100 rounded-lg px-2.5 py-2 text-sm text-zinc-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+            />
+          </div>
+        ))}
+        <button
+          onClick={addSet}
+          className="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-medium hover:bg-emerald-600 transition-colors flex items-center gap-1"
+        >
+          <Plus className="w-4 h-4" />
+          Подход
+        </button>
       </div>
     </div>
   );
